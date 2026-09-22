@@ -103,6 +103,48 @@ public sealed class SensorReadings
     /// <inheritdoc cref="SensorSnapshot.BiomassCommandPending"/>
     public bool? BiomassCommandPending { get; set; }
 
+    // ---- External bath / thermal cascade (Hub 10.5.1) --------------------
+    public bool HasBathTelemetry { get; set; }
+    public bool BathOnline { get; set; }
+    public bool? BathCommEnabled { get; set; }
+    public bool? BathCommandPending { get; set; }
+    public long BathCommandId { get; set; }
+    public long BathCommandAck { get; set; }
+    public int BathTempControlMode { get; set; } = -1;
+    public bool? TempControlViaBath { get; set; }
+    public bool? BathCascadeEnabled { get; set; }
+    public string BathCascadeState { get; set; } = "";
+    public bool BathCommandLatestWins { get; set; }
+    public bool BathCommandCompletionPending { get; set; }
+    public long BathCommandLastSentId { get; set; }
+    public long BathCommandLastDoneId { get; set; }
+    public int BathCommandCompletionAgeMs { get; set; }
+    public double? TempSetpoint { get; set; }
+    public double? BathSp { get; set; }
+    public double? BathTarget { get; set; }
+    public double? BathPv { get; set; }
+    public double? BathDisplaySp { get; set; }
+    public string BathState { get; set; } = "";
+    public string BathPhase { get; set; } = "";
+    public string BathError { get; set; } = "";
+    public int? BathMode { get; set; }
+    public string BathGuard { get; set; } = "";
+    public double? BathDeviation { get; set; }
+    public int? BathSpSource { get; set; }
+    public double? BathCommandSetpoint { get; set; }
+    public double? BathCommandConfirmed { get; set; }
+    public string BathIP => BathNode.Ip ?? "";
+    public string? BathNodeVer => BathNode.FirmwareVersion;
+    public string? BathNodeMac => BathNode.Mac;
+    public ExternalNodeIdentity BathNode { get; set; } = ExternalNodeIdentity.Empty;
+    public double? BathCascadeError { get; set; }
+    public double? BathCascadePvFiltered { get; set; }
+    public double? BathCascadeP { get; set; }
+    public double? BathCascadeI { get; set; }
+    public bool BathCascadeSaturated { get; set; }
+    public string BathCascadePausedReason { get; set; } = "";
+    public long BathCascadeLastUpdateMs { get; set; }
+
     /// <summary>True while the ESP32 reports its internal sensor-module UART healthy.</summary>
     public bool SensorCommOk { get; set; } = true;
 
@@ -289,6 +331,9 @@ public sealed class SensorReadings
     /// <summary>When a frame last carried servo values. Null before the first one.</summary>
     internal DateTimeOffset? ServoLastSeenAt { get; set; }
 
+    /// <summary>When a frame last carried bath telemetry.</summary>
+    internal DateTimeOffset? BathLastSeenAt { get; set; }
+
     /// <summary>Treats the current device clock as the run's zero point.</summary>
     public void ZeroTime() => TimeOffsetMinutes = TimeRawSeconds / 60.0;
 
@@ -327,6 +372,43 @@ public sealed class SensorReadings
         BiomassOnline = BiomassOnline,
         BiomassCommEnabled = BiomassCommEnabled,
         BiomassCommandPending = BiomassCommandPending,
+        HasBathTelemetry = HasBathTelemetry,
+        BathOnline = BathOnline,
+        BathCommEnabled = BathCommEnabled,
+        BathCommandPending = BathCommandPending,
+        BathCommandId = BathCommandId,
+        BathCommandAck = BathCommandAck,
+        BathTempControlMode = BathTempControlMode,
+        TempControlViaBath = TempControlViaBath,
+        BathCascadeEnabled = BathCascadeEnabled,
+        BathCascadeState = BathCascadeState,
+        BathCommandLatestWins = BathCommandLatestWins,
+        BathCommandCompletionPending = BathCommandCompletionPending,
+        BathCommandLastSentId = BathCommandLastSentId,
+        BathCommandLastDoneId = BathCommandLastDoneId,
+        BathCommandCompletionAgeMs = BathCommandCompletionAgeMs,
+        TempSetpoint = TempSetpoint,
+        BathSp = BathSp,
+        BathTarget = BathTarget,
+        BathPv = BathPv,
+        BathDisplaySp = BathDisplaySp,
+        BathState = BathState,
+        BathPhase = BathPhase,
+        BathError = BathError,
+        BathMode = BathMode,
+        BathGuard = BathGuard,
+        BathDeviation = BathDeviation,
+        BathSpSource = BathSpSource,
+        BathCommandSetpoint = BathCommandSetpoint,
+        BathCommandConfirmed = BathCommandConfirmed,
+        BathNode = BathNode,
+        BathCascadeError = BathCascadeError,
+        BathCascadePvFiltered = BathCascadePvFiltered,
+        BathCascadeP = BathCascadeP,
+        BathCascadeI = BathCascadeI,
+        BathCascadeSaturated = BathCascadeSaturated,
+        BathCascadePausedReason = BathCascadePausedReason,
+        BathCascadeLastUpdateMs = BathCascadeLastUpdateMs,
         SensorCommOk = SensorCommOk,
         PumpFlow = PumpFlow,
         PumpVolume = PumpVolume,
@@ -467,6 +549,45 @@ public sealed record SensorSnapshot
     /// "nothing pending" and must not be read as one.
     /// </summary>
     public bool? BiomassCommandPending { get; init; }
+
+    // ---- External bath / thermal cascade (Hub 10.5.1) --------------------
+    public bool HasBathTelemetry { get; init; }
+    public bool BathOnline { get; init; }
+    public bool? BathCommEnabled { get; init; }
+    public bool? BathCommandPending { get; init; }
+    public long BathCommandId { get; init; }
+    public long BathCommandAck { get; init; }
+    public int BathTempControlMode { get; init; } = -1;
+    public bool? TempControlViaBath { get; init; }
+    public bool? BathCascadeEnabled { get; init; }
+    public string BathCascadeState { get; init; } = "";
+    public bool BathCommandLatestWins { get; init; }
+    public bool BathCommandCompletionPending { get; init; }
+    public long BathCommandLastSentId { get; init; }
+    public long BathCommandLastDoneId { get; init; }
+    public int BathCommandCompletionAgeMs { get; init; }
+    public double? TempSetpoint { get; init; }
+    public double? BathSp { get; init; }
+    public double? BathTarget { get; init; }
+    public double? BathPv { get; init; }
+    public double? BathDisplaySp { get; init; }
+    public string BathState { get; init; } = "";
+    public string BathPhase { get; init; } = "";
+    public string BathError { get; init; } = "";
+    public int? BathMode { get; init; }
+    public string BathGuard { get; init; } = "";
+    public double? BathDeviation { get; init; }
+    public int? BathSpSource { get; init; }
+    public double? BathCommandSetpoint { get; init; }
+    public double? BathCommandConfirmed { get; init; }
+    public ExternalNodeIdentity BathNode { get; init; } = ExternalNodeIdentity.Empty;
+    public double? BathCascadeError { get; init; }
+    public double? BathCascadePvFiltered { get; init; }
+    public double? BathCascadeP { get; init; }
+    public double? BathCascadeI { get; init; }
+    public bool BathCascadeSaturated { get; init; }
+    public string BathCascadePausedReason { get; init; } = "";
+    public long BathCascadeLastUpdateMs { get; init; }
 
     public bool SensorCommOk { get; init; }
     public double PumpFlow { get; init; }

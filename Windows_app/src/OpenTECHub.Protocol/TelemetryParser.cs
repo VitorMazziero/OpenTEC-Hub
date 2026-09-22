@@ -60,6 +60,9 @@ public sealed record ParserConfig
     /// race the Hub and declare the node absent first.
     /// </remarks>
     public TimeSpan ServoTimeout { get; init; } = TimeSpan.FromSeconds(8);
+
+    /// <summary>Hub bath presence window is 5 s; keep a small margin for aggregate polling.</summary>
+    public TimeSpan BathTimeout { get; init; } = TimeSpan.FromSeconds(7);
 }
 
 /// <summary>Outcome of parsing one line read from the device.</summary>
@@ -223,6 +226,7 @@ public sealed class TelemetryParser
         ParseHubIdentity(root);
         ParseNodeIdentity(root);
         ParseServo(root, now);
+        ParseBath(root, now);
         ParseTime(root);
 
         return ParseOutcome.Updated;
@@ -758,6 +762,8 @@ public sealed class TelemetryParser
             TelemetryKeys.FlowmeterIP, TelemetryKeys.FlowmeterNodeVer, TelemetryKeys.FlowmeterNodeMac);
         Readings.BiomassNode = MergeNode(root, Readings.BiomassNode,
             TelemetryKeys.BiomassIP, TelemetryKeys.BiomassNodeVer, TelemetryKeys.BiomassNodeMac);
+        Readings.BathNode = MergeNode(root, Readings.BathNode,
+            TelemetryKeys.BathIP, TelemetryKeys.BathNodeVer, TelemetryKeys.BathNodeMac);
     }
 
     private static ExternalNodeIdentity MergeNode(
@@ -785,6 +791,65 @@ public sealed class TelemetryParser
         return ip == current.Ip && ver == current.FirmwareVersion && mac == current.Mac
             ? current
             : new ExternalNodeIdentity(ip, mac, ver);
+    }
+
+    private void ParseBath(JsonElement root, DateTimeOffset now)
+    {
+        var sawValues = TryGetPropertyCaseInsensitive(root, TelemetryKeys.BathSp, out _) ||
+                        TryGetPropertyCaseInsensitive(root, TelemetryKeys.BathPv, out _) ||
+                        TryGetPropertyCaseInsensitive(root, TelemetryKeys.BathState, out _);
+        var presence = ResolvePresence(
+            root, TelemetryKeys.BathOnline, sawValues, _config.BathTimeout,
+            new Presence(Readings.HasBathTelemetry, Readings.BathOnline, Readings.BathLastSeenAt), now);
+
+        Readings.HasBathTelemetry = presence.HasTelemetry;
+        Readings.BathOnline = presence.Online;
+        Readings.BathLastSeenAt = presence.LastSeenAt;
+        Readings.BathCommEnabled = TryGetBool(root, TelemetryKeys.BathCommEnabled, out var comm) ? comm : null;
+        Readings.BathCommandPending = TryGetBool(root, TelemetryKeys.BathCommandPending, out var pending) ? pending : null;
+        AssignLong(root, TelemetryKeys.BathCommandId, v => Readings.BathCommandId = v);
+        AssignLong(root, TelemetryKeys.BathCommandAck, v => Readings.BathCommandAck = v);
+        AssignInt(root, TelemetryKeys.TempControlMode, v => Readings.BathTempControlMode = v);
+        Readings.TempControlViaBath = TryGetBool(root, TelemetryKeys.TempControlViaBath, out var via) ? via : null;
+        Readings.BathCascadeEnabled = TryGetBool(root, TelemetryKeys.BathCascadeEnabled, out var enabled) ? enabled : null;
+        Readings.BathCommandLatestWins = TryGetBool(root, TelemetryKeys.BathCommandLatestWins, out var latest) && latest;
+        Readings.BathCommandCompletionPending = TryGetBool(root, TelemetryKeys.BathCommandCompletionPending, out var completion) && completion;
+        AssignLong(root, TelemetryKeys.BathCommandLastSentId, v => Readings.BathCommandLastSentId = v);
+        AssignLong(root, TelemetryKeys.BathCommandLastDoneId, v => Readings.BathCommandLastDoneId = v);
+        AssignInt(root, TelemetryKeys.BathCommandCompletionAgeMs, v => Readings.BathCommandCompletionAgeMs = v);
+
+        Readings.TempSetpoint = ReadNullableDouble(root, TelemetryKeys.TempSetpoint);
+        Readings.BathSp = ReadNullableDouble(root, TelemetryKeys.BathSp);
+        Readings.BathTarget = ReadNullableDouble(root, TelemetryKeys.BathTarget);
+        Readings.BathPv = ReadNullableDouble(root, TelemetryKeys.BathPv);
+        Readings.BathDisplaySp = ReadNullableDouble(root, TelemetryKeys.BathDisplaySp);
+        Readings.BathDeviation = ReadNullableDouble(root, TelemetryKeys.BathDeviation);
+        Readings.BathCommandSetpoint = ReadNullableDouble(root, TelemetryKeys.BathCommandSetpoint);
+        Readings.BathCommandConfirmed = ReadNullableDouble(root, TelemetryKeys.BathCommandConfirmed);
+        Readings.BathCascadeError = ReadNullableDouble(root, TelemetryKeys.BathCascadeError);
+        Readings.BathCascadePvFiltered = ReadNullableDouble(root, TelemetryKeys.BathCascadePvFiltered);
+        Readings.BathCascadeP = ReadNullableDouble(root, TelemetryKeys.BathCascadeP);
+        Readings.BathCascadeI = ReadNullableDouble(root, TelemetryKeys.BathCascadeI);
+        if (TryGetCounter(root, TelemetryKeys.BathCascadeLastUpdateMs, out var updateMs))
+            Readings.BathCascadeLastUpdateMs = updateMs;
+
+        Readings.BathMode = TryGetInt(root, TelemetryKeys.BathMode, out var mode) ? mode : null;
+        Readings.BathSpSource = TryGetInt(root, TelemetryKeys.BathSpSource, out var source) ? source : null;
+        Readings.BathCascadeSaturated = TryGetBool(root, TelemetryKeys.BathCascadeSaturated, out var saturated) && saturated;
+        Readings.BathCascadeState = ReadString(root, TelemetryKeys.BathCascadeState) ?? Readings.BathCascadeState;
+        Readings.BathState = ReadString(root, TelemetryKeys.BathState) ?? Readings.BathState;
+        Readings.BathPhase = ReadString(root, TelemetryKeys.BathPhase) ?? Readings.BathPhase;
+        Readings.BathError = ReadString(root, TelemetryKeys.BathError) ?? Readings.BathError;
+        Readings.BathGuard = ReadString(root, TelemetryKeys.BathGuard) ?? Readings.BathGuard;
+        Readings.BathCascadePausedReason = ReadString(root, TelemetryKeys.BathCascadePausedReason) ?? Readings.BathCascadePausedReason;
+
+        if (presence.HasTelemetry && !presence.Online)
+        {
+            Readings.BathSp = null;
+            Readings.BathTarget = null;
+            Readings.BathPv = null;
+            Readings.BathDeviation = null;
+        }
     }
 
     private void ParseServo(JsonElement root, DateTimeOffset now)
@@ -1051,6 +1116,23 @@ public sealed class TelemetryParser
     /// </remarks>
     private static bool TryGetFiniteDouble(JsonElement root, string key, out double value)
         => TryGetDouble(root, key, out value) && double.IsFinite(value);
+
+    private static double? ReadNullableDouble(JsonElement root, string key)
+    {
+        if (!TryGetPropertyCaseInsensitive(root, key, out var element))
+        {
+            return null;
+        }
+
+        return element.ValueKind == JsonValueKind.Null
+            ? null
+            : TryGetFiniteDouble(root, key, out var value) ? value : null;
+    }
+
+    private static string? ReadString(JsonElement root, string key)
+        => TryGetPropertyCaseInsensitive(root, key, out var element) && element.ValueKind == JsonValueKind.String
+            ? element.GetString()
+            : null;
 
     /// <summary>Reads a <c>uint32</c> counter into a <c>long</c>, refusing anything outside the range.</summary>
     /// <remarks>

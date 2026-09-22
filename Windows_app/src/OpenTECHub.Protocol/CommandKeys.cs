@@ -20,6 +20,26 @@ public static class CommandKeys
     // ---- Core loop (Phase 1) ---------------------------------------------
     public const string TempSetpoint = "tempSetpoint";
 
+    // ---- External bath / thermal cascade (Hub 10.5.1) --------------------
+    public const string TempControlMode = "tempControlMode";
+    public const string BathComm = "bathComm";
+    public const string BathMode = "bathMode";
+    public const string BathSync = "bathSync";
+    public const string BathAbort = "bathAbort";
+    public const string BathCascadeReset = "bathCascadeReset";
+    public const string BathCascadeKp = "bathCascadeKp";
+    public const string BathCascadeTiS = "bathCascadeTiS";
+    public const string BathCascadeBiasC = "bathCascadeBiasC";
+    public const string BathCascadePeriodMs = "bathCascadePeriodMs";
+    public const string BathCascadeFilterS = "bathCascadeFilterS";
+    public const string BathCascadeCommandMinMs = "bathCascadeCommandMinMs";
+    public const string BathCascadeCommandBandC = "bathCascadeCommandBandC";
+    public const string BathCascadeSlewCMin = "bathCascadeSlewCMin";
+    public const string BathCascadeOffsetHighC = "bathCascadeOffsetHighC";
+    public const string BathCascadeOffsetLowC = "bathCascadeOffsetLowC";
+    public const string BathCascadeOutputMinC = "bathCascadeOutputMinC";
+    public const string BathCascadeOutputMaxC = "bathCascadeOutputMaxC";
+
     /// <summary>Agitation reference, 0-1000 rpm.</summary>
     /// <remarks>
     /// <para>
@@ -369,6 +389,46 @@ public static class TelemetryKeys
     public const string BiomassIP = "BiomassIP";
     public const string BiomassNodeVer = "BiomassNodeVer";
     public const string BiomassNodeMac = "BiomassNodeMac";
+    public const string BathIP = "BathIP";
+    public const string BathNodeVer = "BathNodeVer";
+    public const string BathNodeMac = "BathNodeMac";
+
+    // ---- External bath / thermal cascade (Hub 10.5.1) --------------------
+    public const string BathOnline = "BathOnline";
+    public const string BathCommEnabled = "BathCommEnabled";
+    public const string BathCommandPending = "BathCommandPending";
+    public const string BathCommandId = "BathCommandId";
+    public const string BathCommandAck = "BathCommandAck";
+    public const string TempControlMode = "TempControlMode";
+    public const string TempControlViaBath = "TempControlViaBath";
+    public const string BathCascadeEnabled = "BathCascadeEnabled";
+    public const string BathCascadeState = "BathCascadeState";
+    public const string BathCommandLatestWins = "BathCommandLatestWins";
+    public const string BathCommandCompletionPending = "BathCommandCompletionPending";
+    public const string BathCommandLastSentId = "BathCommandLastSentId";
+    public const string BathCommandLastDoneId = "BathCommandLastDoneId";
+    public const string BathCommandCompletionAgeMs = "BathCommandCompletionAgeMs";
+    public const string TempSetpoint = "TempSetpoint";
+    public const string BathSp = "BathSp";
+    public const string BathTarget = "BathTarget";
+    public const string BathPv = "BathPv";
+    public const string BathDisplaySp = "BathDisplaySp";
+    public const string BathState = "BathState";
+    public const string BathPhase = "BathPhase";
+    public const string BathError = "BathError";
+    public const string BathMode = "BathMode";
+    public const string BathGuard = "BathGuard";
+    public const string BathDeviation = "BathDeviation";
+    public const string BathSpSource = "BathSpSource";
+    public const string BathCommandSetpoint = "BathCommandSetpoint";
+    public const string BathCommandConfirmed = "BathCommandConfirmed";
+    public const string BathCascadeError = "BathCascadeError";
+    public const string BathCascadePvFiltered = "BathCascadePvFiltered";
+    public const string BathCascadeP = "BathCascadeP";
+    public const string BathCascadeI = "BathCascadeI";
+    public const string BathCascadeSaturated = "BathCascadeSaturated";
+    public const string BathCascadePausedReason = "BathCascadePausedReason";
+    public const string BathCascadeLastUpdateMs = "BathCascadeLastUpdateMs";
 
     // ---- Hub identity (v9) -----------------------------------------------
 

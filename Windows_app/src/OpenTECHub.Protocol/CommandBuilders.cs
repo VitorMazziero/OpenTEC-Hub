@@ -972,6 +972,80 @@ public static class CommandBuilders
         return list;
     }
 
+    // ── External bath / thermal cascade (Hub 10.5.1) ───────────────────────
+
+    /// <summary>Selects the reactor temperature route: UART module or external C404 bath.</summary>
+    public static OpenTECCommand TemperatureRoute(bool externalBath)
+        => OpenTECCommand.Create().Set(CommandKeys.TempControlMode, externalBath ? 1 : 0);
+
+    public static OpenTECCommand BathCommunication(bool enabled)
+        => OpenTECCommand.Create().Set(CommandKeys.BathComm, enabled ? 1 : 0);
+
+    public static OpenTECCommand BathMode(bool automatic)
+        => OpenTECCommand.Create().Set(CommandKeys.BathMode, automatic ? "auto" : "manual");
+
+    /// <summary>Synchronizes the C404 display setpoint; Hub accepts 0..100 °C.</summary>
+    public static OpenTECCommand BathSynchronize(double setpointC)
+    {
+        ValidateFiniteRange(setpointC, 0.0, 100.0, nameof(setpointC));
+        return OpenTECCommand.Create().Set(CommandKeys.BathSync, setpointC);
+    }
+
+    public static OpenTECCommand BathAbort()
+        => OpenTECCommand.Create().Set(CommandKeys.BathAbort, 1);
+
+    public static OpenTECCommand BathCascadeReset()
+        => OpenTECCommand.Create().Set(CommandKeys.BathCascadeReset, 1);
+
+    /// <summary>Applies one or more cascade parameters as a validated transaction.</summary>
+    public static OpenTECCommand BathCascadeTuning(
+        double? kp = null, double? tiS = null, double? biasC = null, int? periodMs = null,
+        double? filterS = null, int? commandMinMs = null, double? commandBandC = null,
+        double? slewCMin = null, double? offsetHighC = null, double? offsetLowC = null,
+        double? outputMinC = null, double? outputMaxC = null)
+    {
+        if (kp is null && tiS is null && biasC is null && periodMs is null && filterS is null &&
+            commandMinMs is null && commandBandC is null && slewCMin is null &&
+            offsetHighC is null && offsetLowC is null && outputMinC is null && outputMaxC is null)
+        {
+            throw new ArgumentException("Pelo menos um parâmetro da cascata deve ser fornecido.");
+        }
+
+        var values = new[] { kp, tiS, biasC, filterS, commandBandC, slewCMin,
+            offsetHighC, offsetLowC, outputMinC, outputMaxC };
+        if (values.Any(v => v is { } value && !double.IsFinite(value)))
+        {
+            throw new ArgumentOutOfRangeException(nameof(kp), "Parâmetros da cascata devem ser finitos.");
+        }
+        if (periodMs is <= 0 or > 600_000 || commandMinMs is <= 0 or > 600_000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(periodMs), "Temporizações da cascata fora da faixa.");
+        }
+
+        var command = OpenTECCommand.Create();
+        if (kp is { } v1) command.Set(CommandKeys.BathCascadeKp, v1);
+        if (tiS is { } v2) command.Set(CommandKeys.BathCascadeTiS, v2);
+        if (biasC is { } v3) command.Set(CommandKeys.BathCascadeBiasC, v3);
+        if (periodMs is { } v4) command.Set(CommandKeys.BathCascadePeriodMs, v4);
+        if (filterS is { } v5) command.Set(CommandKeys.BathCascadeFilterS, v5);
+        if (commandMinMs is { } v6) command.Set(CommandKeys.BathCascadeCommandMinMs, v6);
+        if (commandBandC is { } v7) command.Set(CommandKeys.BathCascadeCommandBandC, v7);
+        if (slewCMin is { } v8) command.Set(CommandKeys.BathCascadeSlewCMin, v8);
+        if (offsetHighC is { } v9) command.Set(CommandKeys.BathCascadeOffsetHighC, v9);
+        if (offsetLowC is { } v10) command.Set(CommandKeys.BathCascadeOffsetLowC, v10);
+        if (outputMinC is { } v11) command.Set(CommandKeys.BathCascadeOutputMinC, v11);
+        if (outputMaxC is { } v12) command.Set(CommandKeys.BathCascadeOutputMaxC, v12);
+        return command;
+    }
+
+    private static void ValidateFiniteRange(double value, double min, double max, string name)
+    {
+        if (!double.IsFinite(value) || value < min || value > max)
+        {
+            throw new ArgumentOutOfRangeException(name, value, $"Valor deve estar entre {min} e {max}.");
+        }
+    }
+
     /// <summary>Requests cached health for one external node, or all five over USB.</summary>
     public static OpenTECCommand NodeDiag(string device)
     {

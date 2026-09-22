@@ -320,6 +320,12 @@ desvio persistente ou nó offline, corrija a causa indicada pelo alarme antes de
 os parâmetros de painel e as séries de gráfico podem ser restaurados na próxima sessão, mas o
 aplicativo nunca envia comandos automaticamente ao abrir.
 
+**Onde fica cada controle.** Abra a linha **Temperatura**: a caixa *Via do setpoint de
+temperatura* escolhe entre *Banho original (UART)* e *Banho externo (C404)*; o setpoint é sempre o
+da própria linha. *Banho externo habilitado no Hub* (rodapé da gaveta) liga a troca de comandos
+entre o Hub e o nó do banho — é pré-requisito para escolher a via externa; com a cascata ativa,
+desligá-lo equivale a *Parar banho*.
+
 **Estados do banho.** Dois controles independentes:
 
 | Guarda do C404 | Cascata do Hub | Comportamento | Comandos locais (celular, `/ui`) |

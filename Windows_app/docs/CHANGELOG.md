@@ -41,6 +41,19 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Changed — gavetas de Temperatura, pH, Oxigênio e Absorbância
+
+- **Temperatura:** uma única gaveta (antes o cartão do banho aparecia mesmo com a linha
+  recolhida). Caixa **Via do setpoint de temperatura** no mesmo estilo da via de agitação:
+  *Banho original (placa do módulo, UART)* ↔ *Banho externo (Contemp C404, Wi-Fi)*, com texto da
+  via vigente. Detalhes do C404 e da cascata só aparecem na via externa; a chave de habilitação
+  virou **Banho externo habilitado no Hub** no rodapé, como no servo. Sem segunda entrada de
+  setpoint: a sincronização do SP lido no painel foi para o expansor *Sintonia da cascata e
+  manutenção do C404*, identificada como manutenção.
+- **pH e Oxigênio:** calibração e saúde do sensor numa faixa de duas linhas (rótulo em cima,
+  valor embaixo) — `SensorHealthView.IsCompact` — deixando as gavetas com duas linhas de altura.
+- **Absorbância:** *Reverter* e *Enviar limiares* na mesma linha dos três limiares.
+
 ### Fixed — banho externo alinhado ao Hub 10.6 / nó r3.2 (plano K06–K08)
 
 - a chave de via e a de comunicação mostram o estado **do Hub**; a preferência salva vira

@@ -2108,6 +2108,13 @@ filtered PV, calculated output, guard, saturation and pause reason in separate c
 toggle is disabled until the Hub advertises bath telemetry; restoring it from settings never
 dispatches a command. The permanent safety note reads: **liberar a cascata não desliga o C404**.
 
+The temperature drawer is a single panel (visible only when the row is expanded): header with
+the compact sensor-health strip, then the **Via do setpoint de temperatura** box styled like the
+agitation route (*Banho original (UART)* ↔ *Banho externo (C404)*), device chips, C404/cascade
+details only on the external route, and **Banho externo habilitado no Hub** at the bottom as in
+the servo drawer. pH and oxygen drawers use `SensorHealthView IsCompact="True"`: calibration and
+five health metrics in two lines.
+
 Since Hub 10.6 the route/communication toggles mirror the Hub echo (a just-flipped toggle wins for
 5 s while its echo is pending); a diverging saved preference is shown in the alarm colour. The
 card no longer has its own reactor setpoint field — a caption points to the temperature row.

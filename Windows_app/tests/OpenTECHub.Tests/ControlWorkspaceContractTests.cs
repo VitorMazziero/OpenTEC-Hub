@@ -160,11 +160,11 @@ public sealed class ControlWorkspaceContractTests
         var xaml = File.ReadAllText(ViewPath);
 
         // Five external rows: level/foam, pump, biomass, agitator and the flowmeter. The
-        // servo drive is not among them - it lives in the Agitação drawer, because it is
-        // internal to the module and nobody switches it on. Its chips are there, which is
-        // why the chip count is one higher than the dot count.
+        // servo drive and the external bath are not among them - they live in the Agitação
+        // and Temperatura drawers as routes of an internal variable. Their chips are there,
+        // which is why the chip count is two higher than the dot count.
         Assert.Equal(5, Count(xaml, "StaticResource ExternalDeviceState"));
-        Assert.Equal(6, Count(xaml, "<ctl:ExternalDeviceChips"));
+        Assert.Equal(7, Count(xaml, "<ctl:ExternalDeviceChips"));
 
         // The dot takes the same three signals the chip does, so the two can never disagree.
         Assert.Equal(5, Count(xaml, "Status.ShowRoutingChipOnly"));

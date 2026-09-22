@@ -3,49 +3,96 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:OpenTECHub.Controls">
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition />
-            <RowDefinition />
-            <RowDefinition />
-            <RowDefinition />
-            <RowDefinition />
-        </Grid.RowDefinitions>
+        <!-- Stacked list: five rows, label left and value right. -->
+        <Grid x:Name="StackedLayout">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+            </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="Última leitura aceita"
-                   Style="{StaticResource CaptionTextStyle}" />
-        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LastAcceptedText}"
-                   HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
-                   FontSize="11" />
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Última leitura aceita"
+                       Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LastAcceptedText}"
+                       HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
+                       FontSize="11" />
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="Sinal presente"
-                   Style="{StaticResource CaptionTextStyle}" />
-        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SignalPresentText}"
-                   HorizontalAlignment="Right" Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Sinal presente"
+                       Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SignalPresentText}"
+                       HorizontalAlignment="Right" Style="{StaticResource CaptionTextStyle}" />
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="Amostras recentes"
-                   Style="{StaticResource CaptionTextStyle}" />
-        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HealthSampleCountText}"
-                   HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
-                   FontSize="11" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Amostras recentes"
+                       Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HealthSampleCountText}"
+                       HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
+                       FontSize="11" />
 
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="Ruído sem tendência (σ)"
-                   ToolTip="Desvio padrão dos resíduos após remover a tendência linear das últimas 30 leituras."
-                   Style="{StaticResource CaptionTextStyle}" />
-        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding HealthNoiseText}"
-                   HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
-                   FontSize="11" />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Ruído sem tendência (σ)"
+                       ToolTip="Desvio padrão dos resíduos após remover a tendência linear das últimas 30 leituras."
+                       Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding HealthNoiseText}"
+                       HorizontalAlignment="Right" Style="{StaticResource NumericTextStyle}"
+                       FontSize="11" />
 
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Estabilidade"
-                   Style="{StaticResource CaptionTextStyle}" />
-        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal"
-                    HorizontalAlignment="Right">
-            <TextBlock Text="{Binding HealthStatusText}" Margin="0,0,7,0"
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Estabilidade"
+                       Style="{StaticResource CaptionTextStyle}" />
+            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <TextBlock Text="{Binding HealthStatusText}" Margin="0,0,7,0"
+                           VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
+                <local:StateChip State="{Binding HealthState}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Compact strip: five columns, label above and value below (two lines). -->
+        <Grid x:Name="CompactLayout" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" MinWidth="92" />
+                <ColumnDefinition Width="Auto" MinWidth="64" />
+                <ColumnDefinition Width="Auto" MinWidth="72" />
+                <ColumnDefinition Width="Auto" MinWidth="80" />
+                <ColumnDefinition Width="Auto" MinWidth="110" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Última leitura" Margin="0,0,14,4"
+                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding LastAcceptedText}" Margin="0,0,14,0"
+                       VerticalAlignment="Center" Style="{StaticResource NumericTextStyle}" FontSize="11" />
+
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="Sinal" Margin="0,0,14,4"
+                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SignalPresentText}" Margin="0,0,14,0"
                        VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
-            <local:StateChip State="{Binding HealthState}" />
-        </StackPanel>
+
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="Amostras" Margin="0,0,14,4"
+                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding HealthSampleCountText}" Margin="0,0,14,0"
+                       VerticalAlignment="Center" Style="{StaticResource NumericTextStyle}" FontSize="11" />
+
+            <TextBlock Grid.Row="0" Grid.Column="3" Text="Ruído (σ)" Margin="0,0,14,4"
+                       ToolTip="Desvio padrão dos resíduos após remover a tendência linear das últimas 30 leituras."
+                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding HealthNoiseText}" Margin="0,0,14,0"
+                       VerticalAlignment="Center" Style="{StaticResource NumericTextStyle}" FontSize="11" />
+
+            <TextBlock Grid.Row="0" Grid.Column="4" Text="Estabilidade" Margin="0,0,0,4"
+                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <StackPanel Grid.Row="1" Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{Binding HealthStatusText}" Margin="0,0,7,0"
+                           VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
+                <local:StateChip State="{Binding HealthState}" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

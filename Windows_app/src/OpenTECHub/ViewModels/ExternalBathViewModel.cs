@@ -170,10 +170,20 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     public bool CanApplyTuning => Status.HasTelemetry && TryReadTuning(out var draft, out _) &&
                                   !draft.SameAs(_tuningEcho);
 
-    /// <summary>Where the reactor reference is set: the temperature row, not this card.</summary>
-    public string ReactorReferenceHint =>
-        "Referência do reator = setpoint da linha 1. Temperatura. Desligar a linha para a cascata: " +
-        "o C404 fica em manual, no último SP (o banho não é desligado por software).";
+    /// <summary>
+    /// Explains where the temperature-row setpoint goes on the route the Hub reports, the
+    /// same way the agitation route box explains UART/CN1 versus Modbus.
+    /// </summary>
+    public string RouteText => !Status.HasTelemetry
+        ? "Hub sem telemetria do banho externo: a temperatura segue pela placa original (UART)."
+        : _routeEnabledOnHub == true
+            ? "Banho externo: o setpoint da linha é a referência do reator; o Hub calcula o SP do C404 pela cascata. Desligar a linha para a cascata e deixa o C404 em manual no último SP."
+            : IsCommEnabled && Status.IsOnline
+                ? "Banho original: o Hub envia o setpoint à placa do módulo por UART. O banho externo está habilitado e online; a troca de via exige novo setpoint."
+                : "Banho original: o Hub envia o setpoint à placa do módulo por UART. Para usar o banho externo, habilite-o no Hub (abaixo) e aguarde o nó online.";
+
+    /// <summary>Show the C404/cascade details only while the Hub routes temperature to the bath.</summary>
+    public bool ShowBathDetails => _routeEnabledOnHub == true;
 
     partial void OnIsTempControlViaBathChanged(bool value)
     {
@@ -544,6 +554,8 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
         OnPropertyChanged(nameof(CanStop));
         OnPropertyChanged(nameof(CanResetFault));
         OnPropertyChanged(nameof(CanApplyTuning));
+        OnPropertyChanged(nameof(RouteText));
+        OnPropertyChanged(nameof(ShowBathDetails));
     }
 
     private static string Format(double? value)

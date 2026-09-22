@@ -1,7 +1,7 @@
 # PLANO DE IMPLEMENTAÇÃO DO WINDOWS APP: BANHO EXTERNO
 
 **Data:** 2026-09-21
-**Status:** planejamento detalhado — **nenhuma alteração no `Windows_app` foi implementada**
+**Status:** W01–W04 implementados e validados; W05–W08 permanecem planejados
 **Base:** alterações W1–W17 do plano geral, alinhadas ao contrato final do plano do Hub
 **Alvo previsto:** OpenTECHub 0.26.4 → 0.27.0
 
@@ -252,6 +252,8 @@ capturar fixtures completas, parciais, nulas e de Hub antigo; registrar logs/cra
 
 ### W01 — Adicionar contrato tipado
 
+**Estado:** concluído em `7cec607`.
+
 **Ações:** chaves, builders, actuator map, campos em `SensorReadings`, clone/snapshots e parser
 com presença/nulabilidade corretas.
 
@@ -259,6 +261,8 @@ com presença/nulabilidade corretas.
 **Commit:** `feat(windows): adicionar contrato do banho externo e cascata`
 
 ### W02 — Implementar simulador térmico e do nó
+
+**Estado:** concluído em `3d52687` (com a correção de compatibilidade do registro de nós em `104a1d8`).
 
 **Ações:** duas massas, mailbox/ACK/done, falhas injetáveis, rotas e serialização idêntica ao
 Hub; preservar cenários anteriores.
@@ -268,6 +272,8 @@ Hub; preservar cenários anteriores.
 
 ### W03 — Implementar view-model e integração de DI
 
+**Estado:** concluído em `62c2b8d` (ajuste de catálogo em `b560256`).
+
 **Ações:** `ExternalBathViewModel`, comandos, validação, reversão de toggle, journal,
 `CanApplyNow`, faixa por via e registros no container.
 
@@ -276,6 +282,8 @@ de atualizações de telemetria.
 **Commit:** `feat(windows): adicionar view-model do banho externo`
 
 ### W04 — Implementar a interface operacional
+
+**Estado:** concluído em `877fdce` (ajustes finais em `104a1d8`).
 
 **Ações:** expansor na linha de temperatura, cartões do C404/cascata, seletor, ações, painel
 avançado e avisos de segurança; responsividade em telas pequena e grande.

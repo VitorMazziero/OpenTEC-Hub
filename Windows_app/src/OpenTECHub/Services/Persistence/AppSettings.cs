@@ -1303,16 +1303,19 @@ public static class BathSessionLogFormat
 
     public static string BuildRow(SensorSnapshot s)
     {
+        var bath = s.HasBathTelemetry;
         var fields = new[]
         {
-            Number(s.TimeMinutes, 2), Number(s.Temperature, 2), Number(s.BathCascadePvFiltered, 2),
-            Number(s.BathCascadeError, 3), Number(s.BathCascadeP, 3), Number(s.BathCascadeI, 3),
-            Number(s.BathCommandSetpoint, 3), Number(s.BathCommandConfirmed, 3), Number(s.BathPv, 2),
-            Number(s.BathSp, 2), Number(s.BathTarget, 2),
-            s.BathMode is { } mode && s.HasBathTelemetry ? mode.ToString(CultureInfo.InvariantCulture) : "",
-            Cell(s.BathGuard), s.HasBathTelemetry ? (s.BathCascadeSaturated ? "1" : "0") : "",
-            Cell(s.BathCascadeState), Cell(s.BathCascadePausedReason),
-            s.TempControlViaBath is { } routed && s.HasBathTelemetry ? (routed ? "external" : "uart") : "",
+            Number(s.TimeMinutes, 2), bath ? Number(s.Temperature, 2) : "",
+            bath ? Number(s.BathCascadePvFiltered, 2) : "",
+            bath ? Number(s.BathCascadeError, 3) : "", bath ? Number(s.BathCascadeP, 3) : "",
+            bath ? Number(s.BathCascadeI, 3) : "", bath ? Number(s.BathCommandSetpoint, 3) : "",
+            bath ? Number(s.BathCommandConfirmed, 3) : "", bath ? Number(s.BathPv, 2) : "",
+            bath ? Number(s.BathSp, 2) : "", bath ? Number(s.BathTarget, 2) : "",
+            bath && s.BathMode is { } mode ? mode.ToString(CultureInfo.InvariantCulture) : "",
+            bath ? Cell(s.BathGuard) : "", bath ? (s.BathCascadeSaturated ? "1" : "0") : "",
+            bath ? Cell(s.BathCascadeState) : "", bath ? Cell(s.BathCascadePausedReason) : "",
+            bath && s.TempControlViaBath is { } routed ? (routed ? "external" : "uart") : "",
         };
         return string.Join('\t', fields);
     }

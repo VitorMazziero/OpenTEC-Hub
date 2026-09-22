@@ -72,7 +72,11 @@ public sealed partial class RecipeEngine
     /// An old Hub (or the original UART route) deliberately satisfies immediately because it
     /// cannot publish bath evidence; absence of support must never deadlock a legacy recipe.
     /// </summary>
-    private Task AwaitBathTemperatureAppliedAsync(RecipeNode node, double target, CancellationToken ct)
+    private Task AwaitBathTemperatureAppliedAsync(
+        RecipeNode node,
+        double target,
+        bool confirmationRequired,
+        CancellationToken ct)
     {
         if (!double.IsFinite(target) || target <= 0)
         {
@@ -83,7 +87,7 @@ public sealed partial class RecipeEngine
         // state the Hub has not advertised the bath route (and therefore cannot provide a
         // meaningful confirmation); preserve the legacy fire-and-forget behaviour until a
         // bath-capable snapshot is actually present.
-        if (_latest is not { HasBathTelemetry: true, TempControlViaBath: true })
+        if (!confirmationRequired)
         {
             return Task.CompletedTask;
         }
@@ -92,14 +96,19 @@ public sealed partial class RecipeEngine
             node,
             "Banho externo C404",
             $"a referência do reator ({target:0.##} °C) não foi confirmada pela cascata.",
-            s => !s.HasBathTelemetry || s.TempControlViaBath is not true ||
-                 (s.BathOnline && s.BathCommEnabled != false &&
-                  !s.BathCommandCompletionPending &&
-                  s.BathCascadeState.Contains("controlling", StringComparison.OrdinalIgnoreCase) &&
-                  s.BathState is "done" or "running" &&
-                  double.IsFinite(s.Temperature) && Math.Abs(s.Temperature - target) <= 0.5),
+            s => s.HasBathTelemetry && s.TempControlViaBath is true &&
+                 s.BathOnline && s.BathCommEnabled is true &&
+                 s.TempSetpoint is { } echoedTarget && double.IsFinite(echoedTarget) &&
+                 Math.Abs(echoedTarget - target) <= 0.05 &&
+                 !s.BathCommandCompletionPending &&
+                 s.BathCascadeState.Contains("controlling", StringComparison.OrdinalIgnoreCase) &&
+                 s.BathState.Equals("done", StringComparison.OrdinalIgnoreCase) &&
+                 double.IsFinite(s.Temperature) && Math.Abs(s.Temperature - target) <= 0.5,
             ct);
     }
+
+    private bool IsBathConfirmationRequired()
+        => _bathConfirmationRequiredForRun;
 
     // ── External Wi-Fi nodes ─────────────────────────────────────────────────
     //

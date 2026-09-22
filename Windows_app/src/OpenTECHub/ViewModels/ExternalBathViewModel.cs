@@ -22,6 +22,7 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     private readonly TimeProvider _time;
     private bool _initialised;
     private bool _syncingTelemetry;
+    private bool? _routeEnabledOnHub;
     private readonly PropertyChangedEventHandler _statusChangedHandler;
 
     public ExternalBathViewModel(
@@ -51,20 +52,21 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
             IsCommEnabled = saved.CommunicationEnabled;
             IsAutomatic = saved.Automatic;
             IsPanelExpanded = saved.PanelExpanded;
-            ReactorSetpointText = saved.ReactorSetpoint.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeKpText = saved.CascadeKp.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeTiText = saved.CascadeTi.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeBiasText = saved.CascadeBias.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadePeriodText = saved.CascadePeriodMs.ToString(CultureInfo.InvariantCulture);
-            CascadeFilterText = saved.CascadeFilter.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeMinCommandText = saved.CascadeMinCommand.ToString(CultureInfo.InvariantCulture);
-            CascadeBandText = saved.CascadeBand.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeSlewText = saved.CascadeSlew.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeOffsetHighText = saved.CascadeOffsetHigh.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeOffsetLowText = saved.CascadeOffsetLow.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeOutputMinText = saved.CascadeOutputMin.ToString("0.###", CultureInfo.InvariantCulture);
-            CascadeOutputMaxText = saved.CascadeOutputMax.ToString("0.###", CultureInfo.InvariantCulture);
+            ReactorSetpointText = saved.ReactorSetpoint.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeKpText = saved.CascadeKp.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeTiText = saved.CascadeTi.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeBiasText = saved.CascadeBias.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadePeriodText = saved.CascadePeriodMs.ToString(CultureInfo.CurrentCulture);
+            CascadeFilterText = saved.CascadeFilter.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeMinCommandText = saved.CascadeMinCommand.ToString(CultureInfo.CurrentCulture);
+            CascadeBandText = saved.CascadeBand.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeSlewText = saved.CascadeSlew.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeOffsetHighText = saved.CascadeOffsetHigh.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeOffsetLowText = saved.CascadeOffsetLow.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeOutputMinText = saved.CascadeOutputMin.ToString("0.###", CultureInfo.CurrentCulture);
+            CascadeOutputMaxText = saved.CascadeOutputMax.ToString("0.###", CultureInfo.CurrentCulture);
         }
+        Status.IsCommRequested = IsCommEnabled;
         _initialised = true;
         RefreshCommands();
     }
@@ -73,10 +75,12 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApplyNow))]
+    [NotifyPropertyChangedFor(nameof(CanChangeRoute))]
     public partial bool IsTempControlViaBath { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApplyNow))]
+    [NotifyPropertyChangedFor(nameof(CanChangeCommunication))]
     public partial bool IsCommEnabled { get; set; }
 
     [ObservableProperty]
@@ -134,25 +138,35 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(CanApplyTuning))]
     public partial string CascadeOutputMaxText { get; set; } = "90";
 
-    public bool CanApplyNow => IsTempControlViaBath && IsCommEnabled && Status.HasTelemetry &&
+    public bool CanApplyNow => IsTempControlViaBath && _routeEnabledOnHub == true &&
+                                IsCommEnabled && Status.HasTelemetry &&
                                 Status.IsOnline && Status.CommEnabledOnHub == true &&
                                 !Status.IsAwaitingAck && !_syncingTelemetry;
+    private bool CanEnableExternalRoute => Status.HasTelemetry && Status.IsOnline && IsCommEnabled &&
+                                           Status.CommEnabledOnHub == true && !Status.IsAwaitingAck && !_syncingTelemetry;
+    private bool CanEnableCommunication => Status.HasTelemetry && !Status.IsAwaitingAck && !_syncingTelemetry;
+    public bool CanChangeRoute => IsTempControlViaBath || CanEnableExternalRoute;
+    public bool CanChangeCommunication => IsCommEnabled || CanEnableCommunication;
+    public bool CanChangeMode => CanApplyNow;
     public bool CanApplySetpoint => CanApplyNow && TryParse(ReactorSetpointText, out var value) && value is >= 0 and <= 100;
     public bool CanApplyTuning => CanApplyNow && TryParseTuning(out _);
 
     partial void OnIsTempControlViaBathChanged(bool value)
     {
         if (!_initialised || _syncingTelemetry) return;
+        if (value && !CanEnableExternalRoute)
+        {
+            RevertRoute(value);
+            StatusText = "A via externa exige Hub compatível, comunicação confirmada e banho online.";
+            return;
+        }
         var result = _dispatcher.DispatchSeparateFrame(CommandBuilders.TemperatureRoute(value));
         if (!result.Accepted)
         {
-            _syncingTelemetry = true;
-            IsTempControlViaBath = !value;
-            _syncingTelemetry = false;
+            RevertRoute(value);
             StatusText = DispatchRefusal.Describe(result, _dispatcher);
             return;
         }
-        Status.IsCommRequested = value;
         Status.MarkCommandDispatched();
         PersistPreferences();
         StatusText = value ? "Via externa solicitada; aguardando confirmação do Hub." : "Via do módulo UART solicitada.";
@@ -162,12 +176,16 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     partial void OnIsCommEnabledChanged(bool value)
     {
         if (!_initialised || _syncingTelemetry) return;
+        if (value && !CanEnableCommunication)
+        {
+            RevertCommunication(value);
+            StatusText = "A comunicação do banho exige telemetria de um Hub compatível.";
+            return;
+        }
         var result = _dispatcher.DispatchSeparateFrame(CommandBuilders.BathCommunication(value));
         if (!result.Accepted)
         {
-            _syncingTelemetry = true;
-            IsCommEnabled = !value;
-            _syncingTelemetry = false;
+            RevertCommunication(value);
             StatusText = DispatchRefusal.Describe(result, _dispatcher);
             return;
         }
@@ -181,10 +199,21 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     partial void OnIsAutomaticChanged(bool value)
     {
         if (!_initialised || _syncingTelemetry) return;
-        var result = _dispatcher.Dispatch(CommandBuilders.BathMode(value));
-        if (!result.Accepted) StatusText = DispatchRefusal.Describe(result, _dispatcher);
+        if (!CanChangeMode)
+        {
+            RevertMode(value);
+            StatusText = "O modo do C404 só pode ser alterado com a via externa confirmada e o banho online.";
+            return;
+        }
+        var result = _dispatcher.DispatchSeparateFrame(CommandBuilders.BathMode(value));
+        if (!result.Accepted)
+        {
+            RevertMode(value);
+            StatusText = DispatchRefusal.Describe(result, _dispatcher);
+        }
         else
         {
+            Status.MarkCommandDispatched();
             PersistPreferences();
             StatusText = value ? "Cascata automática solicitada." : "Modo manual do banho solicitado.";
         }
@@ -252,29 +281,32 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
             return;
         }
 
-        _settings.Update(current => current with
+        _settings.Update(current =>
         {
-            ExternalBath = current.ExternalBath with
+            var saved = current.ExternalBath ?? new ExternalBathSettings();
+            return current with
             {
-                PreferExternalRoute = IsTempControlViaBath,
-                CommunicationEnabled = IsCommEnabled,
-                Automatic = IsAutomatic,
-                PanelExpanded = IsPanelExpanded,
-                ReactorSetpoint = TryParse(ReactorSetpointText, out var setpoint)
-                    ? setpoint : current.ExternalBath.ReactorSetpoint,
-                CascadeKp = includeTuning && TryParse(CascadeKpText, out var kp) ? kp : current.ExternalBath.CascadeKp,
-                CascadeTi = includeTuning && TryParse(CascadeTiText, out var ti) ? ti : current.ExternalBath.CascadeTi,
-                CascadeBias = includeTuning && TryParse(CascadeBiasText, out var bias) ? bias : current.ExternalBath.CascadeBias,
-                CascadePeriodMs = includeTuning && int.TryParse(CascadePeriodText, out var period) ? period : current.ExternalBath.CascadePeriodMs,
-                CascadeFilter = includeTuning && TryParse(CascadeFilterText, out var filter) ? filter : current.ExternalBath.CascadeFilter,
-                CascadeMinCommand = includeTuning && int.TryParse(CascadeMinCommandText, out var min) ? min : current.ExternalBath.CascadeMinCommand,
-                CascadeBand = includeTuning && TryParse(CascadeBandText, out var band) ? band : current.ExternalBath.CascadeBand,
-                CascadeSlew = includeTuning && TryParse(CascadeSlewText, out var slew) ? slew : current.ExternalBath.CascadeSlew,
-                CascadeOffsetHigh = includeTuning && TryParse(CascadeOffsetHighText, out var high) ? high : current.ExternalBath.CascadeOffsetHigh,
-                CascadeOffsetLow = includeTuning && TryParse(CascadeOffsetLowText, out var low) ? low : current.ExternalBath.CascadeOffsetLow,
-                CascadeOutputMin = includeTuning && TryParse(CascadeOutputMinText, out var outputMin) ? outputMin : current.ExternalBath.CascadeOutputMin,
-                CascadeOutputMax = includeTuning && TryParse(CascadeOutputMaxText, out var outputMax) ? outputMax : current.ExternalBath.CascadeOutputMax,
-            },
+                ExternalBath = saved with
+                {
+                    PreferExternalRoute = IsTempControlViaBath,
+                    CommunicationEnabled = IsCommEnabled,
+                    Automatic = IsAutomatic,
+                    PanelExpanded = IsPanelExpanded,
+                    ReactorSetpoint = TryParse(ReactorSetpointText, out var setpoint) ? setpoint : saved.ReactorSetpoint,
+                    CascadeKp = includeTuning && TryParse(CascadeKpText, out var kp) ? kp : saved.CascadeKp,
+                    CascadeTi = includeTuning && TryParse(CascadeTiText, out var ti) ? ti : saved.CascadeTi,
+                    CascadeBias = includeTuning && TryParse(CascadeBiasText, out var bias) ? bias : saved.CascadeBias,
+                    CascadePeriodMs = includeTuning && TryParseInt(CascadePeriodText, out var period) ? period : saved.CascadePeriodMs,
+                    CascadeFilter = includeTuning && TryParse(CascadeFilterText, out var filter) ? filter : saved.CascadeFilter,
+                    CascadeMinCommand = includeTuning && TryParseInt(CascadeMinCommandText, out var min) ? min : saved.CascadeMinCommand,
+                    CascadeBand = includeTuning && TryParse(CascadeBandText, out var band) ? band : saved.CascadeBand,
+                    CascadeSlew = includeTuning && TryParse(CascadeSlewText, out var slew) ? slew : saved.CascadeSlew,
+                    CascadeOffsetHigh = includeTuning && TryParse(CascadeOffsetHighText, out var high) ? high : saved.CascadeOffsetHigh,
+                    CascadeOffsetLow = includeTuning && TryParse(CascadeOffsetLowText, out var low) ? low : saved.CascadeOffsetLow,
+                    CascadeOutputMin = includeTuning && TryParse(CascadeOutputMinText, out var outputMin) ? outputMin : saved.CascadeOutputMin,
+                    CascadeOutputMax = includeTuning && TryParse(CascadeOutputMaxText, out var outputMax) ? outputMax : saved.CascadeOutputMax,
+                },
+            };
         });
     }
 
@@ -282,8 +314,8 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     {
         command = OpenTECCommand.Create();
         if (!TryParse(CascadeKpText, out var kp) || !TryParse(CascadeTiText, out var ti) ||
-            !TryParse(CascadeBiasText, out var bias) || !int.TryParse(CascadePeriodText, out var period) ||
-            !TryParse(CascadeFilterText, out var filter) || !int.TryParse(CascadeMinCommandText, out var min) ||
+            !TryParse(CascadeBiasText, out var bias) || !TryParseInt(CascadePeriodText, out var period) ||
+            !TryParse(CascadeFilterText, out var filter) || !TryParseInt(CascadeMinCommandText, out var min) ||
             !TryParse(CascadeBandText, out var band) || !TryParse(CascadeSlewText, out var slew) ||
             !TryParse(CascadeOffsetHighText, out var high) || !TryParse(CascadeOffsetLowText, out var low) ||
             !TryParse(CascadeOutputMinText, out var outputMin) || !TryParse(CascadeOutputMaxText, out var outputMax))
@@ -297,15 +329,19 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     }
 
     private static bool TryParse(string text, out double value)
-        => double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) && double.IsFinite(value);
+        => (double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) ||
+            double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) && double.IsFinite(value);
+
+    private static bool TryParseInt(string text, out int value)
+        => int.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out value) ||
+           int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
         Status.Update(snapshot.HasBathTelemetry, snapshot.BathOnline, snapshot.BathCommandPending,
             snapshot.BathCommEnabled, snapshot.BathNode);
+        _routeEnabledOnHub = snapshot.TempControlViaBath;
         _syncingTelemetry = true;
-        if (snapshot.TempControlViaBath is { } via) IsTempControlViaBath = via;
-        if (snapshot.BathCommEnabled is { } comm) IsCommEnabled = comm;
         if (snapshot.BathMode is { } mode) IsAutomatic = mode == 1;
         _syncingTelemetry = false;
 
@@ -345,6 +381,9 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
         ResetFaultCommand.NotifyCanExecuteChanged();
         ApplyTuningCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanApplyNow));
+        OnPropertyChanged(nameof(CanChangeRoute));
+        OnPropertyChanged(nameof(CanChangeCommunication));
+        OnPropertyChanged(nameof(CanChangeMode));
         OnPropertyChanged(nameof(CanApplySetpoint));
         OnPropertyChanged(nameof(CanApplyTuning));
     }
@@ -353,6 +392,30 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
         => value is { } number && double.IsFinite(number) ? number.ToString("F2", CultureInfo.CurrentCulture) : "—";
 
     private static string EmptyDash(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private void RevertRoute(bool attempted)
+    {
+        _syncingTelemetry = true;
+        IsTempControlViaBath = !attempted;
+        _syncingTelemetry = false;
+        RefreshCommands();
+    }
+
+    private void RevertCommunication(bool attempted)
+    {
+        _syncingTelemetry = true;
+        IsCommEnabled = !attempted;
+        _syncingTelemetry = false;
+        RefreshCommands();
+    }
+
+    private void RevertMode(bool attempted)
+    {
+        _syncingTelemetry = true;
+        IsAutomatic = !attempted;
+        _syncingTelemetry = false;
+        RefreshCommands();
+    }
 
     public void Dispose()
     {

@@ -1121,11 +1121,24 @@ public sealed class AlarmServiceTests
             TempControlViaBath = true,
             BathState = "error",
             BathError = "uart_timeout",
+            BathCascadeState = "fault",
             BathCascadeSaturated = true,
         });
         h.AdvanceAndPoll(TimeSpan.FromSeconds(0.1));
         Assert.True(h.Latched(AlarmId.ExternalBathSequenceFault));
-        Assert.True(h.Latched(AlarmId.ExternalBathCascadeSaturated) == false); // saturation has persistence
+        Assert.False(h.Latched(AlarmId.ExternalBathCascadeSaturated));
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathCommEnabled = true,
+            BathOnline = true,
+            TempControlViaBath = true,
+            Temperature = 30,
+            BathPv = 30,
+            BathState = "running",
+            BathCascadeState = "controlling",
+            BathCascadeSaturated = true,
+        });
         h.AdvanceAndPoll(TimeSpan.FromSeconds(10));
         Assert.True(h.Latched(AlarmId.ExternalBathCascadeSaturated));
         h.Device.PushTelemetry(new SensorSnapshot
@@ -1142,5 +1155,38 @@ public sealed class AlarmServiceTests
         h.AdvanceAndPoll(TimeSpan.FromSeconds(5));
         Assert.False(h.Latched(AlarmId.ExternalBathSequenceFault));
         Assert.Contains(h.Journal.Entries, e => e.Message.Contains("Falha na sequência", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Bath_communication_enabled_without_external_route_is_not_a_routing_mismatch()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Routing.ExternalBath, false);
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathCommEnabled = true,
+            TempControlViaBath = false,
+        });
+
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(6));
+        Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
+    }
+
+    [Fact]
+    public void Contradictory_bath_route_fields_raise_a_critical_alarm()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Routing.ExternalBath, true);
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathCommEnabled = true,
+            TempControlViaBath = true,
+            BathTempControlMode = 0,
+        });
+
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(0.1));
+        Assert.True(h.Latched(AlarmId.ExternalBathDualActuation));
     }
 }

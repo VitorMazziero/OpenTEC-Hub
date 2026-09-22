@@ -76,6 +76,8 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
     /// </remarks>
     private StreamWriter? _servoWriter;
     private StreamWriter? _bathWriter;
+    private string? _bathSessionPath;
+    private bool _bathOpenAttempted;
 
     /// <summary>The preamble is written on the first row, once the Hub has identified itself.</summary>
     /// <remarks>
@@ -134,7 +136,11 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
                 }
 
                 OpenServoSidecar(path);
-                OpenBathSidecar(path);
+                // The bath sidecar is created lazily on the first bath-capable frame. An
+                // empty/header-only file must not make an old Hub session look as if it had
+                // cascade telemetry.
+                _bathSessionPath = path;
+                _bathOpenAttempted = false;
 
                 CurrentPath = path;
                 _rowsWritten = 0;
@@ -459,6 +465,17 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
 
     private void WriteBathRow(SensorSnapshot snapshot)
     {
+        if (!snapshot.HasBathTelemetry)
+        {
+            return;
+        }
+
+        if (_bathWriter is null && !_bathOpenAttempted && _bathSessionPath is { } sessionPath)
+        {
+            _bathOpenAttempted = true;
+            OpenBathSidecar(sessionPath);
+        }
+
         if (_bathWriter is null)
         {
             return;
@@ -484,6 +501,8 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
     {
         if (_bathWriter is null)
         {
+            _bathSessionPath = null;
+            _bathOpenAttempted = false;
             return;
         }
 
@@ -500,6 +519,8 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
         {
             _bathWriter = null;
             _bathPreambleWritten = false;
+            _bathSessionPath = null;
+            _bathOpenAttempted = false;
         }
     }
 

@@ -273,7 +273,7 @@ public sealed class AlarmService : IAlarmService
             TimeSpan.Zero, TimeSpan.FromSeconds(3)),
         new(AlarmId.ExternalBathImplausibleDelta, "Diferença banho–reator implausível", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5)),
-        new(AlarmId.ExternalBathDualActuation, "Dupla atuação térmica", AlarmSeverity.Critical,
+        new(AlarmId.ExternalBathDualActuation, "Telemetria de rota térmica inconsistente", AlarmSeverity.Critical,
             TimeSpan.Zero, TimeSpan.FromSeconds(3)),
     ];
 
@@ -648,16 +648,21 @@ public sealed class AlarmService : IAlarmService
         AlarmId.ExternalBathSetpointMismatch => (
             connected && BathRouted() && _lastSnapshot is { } s &&
             (s.BathCascadeState.Contains("mismatch", StringComparison.OrdinalIgnoreCase) ||
-             (s.BathTarget is { } target && s.BathCommandConfirmed is { } confirmed &&
-              double.IsFinite(target) && double.IsFinite(confirmed) && Math.Abs(target - confirmed) > 0.2)),
+             (!s.BathCommandCompletionPending &&
+              s.BathState.Equals("done", StringComparison.OrdinalIgnoreCase) &&
+              s.BathTarget is { } target && double.IsFinite(target) &&
+              (s.BathCommandConfirmed is not { } confirmed || !double.IsFinite(confirmed) ||
+               Math.Abs(target - confirmed) > 0.2))),
             "O setpoint confirmado pelo C404 não acompanha o alvo calculado pela cascata."),
 
         AlarmId.ExternalBathCascadeSaturated => (
-            connected && BathRouted() && _lastSnapshot is { BathCascadeSaturated: true },
+            connected && BathRouted() && _lastSnapshot is { BathCascadeSaturated: true } s &&
+            CascadeIsControlling(s),
             "A saída da cascata atingiu um limite; a temperatura do reator pode não acompanhar a referência."),
 
         AlarmId.ExternalBathReactorDeviation => (
-            connected && BathRouted() && _lastSnapshot is { BathCascadeError: { } error } &&
+            connected && BathRouted() && _lastSnapshot is { BathCascadeError: { } error } s &&
+            CascadeIsControlling(s) &&
             double.IsFinite(error) && Math.Abs(error) > 2.0,
             "O erro entre Tempval e o setpoint do reator permanece acima de 2 °C."),
 
@@ -672,8 +677,10 @@ public sealed class AlarmService : IAlarmService
             "A diferença entre a temperatura do banho e a temperatura real do reator excede 20 °C."),
 
         AlarmId.ExternalBathDualActuation => (
-            connected && BathRouted() && _lastSnapshot is { TempControlViaBath: true, BathTempControlMode: 2 },
-            "O Hub indica a via externa ativa enquanto a via original também parece comandando temperatura."),
+            connected && RoutingRequested(DeviceNames.Routing.ExternalBath) &&
+            _lastSnapshot is { HasBathTelemetry: true, TempControlViaBath: { } via, BathTempControlMode: >= 0 } s &&
+            (s.BathTempControlMode == 1) != via,
+            "Os campos TempControlMode e TempControlViaBath do Hub divergem; não é seguro inferir qual atuador térmico está ativo."),
 
         _ => (false, ""),
     };
@@ -706,7 +713,10 @@ public sealed class AlarmService : IAlarmService
         Check(DeviceNames.Routing.ExternalPump, snapshot.PumpCommEnabled);
         Check(DeviceNames.Routing.Distance, snapshot.DistanceCommEnabled);
         Check(DeviceNames.Routing.ServoDrive, snapshot.ServoCommEnabled);
-        Check(DeviceNames.Routing.ExternalBath, snapshot.BathCommEnabled);
+        var bathRoute = snapshot.TempControlViaBath is { } viaBath && snapshot.BathCommEnabled is { } bathComm
+            ? viaBath && bathComm
+            : (bool?)null;
+        Check(DeviceNames.Routing.ExternalBath, bathRoute);
 
         // The banner shows one line, so the detail leads with the consequence and names the
         // devices plainly. The earlier wording spelled out the Hub's state per device and was
@@ -757,7 +767,11 @@ public sealed class AlarmService : IAlarmService
 
     private bool BathRouted()
         => RoutingRequested(DeviceNames.Routing.ExternalBath) &&
-           _lastSnapshot is { TempControlViaBath: true };
+           _lastSnapshot is { TempControlViaBath: true, BathCommEnabled: true };
+
+    private static bool CascadeIsControlling(SensorSnapshot snapshot)
+        => snapshot.BathCascadeState.Equals("controlling", StringComparison.OrdinalIgnoreCase) ||
+           snapshot.BathCascadeState.Equals("actuator_busy", StringComparison.OrdinalIgnoreCase);
 
     private static AuditSeverity ToAudit(AlarmSeverity severity)
         => severity == AlarmSeverity.Critical ? AuditSeverity.Error : AuditSeverity.Warning;

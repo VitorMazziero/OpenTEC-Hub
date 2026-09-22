@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
@@ -65,5 +66,56 @@ public sealed class BathIntegrationTests
         Assert.Contains(NodeFirmwareCatalog.Bath, NodeFirmwareCatalog.Devices);
         Assert.Contains(DeviceModel.RegistryNodes, node => node.Device == NodeFirmwareCatalog.Bath);
         Assert.Equal("r3.1", DeviceModel.NodeVersion(NodeFirmwareCatalog.Bath));
+    }
+
+    [Fact]
+    public void Bath_sidecar_is_created_only_after_real_bath_telemetry()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "opentec-bath-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var session = Path.Combine(directory, "session.txt");
+        var sidecar = SessionLogger.BathSidecarPath(session);
+        try
+        {
+            var logger = new SessionLogger(NullLogger<SessionLogger>.Instance);
+            logger.Start(session);
+            logger.Write(new SensorSnapshot { TimeMinutes = 1, Temperature = 30 }, 0, "USB");
+            logger.Stop();
+            Assert.False(File.Exists(sidecar));
+
+            logger.Start(session);
+            logger.Write(new SensorSnapshot
+            {
+                TimeMinutes = 2,
+                Temperature = 30,
+                HasBathTelemetry = true,
+                BathOnline = true,
+            }, 0, "USB");
+            logger.Stop();
+
+            Assert.True(File.Exists(sidecar));
+            Assert.True(SessionFileService.Inspect(session).HasBathSidecar);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Bath_row_does_not_leak_sticky_values_without_bath_telemetry()
+    {
+        var fields = SessionLogger.BuildBathRow(new SensorSnapshot
+        {
+            TimeMinutes = 3,
+            Temperature = 31,
+            BathPv = 40,
+            BathCascadeState = "controlling",
+            BathGuard = "ok",
+            TempControlViaBath = true,
+        }).Split('\t');
+
+        Assert.Equal("3.00", fields[0]);
+        Assert.All(fields.Skip(1), Assert.Empty);
     }
 }

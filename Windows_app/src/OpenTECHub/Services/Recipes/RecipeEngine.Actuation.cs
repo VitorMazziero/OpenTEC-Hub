@@ -22,6 +22,8 @@ public sealed partial class RecipeEngine
                 {
                     var variable = node.Enum<SetpointVariable>("variavel");
                     var value = node.Number("valor");
+                    var bathConfirmationRequired = variable == SetpointVariable.Temperature &&
+                                                   IsBathConfirmationRequired();
                     Log(RecipeLogSeverity.Info, $"Definir {Label(variable)} = {value:0.##}{UnitFor(variable)}.", node.Id);
                     DispatchRecipe(BuildSetpoint(variable, value, node.Number("histerese")), node.Id);
                     if (variable == SetpointVariable.Flow)
@@ -30,7 +32,7 @@ public sealed partial class RecipeEngine
                     }
                     else if (variable == SetpointVariable.Temperature)
                     {
-                        await AwaitBathTemperatureAppliedAsync(node, value, ct).ConfigureAwait(false);
+                        await AwaitBathTemperatureAppliedAsync(node, value, bathConfirmationRequired, ct).ConfigureAwait(false);
                     }
 
                     break;
@@ -42,6 +44,7 @@ public sealed partial class RecipeEngine
                     var combined = OpenTECCommand.Create();
                     double? flowTarget = null;
                     double? temperatureTarget = null;
+                    var bathConfirmationRequired = IsBathConfirmationRequired();
                     foreach (var row in node.Rows("pontos").OfType<JsonObject>())
                     {
                         if (Enum.TryParse<SetpointVariable>(row["variavel"]?.GetValue<string>(), out var variable))
@@ -66,9 +69,9 @@ public sealed partial class RecipeEngine
                     {
                         await AwaitFlowAppliedAsync(node, target, ct).ConfigureAwait(false);
                     }
-                    else if (temperatureTarget is { } temperature)
+                    if (temperatureTarget is { } temperature)
                     {
-                        await AwaitBathTemperatureAppliedAsync(node, temperature, ct).ConfigureAwait(false);
+                        await AwaitBathTemperatureAppliedAsync(node, temperature, bathConfirmationRequired, ct).ConfigureAwait(false);
                     }
 
                     break;

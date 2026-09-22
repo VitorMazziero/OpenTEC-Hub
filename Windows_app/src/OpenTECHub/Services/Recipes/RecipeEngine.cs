@@ -37,6 +37,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
     private Task _run = Task.CompletedTask;
     private DateTimeOffset _startedAt;
     private SensorSnapshot? _latest;
+    private bool _bathConfirmationRequiredForRun;
     private readonly MotorRouteCoordinator _routeCoordinator;
     private bool _disposed;
 
@@ -133,6 +134,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         StatusReason = null;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _startedAt = _time.GetUtcNow();
+        _bathConfirmationRequiredForRun = _latest is { HasBathTelemetry: true, TempControlViaBath: true };
         _pauseGate.Set();
 
         // Claiming every actuator is what deactivates manual control (§5.3.3 / WP4 point 3).

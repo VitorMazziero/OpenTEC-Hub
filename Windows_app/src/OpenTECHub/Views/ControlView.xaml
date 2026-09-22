@@ -584,11 +584,11 @@
                                 <!-- Hub-routed external bath and thermal cascade.  The reactor PV
                                      remains the authoritative process value; C404 fields are
                                      shown separately so an operator cannot confuse the two. -->
-                                <Border Background="{DynamicResource SurfaceCardBrush}"
+                                <Border Background="{DynamicResource SurfaceHoverBrush}"
                                         BorderBrush="{DynamicResource StrokeDefaultBrush}"
                                         BorderThickness="1"
-                                        CornerRadius="{StaticResource RadiusSmall}"
-                                        Margin="28,0,8,10"
+                                        CornerRadius="{DynamicResource RadiusSmall}"
+                                        Margin="28,4,8,8"
                                         Padding="14,10">
                                     <StackPanel DataContext="{Binding DataContext.ExternalBath, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                         <Grid Margin="0,0,0,8">
@@ -602,7 +602,10 @@
                                                 <TextBlock Text="Rota o controle do reator pelo Hub; Tempval é a temperatura real lida pelo sensor." Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
                                             </StackPanel>
                                             <TextBlock Grid.Column="1" Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="12,0,14,0" />
-                                            <ToggleButton Grid.Column="2" IsChecked="{Binding IsTempControlViaBath, Mode=TwoWay}" Style="{StaticResource ToggleSwitchStyle}" ToolTip="Selecionar controle térmico via banho externo" />
+                                            <ToggleButton Grid.Column="2" IsChecked="{Binding IsTempControlViaBath, Mode=TwoWay}"
+                                                          IsEnabled="{Binding CanChangeRoute}"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          ToolTip="Selecionar controle térmico via banho externo; exige comunicação confirmada e nó online" />
                                         </Grid>
 
                                         <Grid Margin="0,0,0,8">
@@ -616,7 +619,9 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="Comunicação" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                            <ToggleButton Grid.Column="1" IsChecked="{Binding IsCommEnabled, Mode=TwoWay}" Style="{StaticResource ToggleSwitchStyle}" ToolTip="Habilitar comunicação do C404" />
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding IsCommEnabled, Mode=TwoWay}"
+                                                          IsEnabled="{Binding CanChangeCommunication}"
+                                                          Style="{StaticResource ToggleSwitchStyle}" ToolTip="Habilitar comunicação do C404" />
                                             <TextBlock Grid.Column="2" Text="Referência reator" VerticalAlignment="Center" Margin="12,0,6,0" />
                                             <TextBox Grid.Column="3" Text="{Binding ReactorSetpointText, UpdateSourceTrigger=PropertyChanged}" />
                                             <Button Grid.Column="4" Content="Enviar setpoint" Command="{Binding ApplySetpointCommand}" IsEnabled="{Binding CanApplySetpoint}" Margin="8,0,6,0" />
@@ -648,6 +653,11 @@
                                                     <StackPanel Grid.Column="3"><TextBlock Text="P / I" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding CascadePIText}" /><TextBlock Text="{Binding CascadePauseText}" /></StackPanel>
                                                 </Grid>
                                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,4">
+                                                    <TextBlock Text="Modo automático" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <ToggleButton IsChecked="{Binding IsAutomatic, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding CanChangeMode}"
+                                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                                  ToolTip="Selecionar modo automático do C404" />
                                                     <TextBox Width="90" Text="{Binding BathSyncText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Setpoint a sincronizar com o C404" />
                                                     <Button Content="Sincronizar" Command="{Binding SynchronizeCommand}" Margin="6,0,0,0" />
                                                     <Button Content="Abortar" Command="{Binding AbortCommand}" Margin="6,0,0,0" />

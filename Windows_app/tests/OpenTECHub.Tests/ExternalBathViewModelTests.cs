@@ -1,3 +1,4 @@
+using System.Globalization;
 using OpenTECHub.Protocol;
 using OpenTECHub.ViewModels;
 using OpenTECHub.Services.Persistence;
@@ -12,11 +13,15 @@ public sealed class ExternalBathViewModelTests
     {
         var device = new RecordingDeviceService();
         var dispatcher = new StubDispatcher();
-        using var vm = new ExternalBathViewModel(device, new MemorySettingsService(), dispatcher)
+        var settings = new MemorySettingsService(new AppSettings
         {
-            IsTempControlViaBath = false,
-            IsCommEnabled = false,
-        };
+            ExternalBath = new ExternalBathSettings
+            {
+                PreferExternalRoute = true,
+                CommunicationEnabled = true,
+            },
+        });
+        using var vm = new ExternalBathViewModel(device, settings, dispatcher);
 
         device.PushTelemetry(new SensorSnapshot
         {
@@ -44,7 +49,18 @@ public sealed class ExternalBathViewModelTests
     {
         var device = new RecordingDeviceService();
         var dispatcher = new StubDispatcher { RefuseWith = [ActuatorId.Temperature] };
-        using var vm = new ExternalBathViewModel(device, new MemorySettingsService(), dispatcher);
+        var settings = new MemorySettingsService(new AppSettings
+        {
+            ExternalBath = new ExternalBathSettings { CommunicationEnabled = true },
+        });
+        using var vm = new ExternalBathViewModel(device, settings, dispatcher);
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathOnline = true,
+            BathCommEnabled = true,
+            TempControlViaBath = false,
+        });
 
         vm.IsTempControlViaBath = true;
 
@@ -58,13 +74,26 @@ public sealed class ExternalBathViewModelTests
         var settings = new MemorySettingsService(new AppSettings());
         var device = new RecordingDeviceService();
         var dispatcher = new StubDispatcher();
-        using (var vm = new ExternalBathViewModel(device, settings, dispatcher)
-               {
-                   IsTempControlViaBath = true,
-                   IsCommEnabled = true,
-                   IsPanelExpanded = false,
-               })
+        using (var vm = new ExternalBathViewModel(device, settings, dispatcher))
         {
+            device.PushTelemetry(new SensorSnapshot
+            {
+                HasBathTelemetry = true,
+                BathOnline = true,
+                BathCommEnabled = false,
+                TempControlViaBath = false,
+            });
+            vm.IsCommEnabled = true;
+            device.PushTelemetry(new SensorSnapshot
+            {
+                HasBathTelemetry = true,
+                BathOnline = true,
+                BathCommEnabled = true,
+                BathCommandPending = false,
+                TempControlViaBath = false,
+            });
+            vm.IsTempControlViaBath = true;
+            vm.IsPanelExpanded = false;
             Assert.Equal(2, dispatcher.Sent.Count);
         }
 
@@ -76,5 +105,87 @@ public sealed class ExternalBathViewModelTests
         Assert.True(restored.IsTempControlViaBath);
         Assert.True(restored.IsCommEnabled);
         Assert.False(restored.IsPanelExpanded);
+    }
+
+    [Fact]
+    public void Unsupported_hub_cannot_stage_bath_route_communication_or_mode_commands()
+    {
+        var device = new RecordingDeviceService();
+        var dispatcher = new StubDispatcher();
+        using var vm = new ExternalBathViewModel(device, new MemorySettingsService(), dispatcher);
+
+        vm.IsTempControlViaBath = true;
+        vm.IsCommEnabled = true;
+        vm.IsAutomatic = false;
+
+        Assert.False(vm.IsTempControlViaBath);
+        Assert.False(vm.IsCommEnabled);
+        Assert.True(vm.IsAutomatic);
+        Assert.Empty(dispatcher.Sent);
+    }
+
+    [Fact]
+    public void Hub_echo_does_not_erase_operator_route_intent_or_unlock_before_confirmation()
+    {
+        var settings = new MemorySettingsService(new AppSettings
+        {
+            ExternalBath = new ExternalBathSettings
+            {
+                PreferExternalRoute = true,
+                CommunicationEnabled = true,
+            },
+        });
+        var device = new RecordingDeviceService();
+        using var vm = new ExternalBathViewModel(device, settings, new StubDispatcher());
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathOnline = true,
+            BathCommEnabled = true,
+            TempControlViaBath = false,
+        });
+
+        Assert.True(vm.IsTempControlViaBath);
+        Assert.True(vm.IsCommEnabled);
+        Assert.False(vm.CanApplyNow);
+    }
+
+    [Fact]
+    public void Persisted_decimal_tuning_is_valid_in_pt_br_culture()
+    {
+        var previous = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("pt-BR");
+            var settings = new MemorySettingsService(new AppSettings
+            {
+                ExternalBath = new ExternalBathSettings
+                {
+                    PreferExternalRoute = true,
+                    CommunicationEnabled = true,
+                    CascadeKp = 0.75,
+                    CascadeBias = 0.65,
+                    CascadeBand = 0.15,
+                },
+            });
+            var device = new RecordingDeviceService();
+            using var vm = new ExternalBathViewModel(device, settings, new StubDispatcher());
+
+            device.PushTelemetry(new SensorSnapshot
+            {
+                HasBathTelemetry = true,
+                BathOnline = true,
+                BathCommEnabled = true,
+                TempControlViaBath = true,
+            });
+
+            Assert.Equal("0,75", vm.CascadeKpText);
+            Assert.True(vm.CanApplyTuning);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
     }
 }

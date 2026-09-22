@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
@@ -150,6 +151,7 @@ public sealed class RecipeEngineTests
             BathCommandCompletionPending = true,
             BathCascadeState = "controlling",
             BathState = "running",
+            TempSetpoint = 25.0,
             Temperature = 25.0,
         });
 
@@ -166,9 +168,50 @@ public sealed class RecipeEngineTests
             BathCommandCompletionPending = false,
             BathCascadeState = "controlling",
             BathState = "done",
+            TempSetpoint = 37.0,
             Temperature = 37.2,
         });
 
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Routed_bath_wait_does_not_succeed_when_telemetry_or_route_disappears()
+    {
+        var (engine, device, _, _) = Build();
+        device.PushTelemetry(BathFrame(25, 37, pending: true, state: "running"));
+
+        await engine.StartAsync(SetpointRecipe(SetpointVariable.Temperature, 37));
+        device.PushTelemetry(new SensorSnapshot { HasBathTelemetry = false, Temperature = 37 });
+        await Task.Delay(30);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done"));
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Multi_setpoint_waits_for_flow_and_bath_independently()
+    {
+        var (engine, device, _, _) = Build();
+        device.PushTelemetry(BathFrame(25, 37, pending: true, state: "running"));
+
+        await engine.StartAsync(MultiSetpointRecipe(flow: 2.5, temperature: 37));
+        device.PushTelemetry(BathFrame(25, 37, pending: true, state: "running") with
+        {
+            FlowmeterOnline = true,
+            FlowSetpoint = 2.5,
+        });
+        await Task.Delay(30);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done") with
+        {
+            FlowmeterOnline = true,
+            FlowSetpoint = 2.5,
+        });
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
     }
@@ -583,6 +626,38 @@ public sealed class RecipeEngineTests
         recipe.Connections.Add(new RecipeConnection("casc", ConnectorNames.Out, "end", ConnectorNames.In));
         return recipe;
     }
+
+    private static RecipeDocument MultiSetpointRecipe(double flow, double temperature)
+    {
+        var recipe = new RecipeDocument { Name = "Múltiplos setpoints" };
+        var start = RecipeNode.Create(NodeType.Start, id: "start");
+        var setpoint = RecipeNode.Create(NodeType.MultiSetpoint, id: "sp");
+        setpoint.Set("pontos", new JsonArray
+        {
+            new JsonObject { ["variavel"] = nameof(SetpointVariable.Flow), ["valor"] = flow, ["histerese"] = 0.0 },
+            new JsonObject { ["variavel"] = nameof(SetpointVariable.Temperature), ["valor"] = temperature, ["histerese"] = 0.0 },
+        });
+        var end = RecipeNode.Create(NodeType.End, id: "end");
+
+        recipe.Nodes.AddRange([start, setpoint, end]);
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "sp", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("sp", ConnectorNames.Out, "end", ConnectorNames.In));
+        return recipe;
+    }
+
+    private static SensorSnapshot BathFrame(double reactorTemperature, double target, bool pending, string state)
+        => new()
+        {
+            HasBathTelemetry = true,
+            TempControlViaBath = true,
+            BathOnline = true,
+            BathCommEnabled = true,
+            BathCommandCompletionPending = pending,
+            BathCascadeState = "controlling",
+            BathState = state,
+            TempSetpoint = target,
+            Temperature = reactorTemperature,
+        };
 
     private static RecipeDocument CascadeInfiniteRecipe()
     {

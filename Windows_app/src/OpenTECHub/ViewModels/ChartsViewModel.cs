@@ -125,7 +125,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             new(TelemetryChannel.CascadeKlaDemand, "Controle O₂ — Demanda kLa", "h⁻¹", "Series5Brush"),
             new(TelemetryChannel.BathPv, "Banho — PV", "°C", "Series1Brush"),
             new(TelemetryChannel.BathCascadePvFiltered, "Banho — PV filtrada", "°C", "Series2Brush"),
-            new(TelemetryChannel.BathCommandSetpoint, "Banho — saída calculada", "%", "Series3Brush"),
+            new(TelemetryChannel.BathCommandSetpoint, "Banho — saída calculada", "°C", "Series3Brush"),
             new(TelemetryChannel.BathCascadeError, "Banho — erro da cascata", "°C", "Series4Brush"),
         ];
 

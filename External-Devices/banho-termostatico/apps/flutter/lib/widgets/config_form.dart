@@ -68,6 +68,30 @@ class _ConfigFormState extends State<ConfigForm> {
       ));
       return;
     }
+    if (diff.containsKey('hub_enabled')) {
+      final disabling = diff['hub_enabled'] == 0;
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.darkCardElevated,
+          title: const Text('Alterar enlace com o Hub'),
+          content: Text(disabling
+              ? 'Desligar hub_enabled tira o banho da cascata do Hub: o Hub passa a vê-lo '
+                  'offline e para de corrigir a temperatura do reator. Continuar?'
+              : 'Ligar hub_enabled conecta o banho ao Hub; com a cascata ativa o Hub '
+                  'assume o controle e os comandos locais ficam bloqueados. Continuar?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancelar')),
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Confirmar')),
+          ],
+        ),
+      );
+      if (confirm != true || !mounted) return;
+    }
     final r = await s.applyConfig(diff);
     if (!mounted) return;
     showCommandResult(context, r);

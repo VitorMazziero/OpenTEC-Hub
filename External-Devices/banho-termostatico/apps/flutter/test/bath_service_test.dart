@@ -122,4 +122,40 @@ void main() {
     expect(r.action, 'config_unchanged');
     expect(receivedBodies, isEmpty);
   });
+
+  test('posse do Hub (r3.2): comandos locais não são enviados, abortar sim', () async {
+    final posts = <Map<String, dynamic>>[];
+    final owned = BathService(
+      client: MockClient((req) async {
+        if (req.method == 'POST') {
+          posts.add(jsonDecode(req.body) as Map<String, dynamic>);
+          return http.Response(jsonEncode({'ok': true, 'action': 'abort'}), 200,
+              headers: {'content-type': 'application/json'});
+        }
+        return http.Response(
+            jsonEncode({
+              ...statusJson,
+              'version': 'BathClient r3.2',
+              'hub_owned': true,
+              'hub_owner_age_ms': 800,
+            }),
+            200,
+            headers: {'content-type': 'application/json'});
+      }),
+    );
+    await owned.pollStatus();
+    expect(owned.statusData.hubOwned, isTrue);
+    expect(owned.statusData.hubOwnerAgeMs, 800);
+    expect(owned.statusData.supportsFirmware, isTrue);
+
+    final refused = await owned.setSetpoint(35.0);
+    expect(refused.ok, isFalse);
+    expect(refused.error, 'hub_owned');
+    expect(posts, isEmpty);
+
+    final aborted = await owned.abort();
+    expect(aborted.ok, isTrue);
+    expect(posts.single['abort'], 1);
+    owned.dispose();
+  });
 }

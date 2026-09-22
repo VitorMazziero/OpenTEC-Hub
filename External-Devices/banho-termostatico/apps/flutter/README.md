@@ -45,6 +45,13 @@ O botão **Abortar** fica sempre visível, acima da barra de abas.
 - A conexão continua visível, mas o badge avisa **Firmware incompatível** quando
   a versão anunciada não é r2 nem r3.x.
 
+## Posse do Hub (firmware r3.2, app 1.2.0)
+
+Quando a cascata do Hub está ativa, o `/status` traz `hub_owned=true`: o app mostra a faixa
+laranja "Controlado pelo Hub", não envia comandos (o nó recusaria com `409 hub_owned`) e deixa
+somente **Abortar**. A posse expira sozinha em até 10 s se o Hub parar de responder. Mudar
+`hub_enabled` na configuração pede confirmação, pois tira/coloca o banho na cascata do Hub.
+
 ## Como rodar / gerar o APK
 
 Requer Flutter (testado com 3.41.x). Da pasta `apps/flutter`:

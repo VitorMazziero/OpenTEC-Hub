@@ -90,7 +90,22 @@ class _BathShellState extends State<BathShell> {
           ),
         ],
       ),
-      body: IndexedStack(index: _index, children: _pages),
+      body: Column(
+        children: [
+          if (service.statusData.hubOwned)
+            Container(
+              width: double.infinity,
+              color: Colors.deepOrange.shade700,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: const Text(
+                'Controlado pelo Hub — cascata ativa. Comandos locais bloqueados; '
+                'só Abortar funciona. Pare a cascata no Hub para operar por aqui.',
+                style: TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          Expanded(child: IndexedStack(index: _index, children: _pages)),
+        ],
+      ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

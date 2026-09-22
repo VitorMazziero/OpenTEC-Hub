@@ -19,6 +19,9 @@ void showCommandResult(BuildContext context, CommandResult r) {
   } else if (r.error == 'busy') {
     text = 'Sequência em andamento — aguarde ou aborte.';
     color = AppTheme.accentAmber;
+  } else if (r.error == 'hub_owned') {
+    text = 'O Hub controla o banho (cascata ativa): só Abortar está disponível.';
+    color = AppTheme.accentAmber;
   } else if (r.error == 'duplicate') {
     text = 'Comando já aplicado (reentrega).';
     color = AppTheme.okGreen;

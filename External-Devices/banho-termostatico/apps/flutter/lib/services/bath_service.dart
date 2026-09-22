@@ -304,6 +304,24 @@ class BathService extends ChangeNotifier {
   /// requisição até 3× em caso de timeout de rede (plano §2, §5.2).
   Future<CommandResult> _post(Map<String, dynamic> payload,
       {required bool relay}) async {
+    // Com a posse do Hub o nó recusaria de qualquer forma; não gastar cmd_id nem
+    // tráfego. Abortar/parar sempre seguem (nunca dependem do Hub).
+    final stopOnly = payload.length == 1 &&
+        (payload.containsKey('abort') || payload.containsKey('stop'));
+    if (_statusData.hubOwned && !stopOnly) {
+      const refused = CommandResult(
+        ok: false,
+        action: '',
+        error: 'hub_owned',
+        statusCode: 409,
+        networkFailure: false,
+        body: {},
+      );
+      _lastError = refused.error;
+      _addLog('${_describe(payload)} → hub_owned (não enviado)', isError: true);
+      notifyListeners();
+      return refused;
+    }
     final body = Map<String, dynamic>.from(payload);
     if (relay) {
       body['cmd_id'] = await _cmdIds.next();

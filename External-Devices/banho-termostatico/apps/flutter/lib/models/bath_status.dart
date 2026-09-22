@@ -148,6 +148,11 @@ class BathStatus {
   final bool ota;
   final int lastCmdId;
 
+  // Posse do Hub (r3.2): com a cascata do Hub ativa o nó recusa comandos locais,
+  // exceto abortar/parar (PROTOCOL.md §3.3).
+  final bool hubOwned;
+  final int hubOwnerAgeMs;
+
   const BathStatus({
     required this.present,
     required this.device,
@@ -182,6 +187,8 @@ class BathStatus {
     required this.ip,
     required this.ota,
     required this.lastCmdId,
+    this.hubOwned = false,
+    this.hubOwnerAgeMs = -1,
   });
 
   factory BathStatus.empty() => const BathStatus(
@@ -254,6 +261,8 @@ class BathStatus {
         ip: (j['ip'] ?? '').toString(),
         ota: _asBool(j['ota']),
         lastCmdId: _asInt(j['last_cmd_id']),
+        hubOwned: _asBool(j['hub_owned']),
+        hubOwnerAgeMs: j['hub_owner_age_ms'] is num ? _asInt(j['hub_owner_age_ms']) : -1,
       );
 
   bool get seqBusy =>

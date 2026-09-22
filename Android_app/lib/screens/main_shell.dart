@@ -37,7 +37,8 @@ class _MainShellState extends State<MainShell> {
         ),
         content: const Text(
           "This will send 'resetVariables: 1' to the Hub.\n\n"
-          "All motor setpoints, dosing pumps, and heaters will be immediately shut down and set to safe states.",
+          "All motor setpoints, dosing pumps, and heaters will be immediately shut down and set to safe states.\n\n"
+          "Banho externo: a cascata para e o C404 fica em manual no último SP (não é desligado por software).",
         ),
         actions: [
           TextButton(

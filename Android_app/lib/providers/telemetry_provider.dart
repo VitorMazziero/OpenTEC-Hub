@@ -8,6 +8,7 @@ import '../models/biomass_sensor_state.dart';
 import '../models/flowmeter_state.dart';
 import '../models/flask_agitator_state.dart';
 import '../models/peristaltic_pump_state.dart';
+import '../models/external_bath_state.dart';
 import '../services/signal_filter_service.dart';
 
 class TelemetryDataPoint {
@@ -24,6 +25,7 @@ class TelemetryProvider with ChangeNotifier {
   FlowmeterState _flowmeterState = FlowmeterState.empty();
   FlaskAgitatorState _agitatorState = FlaskAgitatorState.empty();
   PeristalticPumpState _pumpState = PeristalticPumpState.empty();
+  ExternalBathState _bathState = ExternalBathState.empty();
   final SignalFilterService _filterService = SignalFilterService();
 
   double _calibratedPh = -1.0;
@@ -58,6 +60,7 @@ class TelemetryProvider with ChangeNotifier {
   FlowmeterState get flowmeterState => _flowmeterState;
   FlaskAgitatorState get agitatorState => _agitatorState;
   PeristalticPumpState get pumpState => _pumpState;
+  ExternalBathState get bathState => _bathState;
   SignalFilterService get filterService => _filterService;
 
   double get calibratedPh => _calibratedPh;
@@ -91,6 +94,7 @@ class TelemetryProvider with ChangeNotifier {
     _flowmeterState = FlowmeterState.fromJson(json);
     _agitatorState = FlaskAgitatorState.fromJson(json);
     _pumpState = PeristalticPumpState.fromJson(json);
+    _bathState = ExternalBathState.fromJson(json);
 
     // Compute calibrated values
     if (_telemetry.hasValidPh) {

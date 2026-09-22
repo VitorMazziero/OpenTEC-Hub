@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/device_control_provider.dart';
 import '../providers/telemetry_provider.dart';
 import '../widgets/control_section_card.dart';
+import '../widgets/external_bath_card.dart';
 import '../models/peristaltic_pump_state.dart';
 import '../services/pump_profile_math.dart';
 import 'dashboard_screen.dart';
@@ -240,6 +241,8 @@ class _ControlsScreenState extends State<ControlsScreen> {
     final agitatorState = context.watch<TelemetryProvider>().agitatorState;
     final pumpState = context.watch<TelemetryProvider>().pumpState;
     final servoState = context.watch<TelemetryProvider>().servoState;
+    final bathState = context.watch<TelemetryProvider>().bathState;
+    final reactorTemperature = context.watch<TelemetryProvider>().telemetry.temperature;
 
     return ListView(
       padding: const EdgeInsets.all(12.0),
@@ -521,31 +524,76 @@ class _ControlsScreenState extends State<ControlsScreen> {
         // 2. TEMPERATURE CONTROL
         // ====================================================
         ControlSectionCard(
-          title: "Temperature Control",
+          title: bathState.viaBath
+              ? "Temperatura do reator (banho externo)"
+              : "Temperature Control",
           icon: Icons.thermostat,
           accentColor: Colors.redAccent,
           isEnabled: _tempOn,
           onToggle: (val) => setState(() => _tempOn = val),
           isBusy: control.isBusy,
           onApply: () async {
-            final sp = double.tryParse(_tempSetpointController.text) ?? 25.0;
-            final ok = await control.setTemperature(enabled: _tempOn, setpoint: sp);
-            if (context.mounted) _showFeedback(context, ok, "Temperature ${_tempOn ? '$sp°C' : 'OFF'}");
+            // Invalid text is refused, never replaced by a plausible default.
+            final sp = double.tryParse(_tempSetpointController.text.replaceAll(',', '.'));
+            if (_tempOn && (sp == null || sp <= 0.0 || sp > 100.0)) {
+              _showFeedback(context, false, "Setpoint inválido");
+              return;
+            }
+            final ok = await control.setTemperature(enabled: _tempOn, setpoint: sp ?? 0.0);
+            if (!context.mounted) return;
+            if (bathState.viaBath && !_tempOn) {
+              _showFeedback(context, ok, "Cascata desligada (C404 em manual no último SP)");
+            } else {
+              _showFeedback(context, ok, "Temperature ${_tempOn ? '$sp°C' : 'OFF'}");
+            }
           },
           children: [
+            if (bathState.viaBath)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  "Via externa: este valor é a referência do reator para a cascata do Hub. "
+                  "Desligar para a cascata; o C404 não é desligado e fica em manual no último SP.",
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
             TextField(
               controller: _tempSetpointController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: "Target Temperature (°C)",
+              decoration: InputDecoration(
+                labelText: bathState.viaBath
+                    ? "Setpoint do reator (°C)"
+                    : "Target Temperature (°C)",
                 hintText: "10.0 - 90.0",
                 isDense: true,
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
               enabled: _tempOn,
             ),
           ],
         ),
+        if (bathState.hasTelemetry && (bathState.viaBath || bathState.online)) ...[
+          const SizedBox(height: 12),
+          ExternalBathCard(
+            state: bathState,
+            reactorTemperature: reactorTemperature,
+            busy: control.isBusy,
+            onStop: () async {
+              final ok = await control.stopBath();
+              if (context.mounted) _showFeedback(context, ok, "Parada do banho (C404 em manual no último SP)");
+            },
+            onResetFault: () async {
+              final ok = await control.resetBathFault();
+              if (context.mounted) _showFeedback(context, ok, "Reset da falha da cascata");
+            },
+            onModeChanged: (automatic) async {
+              final ok = await control.setBathMode(automatic: automatic);
+              if (context.mounted) {
+                _showFeedback(context, ok, "Guarda do C404 ${automatic ? 'automática' : 'manual'}");
+              }
+            },
+          ),
+        ],
         const SizedBox(height: 12),
 
         // ====================================================

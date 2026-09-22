@@ -67,9 +67,36 @@ class DeviceControlProvider with ChangeNotifier {
   // TEMPERATURE COMMANDS
   // ==========================================
 
+  /// Reactor temperature reference. On the external-bath route the Hub uses it as the
+  /// cascade reference, and `0` is the bath stop (C404 left in manual at its last SP).
+  /// Out-of-range values are refused here instead of being clamped to a plausible one.
   Future<bool> setTemperature({required bool enabled, required double setpoint}) async {
-    final sp = enabled ? setpoint.clamp(0.0, 100.0) : 0.0;
+    if (enabled && (!setpoint.isFinite || setpoint <= 0.0 || setpoint > 100.0)) {
+      _lastCommandStatus = "Setpoint de temperatura inválido: $setpoint";
+      notifyListeners();
+      return false;
+    }
+    final sp = enabled ? setpoint : 0.0;
     return sendRawCommand({"tempSetpoint": sp});
+  }
+
+  // ==========================================
+  // EXTERNAL BATH (Hub 10.6)
+  // ==========================================
+
+  /// Bath stop: cascade off, C404 sequence aborted and guard left in manual. The route
+  /// and bath communication are kept; the bath itself cannot be switched off remotely.
+  Future<bool> stopBath() async {
+    return sendRawCommand({"bathAbort": 1});
+  }
+
+  Future<bool> resetBathFault() async {
+    return sendRawCommand({"bathCascadeReset": 1});
+  }
+
+  /// C404 guard: auto reverts panel changes; the cascade only controls in auto.
+  Future<bool> setBathMode({required bool automatic}) async {
+    return sendRawCommand({"bathMode": automatic ? "auto" : "manual"});
   }
 
   // ==========================================

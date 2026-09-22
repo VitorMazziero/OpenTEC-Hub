@@ -69,7 +69,8 @@ void firmwareLoop() {
   const unsigned long now = millis();
   serviceLocalHttpApi();
 
-  if (g_otaRebootAtMs > 0 && now >= g_otaRebootAtMs) {
+  if (g_otaRebootAtMs > 0 &&
+      static_cast<int32_t>(now - g_otaRebootAtMs) >= 0) {
     Serial.println("[OTA] Reiniciando no novo firmware...");
     delay(100);
     ESP.restart();

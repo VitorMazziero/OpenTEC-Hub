@@ -22,11 +22,16 @@ void setTemperature(float temp) {
   if (temp < 0.0f) temp = 0.0f;
   if (temp > 100.0f) temp = 100.0f;
 
-  if (fabs(tempReference - temp) > 0.01f) {
+  const bool changed = fabs(tempReference - temp) > 0.01f;
+  if (changed) {
       tempReference = temp;
-      // In the external route the same reactor reference feeds the cascade;
-      // never send it directly as a C404 setpoint.
-      flagTempDirty = tempControlRoute == TempControlRoute::UartModule;
+  }
+  // Um novo comando após reboot/troca de via precisa rearmar a UART mesmo se
+  // repetir numericamente o último valor armazenado. Na via externa a mesma
+  // referência alimenta apenas a cascata e nunca segue diretamente ao C404.
+  if (tempControlRoute == TempControlRoute::UartModule &&
+      (changed || !tempReferenceCommanded)) {
+    flagTempDirty = true;
   }
 }
 

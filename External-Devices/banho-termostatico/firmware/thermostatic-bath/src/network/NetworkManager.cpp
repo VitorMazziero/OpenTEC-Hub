@@ -29,7 +29,12 @@ void checkWifi(bool hubEnabled) {
     return;
   }
 
-  if (now < g_wifiNextActionMs) return;
+  // Uma nova associação pode receber outro DHCP. Forçar novo hello antes do
+  // próximo push mantém o vínculo IP que o Hub 10.5.1 exige.
+  if (WiFi.status() != WL_CONNECTED) g_hubAnnounced = false;
+
+  if (g_wifiNextActionMs != 0 &&
+      static_cast<int32_t>(now - g_wifiNextActionMs) < 0) return;
 
   if (WiFi.status() == WL_CONNECTED) {
     g_wifiState = WF_IDLE;

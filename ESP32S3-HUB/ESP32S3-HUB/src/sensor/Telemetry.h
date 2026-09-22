@@ -103,6 +103,9 @@ void readAndBroadcastSensorData() {
   ExternalBathCascadeSnapshot snapBathCascade;
   float snapBathCommandSetpoint = NAN, snapBathCommandConfirmed = NAN;
   bool snapBathLatestWins = false;
+  bool snapBathCompletionPending = false;
+  uint32_t snapBathLastSentId = 0, snapBathLastDoneId = 0;
+  unsigned long snapBathLastSendMs = 0;
   TempControlRoute snapTempRoute = TempControlRoute::UartModule;
   unsigned long snapReactorPvUpdatedMs = 0;
   // 10.1: the node registry is copied whole (IP always; version/MAC only once the
@@ -132,6 +135,10 @@ void readAndBroadcastSensorData() {
     snapBathCommandSetpoint = bathCommandSetpoint;
     snapBathCommandConfirmed = bathCommandConfirmed;
     snapBathLatestWins = bathCommandLatestWins;
+    snapBathCompletionPending = bathCommandCompletionPending;
+    snapBathLastSentId = bathCommandLastSentId;
+    snapBathLastDoneId = bathCommandLastDoneId;
+    snapBathLastSendMs = bathCommandLastSendMs;
     snapTempRoute = tempControlRoute;
     if (distanceEchoSeen && (millis() - distanceSensorLastUpdate > distancePresenceWindowMs(distanceSendPeriodMs))) {
       distanceEchoSeen = false;
@@ -495,6 +502,12 @@ void readAndBroadcastSensorData() {
   jsonResponse += ",\"BathCascadeState\":\"" +
                   String(externalBathCascadeStateName(snapBathCascade.state)) + "\"";
   jsonResponse += ",\"BathCommandLatestWins\":" + String(snapBathLatestWins ? "true" : "false");
+  jsonResponse += ",\"BathCommandCompletionPending\":" +
+                  String(snapBathCompletionPending ? "true" : "false");
+  jsonResponse += ",\"BathCommandLastSentId\":" + String(snapBathLastSentId);
+  jsonResponse += ",\"BathCommandLastDoneId\":" + String(snapBathLastDoneId);
+  jsonResponse += ",\"BathCommandCompletionAgeMs\":" +
+                  String(snapBathCompletionPending ? millis() - snapBathLastSendMs : 0);
   if (isfinite(snapBathCommandSetpoint)) {
     jsonResponse += ",\"BathCommandSetpoint\":" + String(snapBathCommandSetpoint, 1);
   } else {

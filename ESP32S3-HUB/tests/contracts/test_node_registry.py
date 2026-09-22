@@ -145,7 +145,7 @@ class NodeRegistrySourceTests(unittest.TestCase):
     def test_both_frame_strings_share_one_reserve(self):
         self.assertIn("jsonResponse.reserve(HUB_TELEMETRY_JSON_RESERVE)", self.read("src/sensor/Telemetry.h"))
         self.assertIn("lastSensorJson.reserve(HUB_TELEMETRY_JSON_RESERVE)", self.read("src/core/Runtime.h"))
-        self.assertRegex(self.read("src/core/AppContext.h"), r"#define HUB_TELEMETRY_JSON_RESERVE\s+3072")
+        self.assertRegex(self.read("src/core/AppContext.h"), r"#define HUB_TELEMETRY_JSON_RESERVE\s+3584")
 
     def test_nodes_route_publishes_registration_and_timestamps(self):
         http = self.read("src/network/HttpServer.h")
@@ -158,8 +158,8 @@ class NodeRegistrySourceTests(unittest.TestCase):
         handler = http[http.index('server.on("/agitatorHello"'):http.index('server.on("/nodeHello"')]
         self.assertIn('recordDeviceActivity(DEV_AGITATOR, rip, now, true, "", "")', handler)
 
-    def test_firmware_identity_is_10_4(self):
-        self.assertIn('#define HUB_FIRMWARE_VERSION "10.5.0-dev"', self.read("Config.h"))
+    def test_firmware_identity_is_10_5_1(self):
+        self.assertIn('#define HUB_FIRMWARE_VERSION "10.5.1-dev"', self.read("Config.h"))
         self.assertIn("#define HUB_PROTOCOL_VERSION 10", self.read("Config.h"))
 
 

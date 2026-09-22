@@ -29,6 +29,8 @@ V8_KEYS = {
     "BathOnline", "BathCommEnabled", "BathCommandPending", "BathCommandId", "BathCommandAck",
     "TempControlMode", "TempControlViaBath", "BathCascadeEnabled", "BathCascadeState",
     "BathCommandLatestWins", "BathCommandSetpoint", "BathCommandConfirmed",
+    "BathCommandCompletionPending", "BathCommandLastSentId", "BathCommandLastDoneId",
+    "BathCommandCompletionAgeMs",
     "TempSetpoint", "BathSp", "BathTarget", "BathPv", "BathDisplaySp", "BathState",
     "BathPhase", "BathError", "BathMode", "BathGuard", "BathDeviation", "BathSpSource",
     "BathCascadeError", "BathCascadePvFiltered", "BathCascadeP", "BathCascadeI",

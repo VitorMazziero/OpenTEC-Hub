@@ -15,6 +15,27 @@ inline bool bathTextParam(AsyncWebServerRequest* request, const char* name,
   return true;
 }
 
+inline bool bathTelemetryEnumsValid(const char* state, const char* phase,
+                                    const char* guard) {
+  const bool stateValid = strcmp(state, "idle") == 0 ||
+                          strcmp(state, "running") == 0 ||
+                          strcmp(state, "settling") == 0 ||
+                          strcmp(state, "done") == 0 ||
+                          strcmp(state, "error") == 0 ||
+                          strcmp(state, "aborted") == 0;
+  const bool phaseValid = phase[0] == '\0' || strcmp(phase, "enter") == 0 ||
+                          strcmp(phase, "plan") == 0 ||
+                          strcmp(phase, "hold") == 0 ||
+                          strcmp(phase, "hold_settle") == 0 ||
+                          strcmp(phase, "presses") == 0;
+  const bool guardValid = strcmp(guard, "off") == 0 ||
+                          strcmp(guard, "watch") == 0 ||
+                          strcmp(guard, "pending") == 0 ||
+                          strcmp(guard, "correcting") == 0 ||
+                          strcmp(guard, "suspended") == 0;
+  return stateValid && phaseValid && guardValid;
+}
+
 // ------------------------------------------------------------------
 // startWiFi():
 // ------------------------------------------------------------------
@@ -390,6 +411,23 @@ void startWiFi() {
     // Bath r3 push. All fields are validated before the state or ACK changes;
     // malformed telemetry therefore cannot acknowledge a retained command.
     server.on("/bathData", HTTP_GET, [](AsyncWebServerRequest *request) {
+      // Controle térmico aceita somente o nó que registrou o contrato mínimo
+      // conhecido. O vínculo por IP não é autenticação criptográfica, mas evita
+      // que outro cliente já conectado injete telemetria por engano.
+      bool trustedSource = false;
+      const IPAddress remoteIp = request->client()->remoteIP();
+      if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
+        const DeviceNodeEntry& registeredBath = g_deviceRegistry[DEV_BATH];
+        trustedSource = registeredBath.registered &&
+                        registeredBath.ip == remoteIp &&
+                        strcmp(registeredBath.version, "r3.1") == 0;
+        xSemaphoreGive(stateMutex);
+      }
+      if (!trustedSource) {
+        request->send(403, "text/plain", "Bath node not registered or incompatible");
+        return;
+      }
+
       float sp = NAN, target = NAN, pv = NAN, displaySp = NAN, deviation = NAN, uptime = NAN;
       bool known = false, pvOk = false, displaySpOk = false, devOk = false;
       uint32_t spSource = 0, mode = 0, ack = 0;
@@ -421,7 +459,8 @@ void startWiFi() {
                 bathTextParam(request, "state", state, sizeof(state), true) &&
                 bathTextParam(request, "phase", phase, sizeof(phase), true) &&
                 bathTextParam(request, "err", error, sizeof(error), true) &&
-                bathTextParam(request, "guard", guard, sizeof(guard), true);
+                bathTextParam(request, "guard", guard, sizeof(guard), true) &&
+                bathTelemetryEnumsValid(state, phase, guard);
       }
       if (!valid) {
         request->send(400, "text/plain", "Invalid bath data");
@@ -439,8 +478,13 @@ void startWiFi() {
         snprintf(bathGuard, sizeof(bathGuard), "%s", guard);
         bathLastUpdate = millis();
         if (bathDisplaySpValid) bathCommandConfirmed = bathDisplaySp;
-        if (strcmp(bathState, "done") == 0) bathCommandLastDoneMs = bathLastUpdate;
-        recordDeviceActivity(DEV_BATH, request->client()->remoteIP(), bathLastUpdate, false);
+        if (strcmp(bathState, "done") == 0 && ack != 0 &&
+            bathCommandCompletionPending && ack == bathCommandLastSentId) {
+          bathCommandLastDoneMs = bathLastUpdate;
+          bathCommandLastDoneId = ack;
+          bathCommandCompletionPending = false;
+        }
+        recordDeviceActivity(DEV_BATH, remoteIp, bathLastUpdate, false);
         xSemaphoreGive(stateMutex);
       }
       ackReliable(bathBox, ack, "Bath");
@@ -664,7 +708,7 @@ void startWiFi() {
           const DeviceNodeEntry& e = g_deviceRegistry[i];
           if (only.length() > 0 && only != e.name) continue;
           unsigned long lastSeen = e.lastDataMs > e.lastHelloMs ? e.lastDataMs : e.lastHelloMs;
-          unsigned long ageMs = (lastSeen > 0 && now >= lastSeen) ? (now - lastSeen) : 999999;
+          unsigned long ageMs = lastSeen > 0 ? (now - lastSeen) : 999999;
           bool isOnline = false;
           if (i == DEV_DISTANCE) isOnline = (distanceSensorCommOn && (now - distanceSensorLastUpdate <= distancePresenceWindowMs(distanceSendPeriodMs)));
           else if (i == DEV_AGITATOR) isOnline = (agitatorLastUpdate > 0 && (now - agitatorLastUpdate <= AGITATOR_TIMEOUT));

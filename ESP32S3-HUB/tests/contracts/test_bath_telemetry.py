@@ -15,7 +15,7 @@ class BathTelemetryTests(unittest.TestCase):
         config = self.read("Config.h")
         telemetry = self.read("src/sensor/Telemetry.h")
         context = self.read("src/core/AppContext.h")
-        self.assertIn('#define HUB_FIRMWARE_VERSION "10.5.0-dev"', config)
+        self.assertIn('#define HUB_FIRMWARE_VERSION "10.5.1-dev"', config)
         fields = [
             "TempSetpoint", "BathSp", "BathTarget", "BathPv", "BathDisplaySp",
             "BathState", "BathPhase", "BathError", "BathMode", "BathGuard",
@@ -43,7 +43,7 @@ class BathTelemetryTests(unittest.TestCase):
         # Conservative worst-case estimate for the H06 additions: long bounded
         # strings, finite numbers and node identity fields, excluding legacy keys.
         bath_payload = 1800
-        self.assertGreaterEqual(reserve, 3072)
+        self.assertGreaterEqual(reserve, 3584)
         self.assertLess(bath_payload, reserve)
 
     def test_identity_is_appended_from_registry_snapshot(self):

@@ -275,6 +275,8 @@ void serviceExternalBathCascade(unsigned long now) {
   uint8_t bathModeSnapshot = 0;
   unsigned long bathLastUpdateSnapshot = 0;
   unsigned long bathLastDoneSnapshot = 0;
+  unsigned long bathLastSendSnapshot = 0;
+  bool bathCompletionPendingSnapshot = false;
   char bathStateSnapshot[sizeof(bathState)] = "idle";
   char bathGuardSnapshot[sizeof(bathGuard)] = "off";
   if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
@@ -285,6 +287,8 @@ void serviceExternalBathCascade(unsigned long now) {
     bathModeSnapshot = bathMode;
     bathLastUpdateSnapshot = bathLastUpdate;
     bathLastDoneSnapshot = bathCommandLastDoneMs;
+    bathLastSendSnapshot = bathCommandLastSendMs;
+    bathCompletionPendingSnapshot = bathCommandCompletionPending;
     snprintf(bathStateSnapshot, sizeof(bathStateSnapshot), "%s", bathState);
     snprintf(bathGuardSnapshot, sizeof(bathGuardSnapshot), "%s", bathGuard);
     xSemaphoreGive(stateMutex);
@@ -292,9 +296,12 @@ void serviceExternalBathCascade(unsigned long now) {
 
   const bool reactorFresh = reactorTempPvFresh(now);
   const bool nodeFresh = bathLastUpdateSnapshot > 0 && now - bathLastUpdateSnapshot <= 5000;
+  const bool completionTimedOut = bathCompletionPendingSnapshot &&
+      (now - bathLastSendSnapshot >= BATH_COMMAND_COMPLETION_TIMEOUT_MS);
   const bool bathFault = strcmp(bathStateSnapshot, "error") == 0 ||
                          strcmp(bathStateSnapshot, "aborted") == 0 ||
-                         strcmp(bathGuardSnapshot, "suspended") == 0;
+                         strcmp(bathGuardSnapshot, "suspended") == 0 ||
+                         completionTimedOut;
   ExternalBathCascadeInputs in;
   in.nowMs = now;
   in.enabled = tempReferenceCommanded;
@@ -309,12 +316,14 @@ void serviceExternalBathCascade(unsigned long now) {
   in.bathGuardHealthy = strcmp(bathGuardSnapshot, "suspended") != 0;
   in.bathSpValid = bathDisplaySpValidSnapshot;
   in.bathSpC = bathDisplaySpSnapshot;
-  in.actuatorBusy = mailboxPending(bathBox) || strcmp(bathStateSnapshot, "running") == 0 ||
+  in.actuatorBusy = bathCompletionPendingSnapshot || mailboxPending(bathBox) ||
+                    strcmp(bathStateSnapshot, "running") == 0 ||
                     strcmp(bathStateSnapshot, "settling") == 0;
   in.pause = tempReferenceCommanded && !reactorFresh;
   in.pauseReason = "reactor_pv_stale";
   in.fault = bathFault;
-  in.faultReason = bathFault ? "bath_fault" : "";
+  in.faultReason = completionTimedOut ? "bath_completion_timeout" :
+                   (bathFault ? "bath_fault" : "");
 
   bathCascadeLastCalcMs = now;
   const bool ready = bathCascade.update(in);
@@ -338,6 +347,8 @@ void serviceExternalBathCascade(unsigned long now) {
       bathCascade.markCommandSent(bathCommandSetpoint, now);
       if (xSemaphoreTake(stateMutex, portMAX_DELAY) == pdTRUE) {
         bathCommandLastSendMs = now;
+        bathCommandLastSentId = revision;
+        bathCommandCompletionPending = true;
         bathCommandLatestWins = false;
         bathCascadeSnapshot = bathCascade.snapshot();
         xSemaphoreGive(stateMutex);

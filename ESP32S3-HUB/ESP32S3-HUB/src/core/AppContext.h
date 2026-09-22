@@ -181,6 +181,10 @@ bool bathCommandLatestWins = false;
 unsigned long bathCascadeLastCalcMs = 0;
 unsigned long bathCommandLastSendMs = 0;
 unsigned long bathCommandLastDoneMs = 0;
+uint32_t bathCommandLastSentId = 0;
+uint32_t bathCommandLastDoneId = 0;
+bool bathCommandCompletionPending = false;
+constexpr unsigned long BATH_COMMAND_COMPLETION_TIMEOUT_MS = 300000;
 float bathSp = NAN;
 bool bathSpKnown = false;
 float bathTarget = NAN;
@@ -541,7 +545,7 @@ TaskHandle_t g_nodeDiagTaskHandle = nullptr;
 
 // Shared by the aggregate frame (Telemetry.h) and the /readData cache copy
 // (Runtime.h): the two Strings must reserve the same size or the assignment reallocates.
-#define HUB_TELEMETRY_JSON_RESERVE 3072
+#define HUB_TELEMETRY_JSON_RESERVE 3584
 
 // Appends "<Prefix>IP" and, when the node has registered, "<Prefix>NodeVer" and
 // "<Prefix>NodeMac" to an aggregate frame under construction. Version and MAC come

@@ -30,8 +30,16 @@ class BathCascadeTests(unittest.TestCase):
     def test_controller_contains_required_safety_terms(self):
         for token in ("filterS", "candidateIntegral", "Conditional anti-windup",
                       "offsetLowC", "offsetHighC", "commandBandC", "maxStep",
-                      "commandMinMs", "in.nowMs - lastInputMs_"):
+                      "commandMinMs", "in.nowMs - lastInputMs_", "faultLatched_"):
             self.assertIn(token, self.source)
+
+    def test_fault_is_latched_until_explicit_reset(self):
+        fault_latch = self.source.index("faultLatched_ = true")
+        latched_gate = self.source.index("if (faultLatched_)", fault_latch)
+        reset_clear = self.source.index("faultLatched_ = false")
+        self.assertLess(reset_clear, fault_latch)
+        self.assertLess(fault_latch, latched_gate)
+        self.assertIn("lastInputMs_ = in.nowMs", self.source[latched_gate:])
 
     def test_configuration_is_transactional(self):
         self.assertIn("if (!finitePositive(candidate.kp)", self.source)

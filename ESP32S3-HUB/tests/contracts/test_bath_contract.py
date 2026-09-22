@@ -43,10 +43,28 @@ class BathContractTests(unittest.TestCase):
                       "dev_ok", "time", "ack_cmd_id"):
             self.assertIn(f'hasParam("{field}")', handler)
 
+    def test_push_is_bound_to_registered_compatible_node_and_known_enums(self):
+        http = self.read("src/network/HttpServer.h")
+        handler = http[http.index('server.on("/bathData"'):http.index('// Handler de GET /pumpData')]
+        self.assertIn("registeredBath.registered", handler)
+        self.assertIn("registeredBath.ip == remoteIp", handler)
+        self.assertIn('strcmp(registeredBath.version, "r3.1") == 0', handler)
+        self.assertIn('request->send(403', handler)
+        self.assertIn("bathTelemetryEnumsValid(state, phase, guard)", handler)
+
+    def test_done_is_recorded_once_for_the_matching_command(self):
+        http = self.read("src/network/HttpServer.h")
+        handler = http[http.index('server.on("/bathData"'):http.index('// Handler de GET /pumpData')]
+        self.assertIn("bathCommandCompletionPending && ack == bathCommandLastSentId", handler)
+        self.assertIn("bathCommandLastDoneId = ack", handler)
+        self.assertIn("bathCommandCompletionPending = false", handler)
+
     def test_aggregate_frame_publishes_bath_presence_and_mailbox(self):
         telemetry = self.read("src/sensor/Telemetry.h")
         for key in ("BathOnline", "BathCommEnabled", "BathCommandPending",
-                    "BathCommandId", "BathCommandAck"):
+                    "BathCommandId", "BathCommandAck", "BathCommandCompletionPending",
+                    "BathCommandLastSentId", "BathCommandLastDoneId",
+                    "BathCommandCompletionAgeMs"):
             self.assertIn(f'\\"{key}\\"', telemetry)
 
 

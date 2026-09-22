@@ -236,6 +236,7 @@ void processJsonCommand(const String &json) {
   if (json.indexOf("\"resetVariables\"") != -1) {
     ESP32_EVT("Comando de reset das variáveis recebido");
     tempReference = 0.0f; 
+    flagTempDirty = true;
     pHReference = 0.0f; pHError = 0.17f; 
     pHCal = 5; pHOperation = 5; pHMix = 10; pHIntensity = 990;
     motorRPM = 0;
@@ -256,6 +257,14 @@ void processJsonCommand(const String &json) {
     bathCascade.configure(bathCascadeConfig);
     bathCascade.reset();
     clearReliable(bathBox);
+    bathCommandSetpoint = NAN;
+    bathCommandConfirmed = NAN;
+    bathCommandLatestWins = false;
+    bathCommandLastSendMs = 0;
+    bathCommandLastDoneMs = 0;
+    bathCommandLastSentId = 0;
+    bathCommandLastDoneId = 0;
+    bathCommandCompletionPending = false;
     if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
       desiredFlowSetpoint = 0.0f;
       desiredFlowValve1 = 0;
@@ -470,6 +479,11 @@ void processJsonCommand(const String &json) {
         bathCommandSetpoint = NAN;
         bathCommandConfirmed = NAN;
         bathCommandLatestWins = false;
+        bathCommandLastSendMs = 0;
+        bathCommandLastDoneMs = 0;
+        bathCommandLastSentId = 0;
+        bathCommandLastDoneId = 0;
+        bathCommandCompletionPending = false;
         // 100B is the established, working module command that releases the
         // original temperature actuator before the external route can act.
         sendSensorCommand("100B", false);

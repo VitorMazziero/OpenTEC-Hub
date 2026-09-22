@@ -56,6 +56,7 @@ void ExternalBathCascade::reset() {
   integralC_ = 0.0f;
   outputC_ = 0.0f;
   lastCommandC_ = 0.0f;
+  faultLatched_ = false;
 }
 
 void ExternalBathCascade::markCommandSent(float setpointC, uint32_t nowMs) {
@@ -120,8 +121,15 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
   }
 
   if (in.fault) {
-    setState(ExternalBathCascadeState::Fault, in.faultReason);
+    faultLatched_ = true;
+    setReason(in.faultReason);
+  }
+  if (faultLatched_) {
+    snapshot_.state = ExternalBathCascadeState::Fault;
     snapshot_.saturated = false;
+    // A falha exige reset explícito. Atualizar a origem temporal evita que um
+    // reset tardio transforme todo o tempo parado em um único passo integral.
+    lastInputMs_ = in.nowMs;
     return false;
   }
   if (in.pause) {

@@ -16,6 +16,10 @@
 namespace {
 constexpr unsigned long HELLO_PERIOD_MS = 30000;
 constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
+// O Hub invalida a amostra após 5 s. Enquanto integrado, publicar no máximo a
+// cada 2 s deixa margem para jitter sem alterar o período escolhido para a UI
+// local. Em falha, o backoff continua crescendo e o Hub pausa de forma segura.
+constexpr uint32_t HUB_CONTROL_MAX_PERIOD_MS = 2000;
 constexpr uint32_t HUB_TASK_STACK_BYTES = 6144;
 constexpr size_t COMMAND_PAYLOAD_BYTES = 384;
 
@@ -185,7 +189,9 @@ void hubLinkPublishSnapshot(unsigned long now) {
   HubSnapshot next{};
   next.hubEnabled = g_cfg.hubEnabled != 0;
   next.otaInProgress = g_otaInProgress;
-  next.sendPeriodMs = g_cfg.sendPeriodMs;
+  next.sendPeriodMs = next.hubEnabled
+      ? min(g_cfg.sendPeriodMs, HUB_CONTROL_MAX_PERIOD_MS)
+      : g_cfg.sendPeriodMs;
   next.nowMs = now;
   next.sp = g_spShadow;
   next.known = g_spKnown;

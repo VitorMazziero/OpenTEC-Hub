@@ -86,6 +86,7 @@ class ExternalBathCascade {
   float integralC_ = 0.0f;
   float outputC_ = 0.0f;
   float lastCommandC_ = 0.0f;
+  bool faultLatched_ = false;
 
   float lowerLimit(float referenceC) const;
   float upperLimit(float referenceC) const;

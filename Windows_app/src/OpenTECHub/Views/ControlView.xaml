@@ -580,6 +580,108 @@
                                         </StackPanel>
                                     </Grid>
                                 </Border>
+
+                                <!-- Hub-routed external bath and thermal cascade.  The reactor PV
+                                     remains the authoritative process value; C404 fields are
+                                     shown separately so an operator cannot confuse the two. -->
+                                <Border Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource RadiusSmall}"
+                                        Margin="28,0,8,10"
+                                        Padding="14,10">
+                                    <StackPanel DataContext="{Binding DataContext.ExternalBath, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Banho externo — Contemp C404" FontWeight="SemiBold" />
+                                                <TextBlock Text="Rota o controle do reator pelo Hub; Tempval é a temperatura real lida pelo sensor." Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="12,0,14,0" />
+                                            <ToggleButton Grid.Column="2" IsChecked="{Binding IsTempControlViaBath, Mode=TwoWay}" Style="{StaticResource ToggleSwitchStyle}" ToolTip="Selecionar controle térmico via banho externo" />
+                                        </Grid>
+
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="90" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="90" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="90" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Comunicação" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding IsCommEnabled, Mode=TwoWay}" Style="{StaticResource ToggleSwitchStyle}" ToolTip="Habilitar comunicação do C404" />
+                                            <TextBlock Grid.Column="2" Text="Referência reator" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                            <TextBox Grid.Column="3" Text="{Binding ReactorSetpointText, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Grid.Column="4" Content="Aplicar" Command="{Binding ApplySetpointCommand}" IsEnabled="{Binding CanApplySetpoint}" Margin="8,0,6,0" />
+                                            <TextBlock Grid.Column="5" Text="PV real" VerticalAlignment="Center" Margin="8,0,6,0" />
+                                            <TextBlock Grid.Column="6" Text="{Binding ReactorPvText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
+                                        </Grid>
+
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel><TextBlock Text="C404 PV" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding BathPvText}" Style="{StaticResource NumericTextStyle}" /></StackPanel>
+                                            <StackPanel Grid.Column="1"><TextBlock Text="C404 SP" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding BathSpText}" Style="{StaticResource NumericTextStyle}" /></StackPanel>
+                                            <StackPanel Grid.Column="2"><TextBlock Text="Alvo" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding BathTargetText}" Style="{StaticResource NumericTextStyle}" /></StackPanel>
+                                            <StackPanel Grid.Column="3"><TextBlock Text="Estado / fase" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding BathStateText}" /><TextBlock Text="{Binding BathPhaseText}" Style="{StaticResource CaptionTextStyle}" /></StackPanel>
+                                        </Grid>
+
+                                        <Border BorderBrush="{DynamicResource StrokeSubtleBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0">
+                                            <StackPanel>
+                                                <TextBlock Text="Cascata térmica" FontWeight="SemiBold" />
+                                                <Grid Margin="0,6,0,4">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="Estado" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding CascadeStateText}" /></StackPanel>
+                                                    <StackPanel Grid.Column="1"><TextBlock Text="PV filtrada / erro" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding CascadePvFilteredText}" /><TextBlock Text="{Binding CascadeErrorText}" /></StackPanel>
+                                                    <StackPanel Grid.Column="2"><TextBlock Text="Saída / confirmação" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding CascadeOutputText}" /><TextBlock Text="{Binding CascadeConfirmationText}" /></StackPanel>
+                                                    <StackPanel Grid.Column="3"><TextBlock Text="P / I" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding CascadePIText}" /><TextBlock Text="{Binding CascadePauseText}" /></StackPanel>
+                                                </Grid>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,4">
+                                                    <TextBox Width="90" Text="{Binding BathSyncText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Setpoint a sincronizar com o C404" />
+                                                    <Button Content="Sincronizar" Command="{Binding SynchronizeCommand}" Margin="6,0,0,0" />
+                                                    <Button Content="Abortar" Command="{Binding AbortCommand}" Margin="6,0,0,0" />
+                                                    <Button Content="Reset falha" Command="{Binding ResetFaultCommand}" Margin="6,0,0,0" />
+                                                </StackPanel>
+                                                <TextBlock Text="Liberar a cascata não desliga o C404." Foreground="{DynamicResource StateAlarmTextBrush}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding BathErrorText}" Foreground="{DynamicResource StateAlarmTextBrush}" Style="{StaticResource CaptionTextStyle}" />
+                                                <Expander Header="Sintonia avançada da cascata" Margin="0,8,0,0">
+                                                    <StackPanel Margin="0,8,0,0">
+                                                        <UniformGrid Columns="4" Margin="0,0,0,6">
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Kp" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeKpText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Ti (s)" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeTiText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Bias" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeBiasText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel><TextBlock Text="Período (ms)" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadePeriodText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                        </UniformGrid>
+                                                        <UniformGrid Columns="4" Margin="0,0,0,6">
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Filtro (s)" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeFilterText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Comando mínimo" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeMinCommandText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Banda" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeBandText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel><TextBlock Text="Slew" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeSlewText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                        </UniformGrid>
+                                                        <UniformGrid Columns="4" Margin="0,0,0,6">
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Offset alto" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeOffsetHighText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Offset baixo" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeOffsetLowText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel Margin="0,0,6,0"><TextBlock Text="Saída mínima" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeOutputMinText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                            <StackPanel><TextBlock Text="Saída máxima" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeOutputMaxText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
+                                                        </UniformGrid>
+                                                        <Button Content="Aplicar sintonia" Command="{Binding ApplyTuningCommand}" HorizontalAlignment="Left" />
+                                                    </StackPanel>
+                                                </Expander>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
 
                             <!-- 3. pH (com dropdown) -->

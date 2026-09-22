@@ -204,6 +204,50 @@ public static class WireCodec
         }
 
         AppendServo(buffer, model);
+
+        if (model.Scenario != Scenario.LegacyHub)
+        {
+            AppendBath(buffer, model);
+        }
+    }
+
+    private static void AppendBath(StringBuilder buffer, DeviceModel model)
+    {
+        AppendBool(buffer, "BathOnline", model.BathNodeOnline);
+        AppendBool(buffer, "BathCommEnabled", model.RoutingEcho(model.BathCommEnabled));
+        AppendBool(buffer, "BathCommandPending", model.BathCommandPending);
+        AppendLong(buffer, "BathCommandId", model.BathCommandId);
+        AppendLong(buffer, "BathCommandAck", model.BathCommandAck);
+        AppendInt(buffer, "TempControlMode", model.TempControlViaBath ? 1 : 0);
+        AppendBool(buffer, "TempControlViaBath", model.TempControlViaBath);
+        AppendBool(buffer, "BathCascadeEnabled", model.TempControlViaBath && model.BathCommEnabled);
+        AppendString(buffer, "BathCascadeState", model.BathCascadeState);
+        AppendBool(buffer, "BathCommandLatestWins", model.BathCommandLatestWins);
+        AppendBool(buffer, "BathCommandCompletionPending", model.BathCommandCompletionPending);
+        AppendLong(buffer, "BathCommandLastSentId", model.BathCommandLastSentId);
+        AppendLong(buffer, "BathCommandLastDoneId", model.BathCommandLastDoneId);
+        AppendInt(buffer, "BathCommandCompletionAgeMs", model.BathCommandCompletionAgeMs);
+        AppendNullable(buffer, "TempSetpoint", model.TemperatureSetpoint, 2);
+        AppendNullable(buffer, "BathSp", model.BathSetpoint, 2);
+        AppendNullable(buffer, "BathTarget", model.BathTarget, 2);
+        AppendNullable(buffer, "BathPv", model.BathPv, 2);
+        AppendNullable(buffer, "BathDisplaySp", model.BathSetpoint, 2);
+        AppendString(buffer, "BathState", model.BathState);
+        AppendString(buffer, "BathPhase", model.BathPhase);
+        AppendString(buffer, "BathError", model.BathError);
+        AppendInt(buffer, "BathMode", model.BathModeAuto ? 1 : 0);
+        AppendString(buffer, "BathGuard", model.BathGuard);
+        AppendNullable(buffer, "BathDeviation", model.BathDeviation, 2);
+        AppendInt(buffer, "BathSpSource", model.BathSpSource);
+        AppendNullable(buffer, "BathCommandSetpoint", model.BathCommandSetpoint, 2);
+        AppendNullable(buffer, "BathCommandConfirmed", model.BathCommandConfirmed, 2);
+        AppendNullable(buffer, "BathCascadeError", model.BathCascadeError, 3);
+        AppendNullable(buffer, "BathCascadePvFiltered", model.BathCascadePvFiltered, 3);
+        AppendNullable(buffer, "BathCascadeP", model.BathCascadeP, 3);
+        AppendNullable(buffer, "BathCascadeI", model.BathCascadeI, 3);
+        AppendBool(buffer, "BathCascadeSaturated", model.BathCascadeSaturated);
+        AppendString(buffer, "BathCascadePausedReason", model.BathCascadePausedReason);
+        AppendLong(buffer, "BathCascadeLastUpdateMs", model.BathCascadeLastUpdateMs);
     }
 
     /// <summary>
@@ -288,6 +332,42 @@ public static class WireCodec
         {
             model.TemperatureSetpoint = temperature;
         }
+
+        if (TryDouble(root, CommandKeys.TempControlMode, out var temperatureMode) && temperatureMode is >= 0 and <= 1)
+        {
+            model.TempControlViaBath = temperatureMode != 0;
+            if (!model.TempControlViaBath)
+            {
+                model.BathCommEnabled = false;
+            }
+        }
+        if (TryDouble(root, CommandKeys.BathComm, out var bathComm))
+        {
+            model.BathCommEnabled = bathComm != 0;
+        }
+        if (TryDouble(root, CommandKeys.BathSync, out var bathSync) && double.IsFinite(bathSync) && bathSync is >= 0 and <= 100)
+        {
+            model.BathSetpoint = bathSync;
+            model.BathTarget = bathSync;
+        }
+        if (root.TryGetProperty(CommandKeys.BathMode, out var bathMode) && bathMode.ValueKind == JsonValueKind.String)
+        {
+            model.BathModeAuto = string.Equals(bathMode.GetString(), "auto", StringComparison.OrdinalIgnoreCase);
+        }
+        if (TryDouble(root, CommandKeys.BathAbort, out var bathAbort) && bathAbort != 0)
+        {
+            model.BathState = "aborted";
+            model.BathError = "aborted";
+        }
+        if (TryDouble(root, CommandKeys.BathCascadeReset, out var bathReset) && bathReset != 0)
+        {
+            model.BathState = "idle";
+            model.BathError = "";
+            model.BathCascadeState = "waiting_inputs";
+            model.BathCascadePausedReason = "";
+        }
+
+        ApplyBathTuning(model, root);
 
         if (TryDouble(root, CommandKeys.MotorSetpoint, out var rpm))
         {
@@ -659,6 +739,22 @@ public static class WireCodec
         };
     }
 
+    private static void ApplyBathTuning(DeviceModel model, JsonElement root)
+    {
+        if (TryDouble(root, CommandKeys.BathCascadeKp, out var kp) && double.IsFinite(kp)) model.BathCascadeKp = kp;
+        if (TryDouble(root, CommandKeys.BathCascadeTiS, out var ti) && double.IsFinite(ti)) model.BathCascadeTiS = ti;
+        if (TryDouble(root, CommandKeys.BathCascadeBiasC, out var bias) && double.IsFinite(bias)) model.BathCascadeBiasC = bias;
+        if (TryDouble(root, CommandKeys.BathCascadePeriodMs, out var period) && period is > 0 and <= 600000) model.BathCascadePeriodMs = (int)period;
+        if (TryDouble(root, CommandKeys.BathCascadeFilterS, out var filter) && double.IsFinite(filter)) model.BathCascadeFilterS = filter;
+        if (TryDouble(root, CommandKeys.BathCascadeCommandMinMs, out var min) && min is > 0 and <= 600000) model.BathCascadeCommandMinMs = (int)min;
+        if (TryDouble(root, CommandKeys.BathCascadeCommandBandC, out var band) && double.IsFinite(band)) model.BathCascadeCommandBandC = band;
+        if (TryDouble(root, CommandKeys.BathCascadeSlewCMin, out var slew) && double.IsFinite(slew)) model.BathCascadeSlewCMin = slew;
+        if (TryDouble(root, CommandKeys.BathCascadeOffsetHighC, out var high) && double.IsFinite(high)) model.BathCascadeOffsetHighC = high;
+        if (TryDouble(root, CommandKeys.BathCascadeOffsetLowC, out var low) && double.IsFinite(low)) model.BathCascadeOffsetLowC = low;
+        if (TryDouble(root, CommandKeys.BathCascadeOutputMinC, out var outMin) && double.IsFinite(outMin)) model.BathCascadeOutputMinC = outMin;
+        if (TryDouble(root, CommandKeys.BathCascadeOutputMaxC, out var outMax) && double.IsFinite(outMax)) model.BathCascadeOutputMaxC = outMax;
+    }
+
     private static bool IsValidPumpPolynomial(
         double a1, double b1, double k1, double f1, double c1,
         double k2, double f2, double c2, double transitionSpeed)
@@ -712,6 +808,20 @@ public static class WireCodec
                  .Append(value.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture),
                                         CultureInfo.InvariantCulture))
                  .Append(',');
+
+    private static void AppendNullable(StringBuilder buffer, string key, double value, int decimals)
+    {
+        buffer.Append('"').Append(key).Append("\":");
+        if (double.IsFinite(value))
+        {
+            buffer.Append(value.ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            buffer.Append("null");
+        }
+        buffer.Append(',');
+    }
 
     private static void AppendInt(StringBuilder buffer, string key, int value)
         => buffer.Append('"').Append(key).Append("\":")

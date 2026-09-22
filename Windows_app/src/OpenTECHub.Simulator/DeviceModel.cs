@@ -85,6 +85,24 @@ public enum Scenario
     /// </remarks>
     NodeRenumber,
 
+    /// <summary>Bath node stops reporting while the Hub remains reachable.</summary>
+    BathOffline,
+
+    /// <summary>The bath reports an invalid C404 PV.</summary>
+    BathPvInvalid,
+
+    /// <summary>The outer loop reaches its configured output limit.</summary>
+    BathSaturation,
+
+    /// <summary>The bath enters a latched error state.</summary>
+    BathError,
+
+    /// <summary>The bath sequence is aborted by the operator.</summary>
+    BathAbort,
+
+    /// <summary>The bath guard suspends cascade control.</summary>
+    BathGuardSuspended,
+
     /// <summary>
     /// The operator forgot the nitrogen at the source: B is on the same output as C, so every
     /// vent (C) opening also strips oxygen. What the power assay's N₂ guard exists to catch.
@@ -116,6 +134,7 @@ public sealed class DeviceModel
     // ---- true process state ------------------------------------------
 
     private double _temperature = 24.0;      // degC, starts at ambient
+    private double _bathTemperature = 30.0;  // C404 bath PV
     private double _flow;                    // L/min
     private double _oxygenTrue = 95.0;       // % saturation, starts near-saturated
     private double _oxygenReported = 95.0;   // what the probe says, i.e. delayed
@@ -174,6 +193,50 @@ public sealed class DeviceModel
     public Scenario Scenario { get; set; } = Scenario.Normal;
 
     public double TemperatureSetpoint { get; set; }
+
+    /// <summary>True when the Hub routes the temperature loop to the external C404 bath.</summary>
+    public bool TempControlViaBath { get; set; }
+    public bool BathCommEnabled { get; set; }
+    public bool BathModeAuto { get; set; } = true;
+    public double BathCommandSetpoint { get; private set; } = 30.0;
+    public double BathCommandConfirmed { get; private set; } = 30.0;
+    public double BathSetpoint { get; internal set; } = 30.0;
+    public double BathTarget { get; internal set; } = 30.0;
+    public double BathPv => Scenario == Scenario.BathPvInvalid ? double.NaN : _bathTemperature;
+    public double BathDeviation => BathPv - BathSetpoint;
+    public string BathState { get; internal set; } = "idle";
+    public string BathPhase { get; private set; } = "idle";
+    public string BathError { get; internal set; } = "";
+    public string BathGuard { get; private set; } = "off";
+    public int BathSpSource { get; private set; } = 1;
+    public bool BathCascadeSaturated { get; private set; }
+    public string BathCascadeState { get; internal set; } = "off";
+    public double BathCascadeError { get; private set; }
+    public double BathCascadePvFiltered { get; private set; }
+    public double BathCascadeP { get; private set; }
+    public double BathCascadeI { get; private set; }
+    public string BathCascadePausedReason { get; internal set; } = "";
+    public long BathCommandId { get; private set; }
+    public long BathCommandAck { get; private set; }
+    public bool BathCommandPending { get; private set; }
+    public bool BathCommandCompletionPending { get; private set; }
+    public long BathCommandLastSentId { get; private set; }
+    public long BathCommandLastDoneId { get; private set; }
+    public int BathCommandCompletionAgeMs { get; private set; }
+    public bool BathCommandLatestWins { get; private set; }
+    public long BathCascadeLastUpdateMs { get; private set; }
+    public double BathCascadeKp { get; set; } = 0.5;
+    public double BathCascadeTiS { get; set; } = 600.0;
+    public double BathCascadeBiasC { get; set; } = 0.6;
+    public int BathCascadePeriodMs { get; set; } = 10000;
+    public double BathCascadeFilterS { get; set; } = 20.0;
+    public int BathCascadeCommandMinMs { get; set; } = 30000;
+    public double BathCascadeCommandBandC { get; set; } = 0.1;
+    public double BathCascadeSlewCMin { get; set; } = 0.5;
+    public double BathCascadeOffsetHighC { get; set; } = 5.0;
+    public double BathCascadeOffsetLowC { get; set; } = 5.0;
+    public double BathCascadeOutputMinC { get; set; } = 5.0;
+    public double BathCascadeOutputMaxC { get; set; } = 90.0;
 
     /// <summary>Commanded CN1 speed reference. <see cref="ServoRpm"/> is the measured response.</summary>
     public int MotorRpm { get; set; }
@@ -347,6 +410,7 @@ public sealed class DeviceModel
         ("pump", "Pump"),
         ("flowmeter", "Flowmeter"),
         ("biomass", "Biomass"),
+        ("bath", "Bath"),
     ];
 
     /// <summary>False under <see cref="Scenario.LegacyHub"/>: a Hub from before the identity keys.</summary>
@@ -374,8 +438,11 @@ public sealed class DeviceModel
         "distance" => DistanceSensorEnabled,
         "pump" => PumpEnabled,
         "biomass" => BiomassEnabled,
+        "bath" => BathNodeOnline,
         _ => true,
     };
+
+    public bool BathNodeOnline => Scenario != Scenario.BathOffline && Scenario != Scenario.NodeDropout;
 
     /// <summary>The address the Hub's DHCP gave the node; <c>0.0.0.0</c> before it registered.</summary>
     /// <remarks>
@@ -408,6 +475,7 @@ public sealed class DeviceModel
     {
         "pump" => "3.9",
         "agitator" => "v10",
+        "bath" => "r3.1",
         _ => "v11",
     };
 
@@ -422,6 +490,10 @@ public sealed class DeviceModel
     private double _servoRpm;
     private double _servoTorquePercent;
     private double _servoTorqueNoisePercent;
+    private double _bathCascadeElapsed;
+    private double _bathCompletionElapsed;
+    private double _bathIntegral;
+    private long _bathLastUpdateMs;
 
     /// <summary>Servo routing on the Hub. The only routing flag that is born <c>true</c>.</summary>
     /// <remarks>
@@ -651,6 +723,7 @@ public sealed class DeviceModel
         }
 
         StepTemperature(dt);
+        StepExternalBath(dt);
         StepFlowAndPressure(dt);
         StepOxygen(dt);
         StepPH(dt);
@@ -919,12 +992,139 @@ public sealed class DeviceModel
         const double heatingTau = 90.0;
         const double lossTau = 600.0;
 
-        if (TemperatureSetpoint > 0)
+        var target = TempControlViaBath ? _bathTemperature : TemperatureSetpoint;
+        if (target > 0)
         {
-            _temperature += (TemperatureSetpoint - _temperature) * (dt / heatingTau);
+            _temperature += (target - _temperature) * Math.Clamp(dt / heatingTau, 0.0, 1.0);
         }
 
         _temperature += (ambient - _temperature) * (dt / lossTau);
+    }
+
+    private void StepExternalBath(double dt)
+    {
+        var nowMs = (long)(UptimeSeconds * 1000.0);
+        _bathLastUpdateMs = nowMs;
+
+        if (!TempControlViaBath || !BathCommEnabled)
+        {
+            BathCascadeState = "off";
+            BathState = "idle";
+            BathPhase = "idle";
+            BathGuard = "off";
+            BathCascadePausedReason = "";
+            BathCommandPending = false;
+            BathCommandCompletionPending = false;
+            BathCascadeSaturated = false;
+            return;
+        }
+
+        if (Scenario == Scenario.BathError)
+        {
+            BathState = "error";
+            BathError = "bath_fault";
+            BathCascadeState = "fault";
+            BathCascadePausedReason = "bath_fault";
+            return;
+        }
+        if (Scenario == Scenario.BathAbort)
+        {
+            BathState = "aborted";
+            BathError = "aborted";
+            BathCascadeState = "fault";
+            BathCascadePausedReason = "aborted";
+            return;
+        }
+        if (Scenario == Scenario.BathGuardSuspended)
+        {
+            BathGuard = "suspended";
+            BathCascadeState = "paused";
+            BathCascadePausedReason = "bath_guard";
+            return;
+        }
+        if (!BathNodeOnline)
+        {
+            BathCascadeState = "paused";
+            BathCascadePausedReason = "bath_offline";
+            BathState = "idle";
+            BathPhase = "idle";
+            return;
+        }
+
+        BathGuard = "ok";
+        BathError = "";
+        BathCascadeState = "controlling";
+        BathPhase = "running";
+        BathState = BathCommandCompletionPending ? "running" : "done";
+
+        _bathCascadeElapsed += dt * 1000.0;
+        var pv = BathPv;
+        if (double.IsNaN(pv))
+        {
+            BathCascadeState = "paused";
+            BathCascadePausedReason = "reactor_pv_invalid";
+            return;
+        }
+
+        // Outer PI: Tempval is the real reactor PV; only BathCommandSetpoint is sent to C404.
+        var reference = TemperatureSetpoint > 0.0 ? TemperatureSetpoint : BathSetpoint;
+        var error = reference - _temperature;
+        BathCascadeError = error;
+        BathCascadePvFiltered = BathCascadePvFiltered == 0.0
+            ? _temperature
+            : FirstOrderStep(BathCascadePvFiltered, _temperature, dt, BathCascadeFilterS);
+        BathCascadeP = BathCascadeKp * error;
+        _bathIntegral += BathCascadeKp * error * dt / Math.Max(BathCascadeTiS, 1.0);
+        _bathIntegral = Math.Clamp(_bathIntegral, -20.0, 20.0);
+        BathCascadeI = _bathIntegral;
+
+        var desired = reference + BathCascadeBiasC + BathCascadeP + BathCascadeI;
+        var lower = reference - BathCascadeOffsetLowC;
+        var upper = reference + BathCascadeOffsetHighC;
+        var clamped = Math.Clamp(desired, Math.Max(BathCascadeOutputMinC, lower),
+            Math.Min(BathCascadeOutputMaxC, upper));
+        BathCascadeSaturated = Scenario == Scenario.BathSaturation || Math.Abs(clamped - desired) > 1e-6;
+        if (BathCascadeSaturated)
+        {
+            BathCascadeState = "paused";
+            BathCascadePausedReason = "saturated";
+        }
+
+        if (_bathCascadeElapsed >= BathCascadePeriodMs &&
+            !BathCommandCompletionPending &&
+            Math.Abs(clamped - BathCommandSetpoint) >= BathCascadeCommandBandC)
+        {
+            _bathCascadeElapsed = 0.0;
+            BathCommandSetpoint = Math.Clamp(clamped, BathCascadeOutputMinC, BathCascadeOutputMaxC);
+            BathTarget = BathCommandSetpoint;
+            BathCommandId++;
+            BathCommandLastSentId = BathCommandId;
+            BathCommandPending = true;
+            BathCommandCompletionPending = true;
+            _bathCompletionElapsed = 0.0;
+            BathCommandLatestWins = false;
+        }
+
+        // C404 internal loop and mailbox ACK/done are deterministic and do not use network time.
+        _bathTemperature += (BathCommandSetpoint - _bathTemperature) * Math.Clamp(dt / 45.0, 0.0, 1.0);
+        if (BathCommandCompletionPending)
+        {
+            _bathCompletionElapsed += dt;
+            if (_bathCompletionElapsed >= 2.0)
+            {
+                BathCommandPending = false;
+                BathCommandAck = BathCommandLastSentId;
+                BathCommandLastDoneId = BathCommandLastSentId;
+                BathCommandCompletionPending = false;
+                BathCommandCompletionAgeMs = 0;
+                BathCommandConfirmed = BathCommandSetpoint;
+                BathState = "done";
+            }
+            else
+            {
+                BathCommandCompletionAgeMs = (int)(_bathCompletionElapsed * 1000.0);
+            }
+        }
     }
 
     private void StepFlowAndPressure(double dt)

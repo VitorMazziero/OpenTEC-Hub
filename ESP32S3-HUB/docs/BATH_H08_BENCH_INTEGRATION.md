@@ -1,8 +1,10 @@
 # H08 — Integração de bancada do banho externo
 
-**Status:** `SOFTWARE_CHECKED / PHYSICAL_PENDING_G1_G9`  
-**Hub:** `10.5.0-dev`  
-**Nó:** banho r3  
+**Status:** `SOFTWARE_CHECKED / PHYSICAL_PENDING_G1_G9`
+
+**Hub:** `10.5.1-dev`
+
+**Nó:** banho r3.1
 **Regra de segurança:** troca break-before-make usando `100B`; sem fallback automático para a via original.
 
 ## Evidência de software já obtida
@@ -29,7 +31,7 @@ Essa evidência não substitui os gates elétricos, de rede e de processo G1–G
 ## Registro do ensaio
 
 Preencher para cada execução: data/hora, operador, identificação do Hub e do nó, commit do
-firmware, versão r3, configuração, captura serial completa, exportação de `/readData`, logs do
+firmware, versão r3.1, configuração, captura serial completa, exportação de `/readData`, logs do
 nó, resultado por P01–P08 e observações de falha. Uma falha deve permanecer registrada; não usar
 fallback para mascará-la.
 

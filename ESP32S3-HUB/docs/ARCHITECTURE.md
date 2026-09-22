@@ -40,11 +40,13 @@ Os arquivos legados `.h` formam deliberadamente uma única unidade de compilaç�
 ## Via térmica externa
 
 `TempControlRoute::UartModule` mantém a via histórica. `ExternalBath` só calcula
-quando há referência nova, `Tempval` fresco, nó r3 online, `bathComm`, modo auto,
+quando há referência nova, `Tempval` fresco, nó r3.1 registrado/online, `bathComm`, modo auto,
 SP de display confirmado e guarda não suspensa. A saída do PI é limitada e enviada
 pela `bathBox`; ACK, estado `done` e cooldown são condições independentes. Reboot,
 SP zero, PV stale, erro ou retorno à UART limpam a atuação transitória e não fazem
 fallback automático para a placa original.
+Falhas do nó e timeout de execução ficam travados até reset explícito. Um `done`
+repetido na telemetria não renova o cooldown nem oculta uma conclusão anterior.
 
 ## Controle direto do ASDA-B2
 

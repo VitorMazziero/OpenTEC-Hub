@@ -8,7 +8,7 @@ validação de cultivo.
 
 - Usar somente água, com parada de emergência disponível; não iniciar com cultura.
 - H08 P01–P08 e os gates G1–G9 devem estar aprovados.
-- Registrar o commit do Hub (`10.5.0-dev`), o firmware r3 e a configuração completa.
+- Registrar o commit do Hub (`10.5.1-dev`), o firmware r3.1 e a configuração completa.
 - Os defaults (`Kp=0,5`, `Ti=600 s`, bias `+0,6 °C`) são apenas ponto de partida, não valores de produção.
 
 ## Procedimento

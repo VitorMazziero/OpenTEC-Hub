@@ -1,5 +1,13 @@
 # Changelog — Banho termostático
 
+## 2026-09-22 — compatibilidade e cadência integrada (r3.1)
+
+- Anúncio ao Hub passa a `ver=r3.1`.
+- Com `hub_enabled=1`, o push efetivo fica limitado a 2 s para permanecer dentro da
+  janela de validade de 5 s do Hub, independentemente do período escolhido para uso local.
+- Reconexão Wi-Fi e reboot pós-OTA usam comparações seguras no rollover de `millis()`.
+- API local permanece compatível; app Flutter reconhece revisões r3.x.
+
 ## 2026-09-21 — enlace assíncrono e contrato do Hub (r3)
 
 - HTTP do Hub movido para `network/HubLink`: tarefa FreeRTOS própria no core 0, snapshot

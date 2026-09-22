@@ -4,14 +4,15 @@
 
 ## Implementado e validado em software
 
-- Firmware ativo: `firmware/thermostatic-bath` r3 — `BathClient r3`.
+- Firmware ativo: `firmware/thermostatic-bath` r3.1 — `BathClient r3.1`.
 - Compilação com ESP32 core 3.3.11 e FQBN `esp32:esp32:esp32s3`: 1 083 125 B de flash
   (82%) e 48 248 B de RAM global (14%).
 - Controle do C404: setpoint/hold/toques/correção/abort, display, modos e guarda.
-- Enlace r3 do Hub:
+- Enlace r3.1 do Hub:
   - tarefa FreeRTOS própria para hello/push/HTTP;
   - snapshot protegido e fila fixa de comandos;
-  - `/bathData`, `ver=r3`, MAC real, fase/erro/display/mode/guard/ACK observáveis;
+  - `/bathData`, `ver=r3.1`, MAC real, fase/erro/display/mode/guard/ACK observáveis;
+  - com `hub_enabled=1`, período efetivo limitado a 2 s para respeitar a janela do Hub;
   - push não é suspenso durante hold;
   - `hub_enabled=0` por padrão até a integração.
 - `tests/host-sim`: 34 cenários passam com os fontes reais de setpoint, guarda, teclado,
@@ -42,7 +43,7 @@ Planos:
 
 - Gates G1–G9 de `VALIDATION.md`: nenhum fechado.
 - Relés, temporização real, display, sensoriamento, NVS, Wi-Fi/OTA e guarda contra o C404 real.
-- Enlace r3 durante hold de 60 s, stack watermark e reentrega por perda de Wi-Fi após o Hub
+- Enlace r3.1 durante hold de 60 s, stack watermark e reentrega por perda de Wi-Fi após o Hub
   implementar o contrato.
 - App Android contra o dispositivo real, incluindo G3b/G7b.
 - Identificação térmica e sintonia com água antes de qualquer cultivo.

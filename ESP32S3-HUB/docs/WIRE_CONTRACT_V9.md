@@ -1,14 +1,15 @@
 # Contrato HTTP do Hub 10
 
 > O nome deste arquivo é histórico. A identidade emitida atualmente é firmware
-> `10.5.0-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
+> `10.5.1-dev`, `HubProtocolVersion=10`. O aplicativo grava `hubFirmwareVersion` no
 > manifesto de cada ensaio, por isso toda mudança de comportamento do Hub sobe a versão
 > — `10.0.1-dev` é o leitor serial em linhas e o repasse de `a1`/`b1` (2026-09-11);
 > `10.1.0-dev` é a identidade dos nós externos no quadro agregado e o `/nodes` completo
 > (2026-09-12); `10.2.0-dev` é a caixa confiável da distância por carona no push e
 > os ecos de configuração dos nós externos; `10.3.0-dev` acrescenta a transição
 > editável do fluxômetro v12.0; `10.4.0-dev` acrescenta a calibração polinomial dupla da bomba v3.12;
-> `10.5.0-dev` acrescenta a telemetria e o diagnóstico da cascata térmica externa. Chaves aditivas
+> `10.5.1-dev` acrescenta a telemetria, o diagnóstico e o acompanhamento inequívoco
+> da conclusão de comandos da cascata térmica externa. Chaves aditivas
 > não sobem o protocolo.
 
 ## Compatibilidade com o aplicativo
@@ -121,9 +122,10 @@ declarado pelo nó.
 clientes devem preferir os `*_ms` brutos. `registered`, `last_hello_ms`, `last_data_ms` e
 `hub_time_ms` são do 10.1; clientes toleram a ausência em Hubs 10.0.
 
-### Banho externo r3 e cascata térmica (10.5)
+### Banho externo r3.1 e cascata térmica (10.5.1)
 
-O nó registra-se com `GET /nodeHello?dev=bath&ver=r3&mac=<MAC>`. O push
+O nó registra-se com `GET /nodeHello?dev=bath&ver=r3.1&mac=<MAC>`. O Hub aceita
+`/bathData` somente do IP registrado nessa versão mínima. O push
 `/bathData` exige `sp`, `known`, `target`, `state`, `phase`, `err`, `pv`, `pv_ok`,
 `display_sp`, `display_sp_ok`, `sp_source`, `mode`, `guard`, `dev`, `dev_ok`,
 `time` e `ack_cmd_id`. Campos ausentes, não finitos, fora da faixa ou com strings
@@ -148,6 +150,11 @@ O quadro agregado publica sempre presença/roteamento e, quando disponíveis,
 `BathCascadeSaturated`, `BathCascadePausedReason` e `BathCascadeLastUpdateMs`.
 Valores numéricos sem validade são `null`; `BathIP`, `BathNodeVer` e `BathNodeMac`
 seguem o registro do nó.
+
+O ciclo de execução publica também `BathCommandCompletionPending`,
+`BathCommandLastSentId`, `BathCommandLastDoneId` e `BathCommandCompletionAgeMs`.
+`done` é contado uma única vez quando acompanha o ACK do comando enviado; uma execução
+que exceda 300 s trava a cascata em `fault` até reset explícito após correção da causa.
 
 ## Serial USB: comandos em linhas
 

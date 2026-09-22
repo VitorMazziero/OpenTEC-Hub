@@ -1,6 +1,6 @@
 # Protocolo — Banho termostático (`banho-termostatico`)
 
-**Versão do firmware:** `r3` (`BathClient r3`); API local compatível com r2
+**Versão do firmware:** `r3.1` (`BathClient r3.1`); API local compatível com r2
 **Rede:** AP `Banho Termostatico` (aberto, canal 6), `192.168.8.1`; STA para o Hub opcional
 **Compatibilidade com Hub:** nenhuma ainda (`hub_enabled = 0`); rota `/bath` proposta, ver §6
 
@@ -28,7 +28,7 @@ A serial (115200) aceita os mesmos JSONs, mais `status` e `config`.
 ## 2. Estado (`GET /status`)
 
 ```json
-{"device":"bath","version":"BathClient r3 …","uptime_s":120,
+{"device":"bath","version":"BathClient r3.1 …","uptime_s":120,
  "mode":"manual","guard":"off","deviation_c":null,"guard_corrections":0,"arrows_held_ms":0,
  "sp_shadow":30.00,"sp_known":true,"sp_target":31.50,"sp_source":0,
  "seq_state":"running","seq_kind":"setpoint","seq_phase":"presses","seq_error":"",
@@ -184,12 +184,12 @@ o estado (`sp_shadow`, `sp_known`, `seq_busy`, `sp_target`, `mode`) em `bath_st`
 boot que encontra `seq_busy = 1` marca `sp_known = false`. No modo display a sombra é
 reconstruída do painel nos primeiros ~300 ms após o display ficar vivo.
 
-## 6. Contrato r3 com o Hub (nó implementado; handler do Hub ainda planejado)
+## 6. Contrato r3.1 com o Hub 10.5.1
 
 Com `hub_enabled = 1`, a tarefa `HubLink` procura `ModuloTECNAL_1/2`, envia:
 
 ```text
-GET /nodeHello?dev=bath&ver=r3&mac=<MAC real>
+GET /nodeHello?dev=bath&ver=r3.1&mac=<MAC real>
 ```
 
 e, a cada `send_period`, inclusive durante toques/hold:

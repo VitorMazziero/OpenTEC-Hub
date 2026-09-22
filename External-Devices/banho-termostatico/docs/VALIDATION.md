@@ -115,10 +115,10 @@ Upload de `thermostatic-bath.ino.bin` por `/update` com uma sequência em andame
 relés abrem no início do upload (`abort`), o nó reinicia e `/status` responde. Desligar o
 ESP32 durante o controle: o C404 continua controlando e as teclas físicas funcionam.
 
-## G10 — Enlace r3 com o Hub (executar após o Hub 10.5)
+## G10 — Enlace r3.1 com o Hub (executar com o Hub 10.5.1)
 
 1. Habilitar `hub_enabled=1` somente depois de G1–G9 e do handler `/bathData` existir.
-2. Confirmar `/nodes`: `dev=bath`, `ver=r3` e MAC real.
+2. Confirmar `/nodes`: `dev=bath`, `ver=r3.1` e MAC real.
 3. Executar um hold de 60 s: `/bathData` deve continuar próximo de `send_period`; nenhum
    toque/hold pode ser alongado por HTTP. Registrar `hub_task_stack_min` antes/depois.
 4. Entregar a mesma revisão três vezes por perda de Wi-Fi: uma única sequência física e

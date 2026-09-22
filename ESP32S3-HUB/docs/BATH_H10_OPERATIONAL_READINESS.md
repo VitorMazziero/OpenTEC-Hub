@@ -7,8 +7,8 @@
 
 | Componente | Referência |
 |---|---|
-| Hub | `10.5.0-dev`, commit H06/H07 e commits posteriores desta sequência |
-| Nó do banho | firmware r3, contrato `/bathData` |
+| Hub | `10.5.1-dev`, incluindo a auditoria adicional de segurança |
+| Nó do banho | firmware r3.1, contrato `/bathData` e cadência integrada máxima de 2 s |
 | Android app | contrato r3 validado nos commits já registrados |
 | Windows app | integração ainda planejada; não é pré-requisito para estes ensaios do Hub |
 

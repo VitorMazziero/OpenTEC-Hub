@@ -1620,6 +1620,22 @@ v6 permanece compatível e os campos do banho ficam no sidecar versionado `-bath
 Essa separação mantém receitas, alarmes e auditoria capazes de distinguir referência do reator,
 saída calculada e resposta física do banho.
 
+### D-057 · Banho: estado do Hub manda na interface, parada sem troca de via, receita pela temperatura do reator
+
+**Status:** Accepted and implemented · 2026-09-22 · `External-Devices/docs/Planos/IMPLEMENTATION_PLAN_BANHO_CORRECOES.md` (D-1…D-4)
+
+1. As chaves de via/comunicação exibem o que o Hub publica; a preferência salva é só rascunho.
+   Um Hub deixado na via externa por NVS ou por outro cliente nunca pode aparecer como "UART",
+   senão os alarmes do banho ficariam mudos.
+2. A parada do banho (`bathAbort`, desligar a linha de temperatura na via externa, parada de
+   emergência) desliga a cascata e deixa o nó em **manual** no último SP; a via e a comunicação
+   não mudam. O banho não é desligado por software e não é tratado como atuador perigoso (os
+   riscos do módulo estão no motor e no fluxômetro).
+3. O Hub é dono do nó enquanto a cascata está ativa; o app não oferece comandos diretos ao C404.
+4. Na via externa, um bloco de temperatura da receita só avança quando o **reator** atinge o
+   valor pedido (banda e permanência configuráveis). Mudar o SP do banho sozinho não prova nada
+   sobre o processo.
+
 ## Open questions
 
 | # | Question | Blocks |

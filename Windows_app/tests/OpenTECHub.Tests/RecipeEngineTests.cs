@@ -141,7 +141,7 @@ public sealed class RecipeEngineTests
     [Fact]
     public async Task Temperature_setpoint_waits_for_the_routed_bath_to_confirm_and_settle()
     {
-        var (engine, device, _, _) = Build();
+        var (engine, device, _, clock) = Build();
         device.PushTelemetry(new SensorSnapshot
         {
             HasBathTelemetry = true,
@@ -172,14 +172,59 @@ public sealed class RecipeEngineTests
             Temperature = 37.2,
         });
 
+        // D-3: the reactor has to stay inside the band for the settle time (30 s default).
+        await Task.Delay(30);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+        clock.Advance(TimeSpan.FromSeconds(31));
+        device.PushTelemetry(BathFrame(37.2, 37, pending: false, state: "done"));
+
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
     }
 
     [Fact]
+    public async Task Temperature_block_restarts_the_settle_time_when_the_reactor_leaves_the_band()
+    {
+        var (engine, device, _, clock) = Build();
+        device.PushTelemetry(BathFrame(25, 37, pending: true, state: "running"));
+        await engine.StartAsync(SetpointRecipe(SetpointVariable.Temperature, 37));
+
+        device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done"));
+        await Task.Delay(20);
+        clock.Advance(TimeSpan.FromSeconds(20));
+        device.PushTelemetry(BathFrame(38.0, 37, pending: false, state: "done"));  // overshoot
+        await Task.Delay(20);
+        clock.Advance(TimeSpan.FromSeconds(20));
+        device.PushTelemetry(BathFrame(37.0, 37, pending: false, state: "done"));
+        await Task.Delay(30);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        clock.Advance(TimeSpan.FromSeconds(31));
+        device.PushTelemetry(BathFrame(37.0, 37, pending: false, state: "done"));
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Temperature_block_holds_while_tempval_is_invalid()
+    {
+        var (engine, device, _, clock) = Build();
+        device.PushTelemetry(BathFrame(25, 37, pending: false, state: "done"));
+        await engine.StartAsync(SetpointRecipe(SetpointVariable.Temperature, 37));
+
+        device.PushTelemetry(BathFrame(37.0, 37, pending: false, state: "done") with { TemperatureValid = false });
+        await Task.Delay(20);
+        clock.Advance(TimeSpan.FromSeconds(60));
+        device.PushTelemetry(BathFrame(37.0, 37, pending: false, state: "done") with { TemperatureValid = false });
+        await Task.Delay(30);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+        await engine.StopAsync("teste");
+    }
+
+    [Fact]
     public async Task Routed_bath_wait_does_not_succeed_when_telemetry_or_route_disappears()
     {
-        var (engine, device, _, _) = Build();
+        var (engine, device, _, clock) = Build();
         device.PushTelemetry(BathFrame(25, 37, pending: true, state: "running"));
 
         await engine.StartAsync(SetpointRecipe(SetpointVariable.Temperature, 37));
@@ -188,6 +233,9 @@ public sealed class RecipeEngineTests
         Assert.Equal(RecipeRunState.Running, engine.State);
 
         device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done"));
+        await Task.Delay(20);
+        clock.Advance(TimeSpan.FromSeconds(31));
+        device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done"));
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
     }
@@ -195,7 +243,7 @@ public sealed class RecipeEngineTests
     [Fact]
     public async Task Multi_setpoint_waits_for_flow_and_bath_independently()
     {
-        var (engine, device, _, _) = Build();
+        var (engine, device, _, clock) = Build();
         device.PushTelemetry(BathFrame(25, 37, pending: true, state: "running"));
 
         await engine.StartAsync(MultiSetpointRecipe(flow: 2.5, temperature: 37));
@@ -207,6 +255,13 @@ public sealed class RecipeEngineTests
         await Task.Delay(30);
         Assert.Equal(RecipeRunState.Running, engine.State);
 
+        device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done") with
+        {
+            FlowmeterOnline = true,
+            FlowSetpoint = 2.5,
+        });
+        await Task.Delay(20);
+        clock.Advance(TimeSpan.FromSeconds(31));
         device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done") with
         {
             FlowmeterOnline = true,

@@ -1165,6 +1165,12 @@ public sealed record ExternalBathSettings
     public double CascadeOffsetLow { get; init; } = 5.0;
     public double CascadeOutputMin { get; init; } = 5.0;
     public double CascadeOutputMax { get; init; } = 90.0;
+
+    /// <summary>Recipe temperature blocks (bath route): reactor band around the target.</summary>
+    public double ReactorSettleBandC { get; init; } = 0.5;
+
+    /// <summary>Recipe temperature blocks (bath route): time the reactor must stay in the band.</summary>
+    public double ReactorSettleHoldS { get; init; } = 30.0;
 }
 
 /// <summary>Persisted chart panel/window/channel selection.</summary>

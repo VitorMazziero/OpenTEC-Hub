@@ -28,6 +28,12 @@ com `--workspace`/`--nav control` passaram (o build mantém apenas avisos de est
 A integração continua software-complete, não sendo
 uma validação térmica de bancada.
 
+**22/09/2026 — banho externo alinhado ao Hub 10.6 / nó r3.2 (correções K06–K08).** Chaves de via e
+comunicação refletem o Hub (alarmes idem); **Parar banho** sempre disponível e sem troca de via;
+reset de falha com motivo; referência do reator só na linha de temperatura; sintonia validada como
+no Hub e confirmada pelo eco; receitas na via externa aguardam `Tempval` na banda ±0,5 °C por
+30 s. Suíte 1755/1755. Validação física segue pendente (H08 P01–P13).
+
 This document is the current release-status source. The detailed build sequence remains in
 [ROADMAP.md](ROADMAP.md), historical implementation evidence remains in
 [PHASE_LOG.md](PHASE_LOG.md), and released changes remain in [CHANGELOG.md](CHANGELOG.md).

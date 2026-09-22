@@ -1174,19 +1174,83 @@ public sealed class AlarmServiceTests
     }
 
     [Fact]
-    public void Contradictory_bath_route_fields_raise_a_critical_alarm()
+    public void Original_module_left_enabled_on_the_bath_route_raises_dual_actuation()
     {
         using var h = new Harness();
-        h.Service.SetRoutingRequested(DeviceNames.Routing.ExternalBath, true);
         h.Device.PushTelemetry(new SensorSnapshot
         {
             HasBathTelemetry = true,
             BathCommEnabled = true,
             TempControlViaBath = true,
-            BathTempControlMode = 0,
+            TempModuleActuatorOn = true,
         });
 
         h.AdvanceAndPoll(TimeSpan.FromSeconds(0.1));
         Assert.True(h.Latched(AlarmId.ExternalBathDualActuation));
+    }
+
+    [Fact]
+    public void Bath_alarms_follow_the_hub_route_not_the_saved_preference()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Routing.ExternalBath, false);
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathOnline = false,
+            BathCommEnabled = true,
+            TempControlViaBath = true,
+        });
+
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(11));
+        Assert.True(h.Latched(AlarmId.ExternalBathOffline));
+    }
+
+    [Fact]
+    public void Normal_hold_does_not_raise_command_timeout_but_missing_ack_does()
+    {
+        using var h = new Harness();
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathOnline = true,
+            BathCommEnabled = true,
+            TempControlViaBath = true,
+            BathCommandPending = false,
+            BathCommandCompletionPending = true,
+            BathCommandCompletionAgeMs = 60_000,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(15));
+        Assert.False(h.Latched(AlarmId.ExternalBathCommandTimeout));
+
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathOnline = true,
+            BathCommEnabled = true,
+            TempControlViaBath = true,
+            BathCommandPending = true,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(11));
+        Assert.True(h.Latched(AlarmId.ExternalBathCommandTimeout));
+    }
+
+    [Fact]
+    public void Stopped_bath_in_aborted_state_is_not_a_sequence_fault()
+    {
+        using var h = new Harness();
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathOnline = true,
+            BathCommEnabled = true,
+            TempControlViaBath = true,
+            BathCascadeActive = false,
+            BathCascadeState = "off",
+            BathState = "aborted",
+            BathError = "aborted",
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1));
+        Assert.False(h.Latched(AlarmId.ExternalBathSequenceFault));
     }
 }

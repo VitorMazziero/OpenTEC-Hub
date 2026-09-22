@@ -260,7 +260,7 @@ public sealed class AlarmService : IAlarmService
         new(AlarmId.ExternalBathReactorPvInvalid, "PV do reator inválida", AlarmSeverity.Critical,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3)),
         new(AlarmId.ExternalBathCommandTimeout, "Comando do banho não confirmado", AlarmSeverity.Warning,
-            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3)),
+            TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(3)),
         new(AlarmId.ExternalBathSequenceFault, "Falha na sequência do banho", AlarmSeverity.Critical,
             TimeSpan.Zero, TimeSpan.FromSeconds(3)),
         new(AlarmId.ExternalBathSetpointMismatch, "Setpoint do banho divergente", AlarmSeverity.Warning,
@@ -626,34 +626,45 @@ public sealed class AlarmService : IAlarmService
             connected && BathRouted() && _lastSnapshot is { HasBathTelemetry: true, BathCommEnabled: true, BathOnline: false },
             "O banho externo está selecionado e habilitado, mas o Hub não o vê online há pelo menos 10 s."),
 
+        // The Hub's own validity/age flags (10.6) decide, exactly like the PI does; the
+        // value range is only a fallback for Hubs that do not publish them.
         AlarmId.ExternalBathReactorPvInvalid => (
-            connected && BathRouted() && _lastSnapshot is { HasBathTelemetry: true } s &&
-            (!double.IsFinite(s.Temperature) || s.Temperature <= 10.0 || s.Temperature >= 100.0 || stale),
-            "A temperatura real do reator (Tempval) está inválida ou sem atualização; a cascata não deve ser avaliada."),
+            connected && BathCascadeActive() && _lastSnapshot is { HasBathTelemetry: true } s &&
+            (stale || (s.TemperatureValid is { } valid
+                ? !valid
+                : !double.IsFinite(s.Temperature) || s.Temperature <= 0.0 || s.Temperature >= 100.0)),
+            "A temperatura real do reator (Tempval) está inválida ou sem atualização; a cascata fica pausada."),
 
+        // No ACK for a pending command (10 s on-delay) or a sequence running close to the
+        // Hub's 300 s completion fault. A normal hold takes tens of seconds and stays silent.
         AlarmId.ExternalBathCommandTimeout => (
-            connected && BathRouted() && _lastSnapshot is { BathCommandCompletionPending: true } s &&
-            s.BathCommandCompletionAgeMs >= 10_000,
-            "O último comando do banho permanece pendente além do tempo de confirmação."),
+            connected && BathRouted() && _lastSnapshot is { BathOnline: true } s &&
+            (s.BathCommandPending == true || s.BathCommandCompletionAgeMs >= 240_000),
+            "Um comando do banho está sem confirmação do nó há mais de 10 s, ou a execução passou de 240 s."),
 
+        // Only while the cascade is active: after a stop the node is legitimately aborted/manual.
         AlarmId.ExternalBathSequenceFault => (
             connected && BathRouted() && _lastSnapshot is { } s &&
-            (!string.IsNullOrWhiteSpace(s.BathError) ||
-             s.BathState.Equals("error", StringComparison.OrdinalIgnoreCase) ||
-             s.BathState.Equals("aborted", StringComparison.OrdinalIgnoreCase) ||
-             s.BathGuard.Equals("suspended", StringComparison.OrdinalIgnoreCase) ||
-             s.BathCascadeState.Equals("fault", StringComparison.OrdinalIgnoreCase)),
-            "O C404 ou a guarda da cascata reportou error, aborted ou suspended. Verifique o banho antes de retomar."),
+            (s.BathCascadeState.Equals("fault", StringComparison.OrdinalIgnoreCase) ||
+             (BathCascadeActive() &&
+              (s.BathState.Equals("error", StringComparison.OrdinalIgnoreCase) ||
+               s.BathGuard.Equals("suspended", StringComparison.OrdinalIgnoreCase)))),
+            _lastSnapshot is { BathCascadeFaultReason.Length: > 0 } f
+                ? $"Cascata do banho em falha: {BathReasons.Describe(f.BathCascadeFaultReason)}. Corrija e use Reset falha."
+                : "O C404 reportou erro ou guarda suspensa. Verifique o banho antes de retomar."),
 
+        // The node's own target versus what its display shows, once idle; and the Hub's
+        // verdicts for a refused command or a target changed from outside.
         AlarmId.ExternalBathSetpointMismatch => (
             connected && BathRouted() && _lastSnapshot is { } s &&
-            (s.BathCascadeState.Contains("mismatch", StringComparison.OrdinalIgnoreCase) ||
-             (!s.BathCommandCompletionPending &&
+            (s.BathCascadeFaultReason.StartsWith("node_rejected", StringComparison.Ordinal) ||
+             s.BathCascadeFaultReason == "target_override" ||
+             (CascadeIsControlling(s) && !s.BathCommandCompletionPending &&
               s.BathState.Equals("done", StringComparison.OrdinalIgnoreCase) &&
               s.BathTarget is { } target && double.IsFinite(target) &&
-              (s.BathCommandConfirmed is not { } confirmed || !double.IsFinite(confirmed) ||
-               Math.Abs(target - confirmed) > 0.2))),
-            "O setpoint confirmado pelo C404 não acompanha o alvo calculado pela cascata."),
+              s.BathDisplaySp is { } display && double.IsFinite(display) &&
+              Math.Abs(target - display) > 0.15)),
+            "O SP mostrado pelo C404 não acompanha o alvo, ou o banho recusou/alterou o comando da cascata."),
 
         AlarmId.ExternalBathCascadeSaturated => (
             connected && BathRouted() && _lastSnapshot is { BathCascadeSaturated: true } s &&
@@ -676,11 +687,11 @@ public sealed class AlarmService : IAlarmService
             double.IsFinite(bath) && double.IsFinite(reactor) && Math.Abs(bath - reactor) > 20.0,
             "A diferença entre a temperatura do banho e a temperatura real do reator excede 20 °C."),
 
+        // Evidence published by Hub 10.6: the last command to the original module left it
+        // enabled while the external route is selected.
         AlarmId.ExternalBathDualActuation => (
-            connected && RoutingRequested(DeviceNames.Routing.ExternalBath) &&
-            _lastSnapshot is { HasBathTelemetry: true, TempControlViaBath: { } via, BathTempControlMode: >= 0 } s &&
-            (s.BathTempControlMode == 1) != via,
-            "Os campos TempControlMode e TempControlViaBath do Hub divergem; não é seguro inferir qual atuador térmico está ativo."),
+            connected && _lastSnapshot is { HasBathTelemetry: true, TempControlViaBath: true, TempModuleActuatorOn: true },
+            "A via externa está selecionada, mas o Hub indica que a placa original ainda recebeu um setpoint ativo (B ≠ 100B)."),
 
         _ => (false, ""),
     };
@@ -765,9 +776,17 @@ public sealed class AlarmService : IAlarmService
     private bool RoutingRequested(string device)
         => _routingRequested.TryGetValue(device, out var requested) && requested;
 
+    /// <summary>The Hub itself routes temperature to the bath with communication on.</summary>
+    /// <remarks>
+    /// Deliberately the Hub's word, not the operator's saved preference: a Hub left on the
+    /// external route (NVS, another client) must still be supervised.
+    /// </remarks>
     private bool BathRouted()
-        => RoutingRequested(DeviceNames.Routing.ExternalBath) &&
-           _lastSnapshot is { TempControlViaBath: true, BathCommEnabled: true };
+        => _lastSnapshot is { TempControlViaBath: true, BathCommEnabled: true };
+
+    /// <summary>The cascade has a reactor reference in this session (null on older Hubs = assume yes).</summary>
+    private bool BathCascadeActive()
+        => BathRouted() && _lastSnapshot is { BathCascadeActive: not false };
 
     private static bool CascadeIsControlling(SensorSnapshot snapshot)
         => snapshot.BathCascadeState.Equals("controlling", StringComparison.OrdinalIgnoreCase) ||

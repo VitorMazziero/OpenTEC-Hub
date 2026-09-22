@@ -997,6 +997,23 @@ public static class CommandBuilders
     public static OpenTECCommand BathCascadeReset()
         => OpenTECCommand.Create().Set(CommandKeys.BathCascadeReset, 1);
 
+    /// <summary>
+    /// Sends the complete cascade tuning after the same validation the Hub applies; an
+    /// invalid set throws instead of reaching the wire and being refused silently.
+    /// </summary>
+    public static OpenTECCommand BathCascadeTuning(BathCascadeTuning tuning)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+        if (tuning.Validate() is { } error)
+        {
+            throw new ArgumentOutOfRangeException(nameof(tuning), error);
+        }
+
+        return BathCascadeTuning(tuning.Kp, tuning.TiS, tuning.BiasC, tuning.PeriodMs,
+            tuning.FilterS, tuning.CommandMinMs, tuning.CommandBandC, tuning.SlewCMin,
+            tuning.OffsetHighC, tuning.OffsetLowC, tuning.OutputMinC, tuning.OutputMaxC);
+    }
+
     /// <summary>Applies one or more cascade parameters as a validated transaction.</summary>
     public static OpenTECCommand BathCascadeTuning(
         double? kp = null, double? tiS = null, double? biasC = null, int? periodMs = null,
@@ -1017,7 +1034,7 @@ public static class CommandBuilders
         {
             throw new ArgumentOutOfRangeException(nameof(kp), "Parâmetros da cascata devem ser finitos.");
         }
-        if (periodMs is <= 0 or > 600_000 || commandMinMs is <= 0 or > 600_000)
+        if (periodMs is < 100 or > 600_000 || commandMinMs is < 0 or > 3_600_000)
         {
             throw new ArgumentOutOfRangeException(nameof(periodMs), "Temporizações da cascata fora da faixa.");
         }

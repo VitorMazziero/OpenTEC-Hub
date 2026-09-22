@@ -145,6 +145,25 @@ public sealed class SensorReadings
     public string BathCascadePausedReason { get; set; } = "";
     public long BathCascadeLastUpdateMs { get; set; }
 
+    // ---- Hub 10.6: ownership, stop, rejections, vigent tuning -------------
+    /// <summary>Hub's own validity flag for Tempval; null on Hubs that do not publish it.</summary>
+    public bool? TemperatureValid { get; set; }
+    public long? TemperatureAgeMs { get; set; }
+    public bool? BathOwned { get; set; }
+    public bool? BathCascadeActive { get; set; }
+    public string BathCascadeFaultReason { get; set; } = "";
+    public bool BathStopPending { get; set; }
+    public string BathCommandCompletion { get; set; } = "";
+    public string BathOperationError { get; set; } = "";
+    public long BathNodeRejectId { get; set; }
+    public string BathNodeRejectError { get; set; } = "";
+    public double? BathNodeSpMin { get; set; }
+    public double? BathNodeSpMax { get; set; }
+    public bool? TempSetpointCommanded { get; set; }
+    public bool? TempModuleActuatorOn { get; set; }
+    public string BathCascadeConfigError { get; set; } = "";
+    public BathCascadeTuning? BathCascadeConfig { get; set; }
+
     /// <summary>True while the ESP32 reports its internal sensor-module UART healthy.</summary>
     public bool SensorCommOk { get; set; } = true;
 
@@ -409,6 +428,22 @@ public sealed class SensorReadings
         BathCascadeSaturated = BathCascadeSaturated,
         BathCascadePausedReason = BathCascadePausedReason,
         BathCascadeLastUpdateMs = BathCascadeLastUpdateMs,
+        TemperatureValid = TemperatureValid,
+        TemperatureAgeMs = TemperatureAgeMs,
+        BathOwned = BathOwned,
+        BathCascadeActive = BathCascadeActive,
+        BathCascadeFaultReason = BathCascadeFaultReason,
+        BathStopPending = BathStopPending,
+        BathCommandCompletion = BathCommandCompletion,
+        BathOperationError = BathOperationError,
+        BathNodeRejectId = BathNodeRejectId,
+        BathNodeRejectError = BathNodeRejectError,
+        BathNodeSpMin = BathNodeSpMin,
+        BathNodeSpMax = BathNodeSpMax,
+        TempSetpointCommanded = TempSetpointCommanded,
+        TempModuleActuatorOn = TempModuleActuatorOn,
+        BathCascadeConfigError = BathCascadeConfigError,
+        BathCascadeConfig = BathCascadeConfig,
         SensorCommOk = SensorCommOk,
         PumpFlow = PumpFlow,
         PumpVolume = PumpVolume,
@@ -588,6 +623,25 @@ public sealed record SensorSnapshot
     public bool BathCascadeSaturated { get; init; }
     public string BathCascadePausedReason { get; init; } = "";
     public long BathCascadeLastUpdateMs { get; init; }
+
+    // ---- Hub 10.6: ownership, stop, rejections, vigent tuning -------------
+    /// <summary>Hub's own validity flag for Tempval; null on Hubs that do not publish it.</summary>
+    public bool? TemperatureValid { get; init; }
+    public long? TemperatureAgeMs { get; init; }
+    public bool? BathOwned { get; init; }
+    public bool? BathCascadeActive { get; init; }
+    public string BathCascadeFaultReason { get; init; } = "";
+    public bool BathStopPending { get; init; }
+    public string BathCommandCompletion { get; init; } = "";
+    public string BathOperationError { get; init; } = "";
+    public long BathNodeRejectId { get; init; }
+    public string BathNodeRejectError { get; init; } = "";
+    public double? BathNodeSpMin { get; init; }
+    public double? BathNodeSpMax { get; init; }
+    public bool? TempSetpointCommanded { get; init; }
+    public bool? TempModuleActuatorOn { get; init; }
+    public string BathCascadeConfigError { get; init; } = "";
+    public BathCascadeTuning? BathCascadeConfig { get; init; }
 
     public bool SensorCommOk { get; init; }
     public double PumpFlow { get; init; }

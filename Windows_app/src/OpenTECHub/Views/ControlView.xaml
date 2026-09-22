@@ -608,26 +608,23 @@
                                                           ToolTip="Selecionar controle térmico via banho externo; exige comunicação confirmada e nó online" />
                                         </Grid>
 
-                                        <Grid Margin="0,0,0,8">
+                                        <Grid Margin="0,0,0,4">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="90" />
                                                 <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="90" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="90" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="Comunicação" VerticalAlignment="Center" Margin="0,0,6,0" />
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding IsCommEnabled, Mode=TwoWay}"
                                                           IsEnabled="{Binding CanChangeCommunication}"
                                                           Style="{StaticResource ToggleSwitchStyle}" ToolTip="Habilitar comunicação do C404" />
-                                            <TextBlock Grid.Column="2" Text="Referência reator" VerticalAlignment="Center" Margin="12,0,6,0" />
-                                            <TextBox Grid.Column="3" Text="{Binding ReactorSetpointText, UpdateSourceTrigger=PropertyChanged}" />
-                                            <Button Grid.Column="4" Content="Enviar setpoint" Command="{Binding ApplySetpointCommand}" IsEnabled="{Binding CanApplySetpoint}" Margin="8,0,6,0" />
-                                            <TextBlock Grid.Column="5" Text="PV real" VerticalAlignment="Center" Margin="8,0,6,0" />
-                                            <TextBlock Grid.Column="6" Text="{Binding ReactorPvText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="Temperatura do reator (Tempval)" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                            <TextBlock Grid.Column="3" Text="{Binding ReactorPvText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                         </Grid>
+                                        <TextBlock Text="{Binding ReactorReferenceHint}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                        <TextBlock Text="{Binding OwnershipText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,4" />
+                                        <TextBlock Text="{Binding PreferenceMismatchText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateAlarmTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
 
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
@@ -653,18 +650,21 @@
                                                     <StackPanel Grid.Column="3"><TextBlock Text="P / I" Style="{StaticResource CaptionTextStyle}" /><TextBlock Text="{Binding CascadePIText}" /><TextBlock Text="{Binding CascadePauseText}" /></StackPanel>
                                                 </Grid>
                                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,4">
-                                                    <TextBlock Text="Modo automático" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Guarda automática (C404)" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                     <ToggleButton IsChecked="{Binding IsAutomatic, Mode=TwoWay}"
                                                                   IsEnabled="{Binding CanChangeMode}"
                                                                   Style="{StaticResource ToggleSwitchStyle}"
-                                                                  ToolTip="Selecionar modo automático do C404" />
+                                                                  ToolTip="Automático: o nó desfaz mudanças no painel do C404. A cascata só controla com a guarda em automático." />
                                                     <TextBox Width="90" Text="{Binding BathSyncText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Setpoint a sincronizar com o C404" />
                                                     <Button Content="Sincronizar" Command="{Binding SynchronizeCommand}" Margin="6,0,0,0" />
-                                                    <Button Content="Abortar" Command="{Binding AbortCommand}" Margin="6,0,0,0" />
+                                                    <Button Content="Parar banho" Command="{Binding StopCommand}" Margin="6,0,0,0"
+                                                            ToolTip="Desliga a cascata e deixa o C404 em manual no último SP; via e comunicação não mudam." />
                                                     <Button Content="Reset falha" Command="{Binding ResetFaultCommand}" Margin="6,0,0,0" />
                                                 </StackPanel>
-                                                <TextBlock Text="Liberar a cascata não desliga o C404." Foreground="{DynamicResource StateAlarmTextBrush}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                                <TextBlock Text="Parar/liberar a cascata não desliga o C404: ele permanece no último SP." Foreground="{DynamicResource StateAlarmTextBrush}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding CascadeFaultText}" Foreground="{DynamicResource StateAlarmTextBrush}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                                 <TextBlock Text="{Binding BathErrorText}" Foreground="{DynamicResource StateAlarmTextBrush}" Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Text="{Binding LastActionText}" Foreground="{DynamicResource TextSecondaryBrush}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                                 <Expander Header="Sintonia avançada da cascata" Margin="0,8,0,0">
                                                     <StackPanel Margin="0,8,0,0">
                                                         <UniformGrid Columns="4" Margin="0,0,0,6">
@@ -685,6 +685,7 @@
                                                             <StackPanel Margin="0,0,6,0"><TextBlock Text="Saída mínima" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeOutputMinText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
                                                             <StackPanel><TextBlock Text="Saída máxima" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeOutputMaxText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
                                                         </UniformGrid>
+                                                        <TextBlock Text="{Binding TuningStatusText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,6" />
                                                         <Button Content="Enviar sintonia" Command="{Binding ApplyTuningCommand}" HorizontalAlignment="Left" />
                                                     </StackPanel>
                                                 </Expander>

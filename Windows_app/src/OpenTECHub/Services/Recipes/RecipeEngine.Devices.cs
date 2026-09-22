@@ -68,9 +68,11 @@ public sealed partial class RecipeEngine
             ct);
 
     /// <summary>
-    /// Holds a temperature actuation while the Hub-routed bath acknowledges and settles it.
-    /// An old Hub (or the original UART route) deliberately satisfies immediately because it
-    /// cannot publish bath evidence; absence of support must never deadlock a legacy recipe.
+    /// On the external-bath route a temperature block only moves on once the <b>reactor</b>
+    /// (Tempval) has reached the requested value: inside the settle band continuously for the
+    /// settle time (operator decision D-3). Changing the bath setpoint alone proves nothing
+    /// about the process. The UART route and Hubs without bath telemetry keep the historical
+    /// fire-and-forget behaviour, so a legacy recipe never deadlocks.
     /// </summary>
     private Task AwaitBathTemperatureAppliedAsync(
         RecipeNode node,
@@ -92,23 +94,50 @@ public sealed partial class RecipeEngine
             return Task.CompletedTask;
         }
 
+        var saved = _settings.Current.ExternalBath ?? new Persistence.ExternalBathSettings();
+        var band = double.IsFinite(saved.ReactorSettleBandC) ? Math.Clamp(saved.ReactorSettleBandC, 0.05, 5.0) : 0.5;
+        var hold = TimeSpan.FromSeconds(double.IsFinite(saved.ReactorSettleHoldS)
+            ? Math.Clamp(saved.ReactorSettleHoldS, 0.0, 3600.0) : 30.0);
+        DateTimeOffset? insideSince = null;
+
+        bool Settled(SensorSnapshot s)
+        {
+            // The Hub reports the loop moved off the bath: nothing left to confirm here. A frame
+            // without bath telemetry is not such a report and keeps the block waiting.
+            if (s.HasBathTelemetry && s.TempControlViaBath is false)
+            {
+                return true;
+            }
+
+            var inside = s.HasBathTelemetry && s.TempControlViaBath is true &&
+                         s.BathOnline && s.BathCommEnabled is true &&
+                         s.TempSetpoint is { } echoedTarget && double.IsFinite(echoedTarget) &&
+                         Math.Abs(echoedTarget - target) <= 0.05 &&
+                         !s.BathCascadeState.Equals("fault", StringComparison.OrdinalIgnoreCase) &&
+                         s.TemperatureValid != false &&
+                         double.IsFinite(s.Temperature) && Math.Abs(s.Temperature - target) <= band;
+            if (!inside)
+            {
+                insideSince = null;
+                return false;
+            }
+
+            var now = _time.GetUtcNow();
+            insideSince ??= now;
+            return now - insideSince.Value >= hold;
+        }
+
         return AwaitDeviceAsync(
             node,
             "Banho externo C404",
-            $"a referência do reator ({target:0.##} °C) não foi confirmada pela cascata.",
-            s => s.HasBathTelemetry && s.TempControlViaBath is true &&
-                 s.BathOnline && s.BathCommEnabled is true &&
-                 s.TempSetpoint is { } echoedTarget && double.IsFinite(echoedTarget) &&
-                 Math.Abs(echoedTarget - target) <= 0.05 &&
-                 !s.BathCommandCompletionPending &&
-                 s.BathCascadeState.Contains("controlling", StringComparison.OrdinalIgnoreCase) &&
-                 s.BathState.Equals("done", StringComparison.OrdinalIgnoreCase) &&
-                 double.IsFinite(s.Temperature) && Math.Abs(s.Temperature - target) <= 0.5,
+            $"aguardando o reator atingir {target:0.##} °C (±{band:0.##} °C por {hold.TotalSeconds:0} s).",
+            Settled,
             ct);
     }
 
+    /// <summary>Evaluated at each temperature block from the Hub's current route.</summary>
     private bool IsBathConfirmationRequired()
-        => _bathConfirmationRequiredForRun;
+        => _hubRoutesTemperatureToBath;
 
     // ── External Wi-Fi nodes ─────────────────────────────────────────────────
     //

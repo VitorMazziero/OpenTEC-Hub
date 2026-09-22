@@ -843,13 +843,61 @@ public sealed class TelemetryParser
         Readings.BathGuard = ReadString(root, TelemetryKeys.BathGuard) ?? Readings.BathGuard;
         Readings.BathCascadePausedReason = ReadString(root, TelemetryKeys.BathCascadePausedReason) ?? Readings.BathCascadePausedReason;
 
+        Readings.TemperatureValid = TryGetBool(root, TelemetryKeys.TempvalValid, out var tempValid) ? tempValid : null;
+        Readings.TemperatureAgeMs = TryGetCounter(root, TelemetryKeys.TempvalAgeMs, out var tempAge) ? tempAge : null;
+        Readings.BathOwned = TryGetBool(root, TelemetryKeys.BathOwned, out var owned) ? owned : null;
+        Readings.BathCascadeActive = TryGetBool(root, TelemetryKeys.BathCascadeActive, out var active) ? active : null;
+        Readings.BathCascadeFaultReason = ReadString(root, TelemetryKeys.BathCascadeFaultReason) ?? "";
+        Readings.BathStopPending = TryGetBool(root, TelemetryKeys.BathStopPending, out var stopPending) && stopPending;
+        Readings.BathCommandCompletion = ReadString(root, TelemetryKeys.BathCommandCompletion) ?? "";
+        Readings.BathOperationError = ReadString(root, TelemetryKeys.BathOperationError) ?? "";
+        AssignLong(root, TelemetryKeys.BathNodeRejectId, v => Readings.BathNodeRejectId = v);
+        Readings.BathNodeRejectError = ReadString(root, TelemetryKeys.BathNodeRejectError) ?? "";
+        Readings.BathNodeSpMin = ReadNullableDouble(root, TelemetryKeys.BathNodeSpMin);
+        Readings.BathNodeSpMax = ReadNullableDouble(root, TelemetryKeys.BathNodeSpMax);
+        Readings.TempSetpointCommanded = TryGetBool(root, TelemetryKeys.TempSetpointCommanded, out var commanded) ? commanded : null;
+        Readings.TempModuleActuatorOn = TryGetBool(root, TelemetryKeys.TempModuleActuatorOn, out var moduleOn) ? moduleOn : null;
+        Readings.BathCascadeConfigError = ReadString(root, TelemetryKeys.BathCascadeConfigError) ?? "";
+        Readings.BathCascadeConfig = ReadBathTuning(root);
+
         if (presence.HasTelemetry && !presence.Online)
         {
+            // The node's last report is not a fact once the Hub stops seeing it.
             Readings.BathSp = null;
             Readings.BathTarget = null;
             Readings.BathPv = null;
             Readings.BathDeviation = null;
+            Readings.BathDisplaySp = null;
+            Readings.BathMode = null;
+            Readings.BathSpSource = null;
+            Readings.BathState = "";
+            Readings.BathPhase = "";
+            Readings.BathError = "";
+            Readings.BathGuard = "";
         }
+    }
+
+    /// <summary>The Hub's vigent cascade tuning (10.6), or null when any key is missing.</summary>
+    private static BathCascadeTuning? ReadBathTuning(JsonElement root)
+    {
+        if (!TryGetFiniteDouble(root, TelemetryKeys.BathCascadeKp, out var kp) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeTiS, out var ti) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeBiasC, out var bias) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadePeriodMs, out var period) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeFilterS, out var filter) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeCommandMinMs, out var minMs) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeCommandBandC, out var band) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeSlewCMin, out var slew) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeOffsetHighC, out var high) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeOffsetLowC, out var low) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeOutputMinC, out var outMin) ||
+            !TryGetFiniteDouble(root, TelemetryKeys.BathCascadeOutputMaxC, out var outMax))
+        {
+            return null;
+        }
+
+        return new BathCascadeTuning(kp, ti, bias, (int)Math.Round(period), filter,
+            (int)Math.Round(minMs), band, slew, high, low, outMin, outMax);
     }
 
     private void ParseServo(JsonElement root, DateTimeOffset now)

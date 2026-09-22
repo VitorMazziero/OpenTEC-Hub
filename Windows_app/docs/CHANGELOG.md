@@ -41,6 +41,30 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Fixed — banho externo alinhado ao Hub 10.6 / nó r3.2 (plano K06–K08)
+
+- a chave de via e a de comunicação mostram o estado **do Hub**; a preferência salva vira
+  rascunho e a divergência é exibida. Alarmes do banho passam a depender só da via do Hub;
+- botão **Parar banho** (`bathAbort`) sempre disponível com o Hub conectado — não espera comando
+  pendente; a parada desliga a cascata e deixa o C404 em manual no último SP, sem trocar a via;
+- **Reset falha** só com a cascata em falha, com o motivo em pt-BR (`BathCascadeFaultReason`);
+- um único controle da referência do reator (linha 1. Temperatura); o campo duplicado do cartão
+  do banho foi removido;
+- sintonia validada com as mesmas regras do Hub (`BathCascadeTuning.Validate`), campos seguem o
+  eco do Hub e a confirmação só aparece após o eco; recusa (`BathCascadeConfigError`) é mostrada;
+- mensagens de ação (`LastActionText`) separadas do estado do Hub (não somem a cada quadro);
+- alarmes: comando sem ACK > 10 s ou execução > 240 s (antes: 10 s de execução); PV do reator
+  pelos flags `TempvalValid/TempvalAgeMs`; atuação dupla por `TempModuleActuatorOn`; divergência
+  de SP por display × alvo e pelos veredictos `node_rejected`/`target_override`; falha de sequência
+  somente com a cascata ativa (a parada não alarma);
+- receitas: na via externa o bloco de temperatura só avança com `Tempval` válida dentro de
+  ±0,5 °C por 30 s contínuos (`ReactorSettleBandC/HoldS` em `ExternalBathSettings`); a exigência é
+  avaliada por bloco pela via informada pelo Hub; mensagem "aguardando o reator atingir…";
+- protocolo/simulador: chaves 10.6 (`BathOwned`, `BathCascadeActive`, `BathCascadeFaultReason`,
+  `BathStopPending`, `BathCommandCompletion`, recusas, faixa do nó, sintonia vigente,
+  `TempSetpointCommanded`, `TempModuleActuatorOn`, `TempvalValid/AgeMs`); simulador com parada,
+  falha travada, eco de sintonia e nó `r3.2`; catálogo aceita somente `r3.2`.
+
 ### Added — integração do banho externo C404 no Windows App
 
 - supervisão dos alarmes da cascata e hold de receitas até confirmação térmica;

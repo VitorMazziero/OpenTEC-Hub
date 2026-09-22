@@ -65,7 +65,7 @@ public sealed class BathIntegrationTests
     {
         Assert.Contains(NodeFirmwareCatalog.Bath, NodeFirmwareCatalog.Devices);
         Assert.Contains(DeviceModel.RegistryNodes, node => node.Device == NodeFirmwareCatalog.Bath);
-        Assert.Equal("r3.1", DeviceModel.NodeVersion(NodeFirmwareCatalog.Bath));
+        Assert.Equal("r3.2", DeviceModel.NodeVersion(NodeFirmwareCatalog.Bath));
     }
 
     [Fact]

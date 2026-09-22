@@ -227,7 +227,8 @@ public static class WireCodec
         AppendLong(buffer, "BathCommandLastSentId", model.BathCommandLastSentId);
         AppendLong(buffer, "BathCommandLastDoneId", model.BathCommandLastDoneId);
         AppendInt(buffer, "BathCommandCompletionAgeMs", model.BathCommandCompletionAgeMs);
-        AppendNullable(buffer, "TempSetpoint", model.TemperatureSetpoint, 2);
+        AppendNullable(buffer, "TempSetpoint",
+            model.TempControlViaBath && !model.TemperatureCommanded ? double.NaN : model.TemperatureSetpoint, 2);
         AppendNullable(buffer, "BathSp", model.BathSetpoint, 2);
         AppendNullable(buffer, "BathTarget", model.BathTarget, 2);
         AppendNullable(buffer, "BathPv", model.BathPv, 2);
@@ -248,6 +249,31 @@ public static class WireCodec
         AppendBool(buffer, "BathCascadeSaturated", model.BathCascadeSaturated);
         AppendString(buffer, "BathCascadePausedReason", model.BathCascadePausedReason);
         AppendLong(buffer, "BathCascadeLastUpdateMs", model.BathCascadeLastUpdateMs);
+        AppendBool(buffer, "BathOwned", model.BathOwned);
+        AppendBool(buffer, "BathCascadeActive", model.BathCascadeActive);
+        AppendString(buffer, "BathCascadeFaultReason", model.BathCascadeState == "fault" ? model.BathCascadeFaultReason : "");
+        AppendBool(buffer, "BathStopPending", model.BathStopPending);
+        AppendString(buffer, "BathCommandCompletion", model.BathCommandCompletion);
+        AppendString(buffer, "BathOperationError", model.BathOperationError);
+        AppendLong(buffer, "BathNodeRejectId", model.BathNodeRejectId);
+        AppendString(buffer, "BathNodeRejectError", model.BathNodeRejectError);
+        AppendNullable(buffer, "BathNodeSpMin", model.BathNodeOnline ? model.BathNodeSpMin : double.NaN, 2);
+        AppendNullable(buffer, "BathNodeSpMax", model.BathNodeOnline ? model.BathNodeSpMax : double.NaN, 2);
+        AppendBool(buffer, "TempSetpointCommanded", model.TemperatureCommanded);
+        AppendBool(buffer, "TempModuleActuatorOn", model.TempModuleActuatorOn);
+        Append(buffer, "BathCascadeKp", model.BathCascadeKp, 4);
+        Append(buffer, "BathCascadeTiS", model.BathCascadeTiS, 1);
+        Append(buffer, "BathCascadeBiasC", model.BathCascadeBiasC, 2);
+        AppendInt(buffer, "BathCascadePeriodMs", model.BathCascadePeriodMs);
+        Append(buffer, "BathCascadeFilterS", model.BathCascadeFilterS, 1);
+        AppendInt(buffer, "BathCascadeCommandMinMs", model.BathCascadeCommandMinMs);
+        Append(buffer, "BathCascadeCommandBandC", model.BathCascadeCommandBandC, 2);
+        Append(buffer, "BathCascadeSlewCMin", model.BathCascadeSlewCMin, 2);
+        Append(buffer, "BathCascadeOffsetHighC", model.BathCascadeOffsetHighC, 2);
+        Append(buffer, "BathCascadeOffsetLowC", model.BathCascadeOffsetLowC, 2);
+        Append(buffer, "BathCascadeOutputMinC", model.BathCascadeOutputMinC, 2);
+        Append(buffer, "BathCascadeOutputMaxC", model.BathCascadeOutputMaxC, 2);
+        AppendString(buffer, "BathCascadeConfigError", model.BathCascadeConfigError);
     }
 
     /// <summary>
@@ -328,22 +354,40 @@ public static class WireCodec
             return true;
         }
 
-        if (TryDouble(root, CommandKeys.TempSetpoint, out var temperature))
+        // Hub 10.6: a route change discards a setpoint in the same frame and never
+        // touches bathComm; tempSetpoint=0 on the bath route is the bath stop.
+        var routeChanged = false;
+        if (TryDouble(root, CommandKeys.TempControlMode, out var temperatureMode) && temperatureMode is 0 or 1)
         {
-            model.TemperatureSetpoint = temperature;
+            var viaBath = temperatureMode != 0;
+            routeChanged = viaBath != model.TempControlViaBath;
+            model.SetTemperatureRoute(viaBath);
         }
 
-        if (TryDouble(root, CommandKeys.TempControlMode, out var temperatureMode) && temperatureMode is >= 0 and <= 1)
+        var bathStop = false;
+        if (!routeChanged && TryDouble(root, CommandKeys.TempSetpoint, out var temperature) &&
+            double.IsFinite(temperature) && temperature is >= 0 and <= 100)
         {
-            model.TempControlViaBath = temperatureMode != 0;
-            if (!model.TempControlViaBath)
+            model.TemperatureSetpoint = temperature;
+            if (model.TempControlViaBath && temperature < 0.001)
             {
-                model.BathCommEnabled = false;
+                bathStop = true;
+            }
+            else
+            {
+                if (model.TempControlViaBath && !model.TemperatureCommanded && model.BathCommEnabled)
+                {
+                    model.BathModeAuto = true;  // resume: the Hub asks the node for auto
+                }
+                model.TemperatureCommanded = temperature > 0;
             }
         }
+
         if (TryDouble(root, CommandKeys.BathComm, out var bathComm))
         {
-            model.BathCommEnabled = bathComm != 0;
+            var enabled = bathComm != 0;
+            if (!enabled && model.BathOwned) bathStop = true;
+            model.BathCommEnabled = enabled;
         }
         if (TryDouble(root, CommandKeys.BathSync, out var bathSync) && double.IsFinite(bathSync) && bathSync is >= 0 and <= 100)
         {
@@ -356,15 +400,15 @@ public static class WireCodec
         }
         if (TryDouble(root, CommandKeys.BathAbort, out var bathAbort) && bathAbort != 0)
         {
-            model.BathState = "aborted";
-            model.BathError = "aborted";
+            bathStop = true;
+        }
+        if (bathStop && model.TempControlViaBath)
+        {
+            model.StopBath();
         }
         if (TryDouble(root, CommandKeys.BathCascadeReset, out var bathReset) && bathReset != 0)
         {
-            model.BathState = "idle";
-            model.BathError = "";
-            model.BathCascadeState = "waiting_inputs";
-            model.BathCascadePausedReason = "";
+            model.ResetBathCascade();
         }
 
         ApplyBathTuning(model, root);
@@ -741,18 +785,62 @@ public static class WireCodec
 
     private static void ApplyBathTuning(DeviceModel model, JsonElement root)
     {
-        if (TryDouble(root, CommandKeys.BathCascadeKp, out var kp) && double.IsFinite(kp)) model.BathCascadeKp = kp;
-        if (TryDouble(root, CommandKeys.BathCascadeTiS, out var ti) && double.IsFinite(ti)) model.BathCascadeTiS = ti;
-        if (TryDouble(root, CommandKeys.BathCascadeBiasC, out var bias) && double.IsFinite(bias)) model.BathCascadeBiasC = bias;
-        if (TryDouble(root, CommandKeys.BathCascadePeriodMs, out var period) && period is > 0 and <= 600000) model.BathCascadePeriodMs = (int)period;
-        if (TryDouble(root, CommandKeys.BathCascadeFilterS, out var filter) && double.IsFinite(filter)) model.BathCascadeFilterS = filter;
-        if (TryDouble(root, CommandKeys.BathCascadeCommandMinMs, out var min) && min is > 0 and <= 600000) model.BathCascadeCommandMinMs = (int)min;
-        if (TryDouble(root, CommandKeys.BathCascadeCommandBandC, out var band) && double.IsFinite(band)) model.BathCascadeCommandBandC = band;
-        if (TryDouble(root, CommandKeys.BathCascadeSlewCMin, out var slew) && double.IsFinite(slew)) model.BathCascadeSlewCMin = slew;
-        if (TryDouble(root, CommandKeys.BathCascadeOffsetHighC, out var high) && double.IsFinite(high)) model.BathCascadeOffsetHighC = high;
-        if (TryDouble(root, CommandKeys.BathCascadeOffsetLowC, out var low) && double.IsFinite(low)) model.BathCascadeOffsetLowC = low;
-        if (TryDouble(root, CommandKeys.BathCascadeOutputMinC, out var outMin) && double.IsFinite(outMin)) model.BathCascadeOutputMinC = outMin;
-        if (TryDouble(root, CommandKeys.BathCascadeOutputMaxC, out var outMax) && double.IsFinite(outMax)) model.BathCascadeOutputMaxC = outMax;
+        // Same transaction as the Hub: every key is parsed into a candidate, the whole
+        // set is validated, and nothing changes on any error.
+        string[] keys =
+        [
+            CommandKeys.BathCascadeKp, CommandKeys.BathCascadeTiS, CommandKeys.BathCascadeBiasC,
+            CommandKeys.BathCascadePeriodMs, CommandKeys.BathCascadeFilterS,
+            CommandKeys.BathCascadeCommandMinMs, CommandKeys.BathCascadeCommandBandC,
+            CommandKeys.BathCascadeSlewCMin, CommandKeys.BathCascadeOffsetHighC,
+            CommandKeys.BathCascadeOffsetLowC, CommandKeys.BathCascadeOutputMinC,
+            CommandKeys.BathCascadeOutputMaxC,
+        ];
+        if (!keys.Any(key => root.TryGetProperty(key, out _)))
+        {
+            return;
+        }
+        if (root.TryGetProperty(CommandKeys.TempControlMode, out _) ||
+            root.TryGetProperty(CommandKeys.TempSetpoint, out _))
+        {
+            model.BathCascadeConfigError = "same_frame";
+            return;
+        }
+
+        double Read(string key, double current)
+            => root.TryGetProperty(key, out _) ? (TryDouble(root, key, out var v) ? v : double.NaN) : current;
+        var candidate = new BathCascadeTuning(
+            Read(CommandKeys.BathCascadeKp, model.BathCascadeKp),
+            Read(CommandKeys.BathCascadeTiS, model.BathCascadeTiS),
+            Read(CommandKeys.BathCascadeBiasC, model.BathCascadeBiasC),
+            (int)Read(CommandKeys.BathCascadePeriodMs, model.BathCascadePeriodMs),
+            Read(CommandKeys.BathCascadeFilterS, model.BathCascadeFilterS),
+            (int)Read(CommandKeys.BathCascadeCommandMinMs, model.BathCascadeCommandMinMs),
+            Read(CommandKeys.BathCascadeCommandBandC, model.BathCascadeCommandBandC),
+            Read(CommandKeys.BathCascadeSlewCMin, model.BathCascadeSlewCMin),
+            Read(CommandKeys.BathCascadeOffsetHighC, model.BathCascadeOffsetHighC),
+            Read(CommandKeys.BathCascadeOffsetLowC, model.BathCascadeOffsetLowC),
+            Read(CommandKeys.BathCascadeOutputMinC, model.BathCascadeOutputMinC),
+            Read(CommandKeys.BathCascadeOutputMaxC, model.BathCascadeOutputMaxC));
+        if (candidate.Validate() is not null)
+        {
+            model.BathCascadeConfigError = "out_of_range";
+            return;
+        }
+
+        model.BathCascadeConfigError = "";
+        model.BathCascadeKp = candidate.Kp;
+        model.BathCascadeTiS = candidate.TiS;
+        model.BathCascadeBiasC = candidate.BiasC;
+        model.BathCascadePeriodMs = candidate.PeriodMs;
+        model.BathCascadeFilterS = candidate.FilterS;
+        model.BathCascadeCommandMinMs = candidate.CommandMinMs;
+        model.BathCascadeCommandBandC = candidate.CommandBandC;
+        model.BathCascadeSlewCMin = candidate.SlewCMin;
+        model.BathCascadeOffsetHighC = candidate.OffsetHighC;
+        model.BathCascadeOffsetLowC = candidate.OffsetLowC;
+        model.BathCascadeOutputMinC = candidate.OutputMinC;
+        model.BathCascadeOutputMaxC = candidate.OutputMaxC;
     }
 
     private static bool IsValidPumpPolynomial(

@@ -238,6 +238,23 @@ public sealed class DeviceModel
     public double BathCascadeOutputMinC { get; set; } = 5.0;
     public double BathCascadeOutputMaxC { get; set; } = 90.0;
 
+    // ---- Hub 10.6 bath contract ----------------------------------------
+    /// <summary>A reactor reference was commanded in this session (not a persisted one).</summary>
+    public bool TemperatureCommanded { get; set; }
+    public bool BathStopPending { get; private set; }
+    public string BathCommandCompletion { get; private set; } = "none";
+    public string BathCascadeFaultReason { get; private set; } = "";
+    public string BathOperationError { get; set; } = "";
+    public long BathNodeRejectId { get; set; }
+    public string BathNodeRejectError { get; set; } = "";
+    public double BathNodeSpMin { get; set; } = 5.0;
+    public double BathNodeSpMax { get; set; } = 90.0;
+    public string BathCascadeConfigError { get; set; } = "";
+    public bool BathCascadeActive => TempControlViaBath && TemperatureCommanded;
+    public bool BathOwned => TempControlViaBath && BathCommEnabled && TemperatureCommanded;
+    public bool TempModuleActuatorOn => !TempControlViaBath && TemperatureSetpoint > 0.0;
+    private bool _bathFaultLatched;
+
     /// <summary>Commanded CN1 speed reference. <see cref="ServoRpm"/> is the measured response.</summary>
     public int MotorRpm { get; set; }
 
@@ -475,7 +492,7 @@ public sealed class DeviceModel
     {
         "pump" => "3.9",
         "agitator" => "v10",
-        "bath" => "r3.1",
+        "bath" => "r3.2",
         _ => "v11",
     };
 
@@ -1005,69 +1022,96 @@ public sealed class DeviceModel
     {
         var nowMs = (long)(UptimeSeconds * 1000.0);
         _bathLastUpdateMs = nowMs;
+        BathStopPending = false;  // the simulated node applies the stop on the next push
 
-        if (!TempControlViaBath || !BathCommEnabled)
+        if (!TempControlViaBath || !TemperatureCommanded || TemperatureSetpoint <= 0.0)
         {
+            // Off: route elsewhere or cascade stopped. The C404 keeps its last SP.
             BathCascadeState = "off";
-            BathState = "idle";
-            BathPhase = "idle";
-            BathGuard = "off";
             BathCascadePausedReason = "";
+            BathCascadeFaultReason = "";
+            BathCascadeSaturated = false;
             BathCommandPending = false;
-            BathCommandCompletionPending = false;
+            BathCommandLatestWins = false;
+            if (BathCommandCompletionPending)
+            {
+                BathCommandCompletionPending = false;
+                BathCommandCompletion = "stopped";
+            }
+            if (BathNodeOnline)
+            {
+                BathState = BathState is "running" or "settling" ? "done" : BathState;
+                BathGuard = BathModeAuto ? "watch" : "off";
+            }
+            _bathTemperature += (BathCommandSetpoint - _bathTemperature) * Math.Clamp(dt / 45.0, 0.0, 1.0);
+            return;
+        }
+
+        if (!_bathFaultLatched)
+        {
+            // Node failures are edges in the Hub: they latch the cascade until a reset.
+            if (Scenario == Scenario.BathError)
+            {
+                BathState = "error";
+                BathError = "sp_mismatch";
+                LatchBathFault("bath_error:sp_mismatch");
+            }
+            else if (Scenario == Scenario.BathAbort)
+            {
+                BathState = "aborted";
+                BathError = "aborted";
+                LatchBathFault("bath_aborted");
+            }
+            else if (Scenario == Scenario.BathGuardSuspended)
+            {
+                BathGuard = "suspended";
+                LatchBathFault("guard_suspended");
+            }
+        }
+
+        if (_bathFaultLatched)
+        {
+            BathCascadeState = "fault";
+            BathCascadePausedReason = BathCascadeFaultReason;
             BathCascadeSaturated = false;
             return;
         }
 
-        if (Scenario == Scenario.BathError)
+        var waiting = !BathNodeOnline ? "node_offline"
+                    : !BathCommEnabled ? "bath_comm_off"
+                    : !BathModeAuto ? "bath_manual"
+                    : null;
+        if (waiting is not null)
         {
-            BathState = "error";
-            BathError = "bath_fault";
-            BathCascadeState = "fault";
-            BathCascadePausedReason = "bath_fault";
-            return;
-        }
-        if (Scenario == Scenario.BathAbort)
-        {
-            BathState = "aborted";
-            BathError = "aborted";
-            BathCascadeState = "fault";
-            BathCascadePausedReason = "aborted";
-            return;
-        }
-        if (Scenario == Scenario.BathGuardSuspended)
-        {
-            BathGuard = "suspended";
-            BathCascadeState = "paused";
-            BathCascadePausedReason = "bath_guard";
-            return;
-        }
-        if (!BathNodeOnline)
-        {
-            BathCascadeState = "paused";
-            BathCascadePausedReason = "bath_offline";
-            BathState = "idle";
-            BathPhase = "idle";
+            BathCascadeState = "waiting_inputs";
+            BathCascadePausedReason = waiting;
+            BathCascadeFaultReason = "";
+            if (!BathNodeOnline)
+            {
+                BathState = "idle";
+                BathPhase = "idle";
+            }
             return;
         }
 
-        BathGuard = "ok";
+        BathGuard = "watch";
         BathError = "";
-        BathCascadeState = "controlling";
-        BathPhase = "running";
+        BathCascadeState = BathCommandCompletionPending ? "actuator_busy" : "controlling";
+        BathCascadePausedReason = BathCommandCompletionPending ? "actuator_busy" : "";
+        BathCascadeFaultReason = "";
+        BathPhase = BathCommandCompletionPending ? "presses" : "";
         BathState = BathCommandCompletionPending ? "running" : "done";
 
         _bathCascadeElapsed += dt * 1000.0;
-        var pv = BathPv;
-        if (double.IsNaN(pv))
+        if (!double.IsFinite(_temperature))
         {
             BathCascadeState = "paused";
-            BathCascadePausedReason = "reactor_pv_invalid";
+            BathCascadePausedReason = "reactor_pv_stale";
             return;
         }
 
         // Outer PI: Tempval is the real reactor PV; only BathCommandSetpoint is sent to C404.
-        var reference = TemperatureSetpoint > 0.0 ? TemperatureSetpoint : BathSetpoint;
+        var reference = TemperatureSetpoint;
         var error = reference - _temperature;
         BathCascadeError = error;
         BathCascadePvFiltered = BathCascadePvFiltered == 0.0
@@ -1079,28 +1123,23 @@ public sealed class DeviceModel
         BathCascadeI = _bathIntegral;
 
         var desired = reference + BathCascadeBiasC + BathCascadeP + BathCascadeI;
-        var lower = reference - BathCascadeOffsetLowC;
-        var upper = reference + BathCascadeOffsetHighC;
-        var clamped = Math.Clamp(desired, Math.Max(BathCascadeOutputMinC, lower),
-            Math.Min(BathCascadeOutputMaxC, upper));
+        var lower = Math.Max(Math.Max(BathCascadeOutputMinC, BathNodeSpMin), reference - BathCascadeOffsetLowC);
+        var upper = Math.Min(Math.Min(BathCascadeOutputMaxC, BathNodeSpMax), reference + BathCascadeOffsetHighC);
+        var clamped = Math.Clamp(desired, Math.Min(lower, upper), Math.Max(lower, upper));
         BathCascadeSaturated = Scenario == Scenario.BathSaturation || Math.Abs(clamped - desired) > 1e-6;
-        if (BathCascadeSaturated)
-        {
-            BathCascadeState = "paused";
-            BathCascadePausedReason = "saturated";
-        }
 
         if (_bathCascadeElapsed >= BathCascadePeriodMs &&
             !BathCommandCompletionPending &&
             Math.Abs(clamped - BathCommandSetpoint) >= BathCascadeCommandBandC)
         {
             _bathCascadeElapsed = 0.0;
-            BathCommandSetpoint = Math.Clamp(clamped, BathCascadeOutputMinC, BathCascadeOutputMaxC);
+            BathCommandSetpoint = Math.Round(clamped, 1);
             BathTarget = BathCommandSetpoint;
             BathCommandId++;
             BathCommandLastSentId = BathCommandId;
             BathCommandPending = true;
             BathCommandCompletionPending = true;
+            BathCommandCompletion = "pending";
             _bathCompletionElapsed = 0.0;
             BathCommandLatestWins = false;
         }
@@ -1116,8 +1155,10 @@ public sealed class DeviceModel
                 BathCommandAck = BathCommandLastSentId;
                 BathCommandLastDoneId = BathCommandLastSentId;
                 BathCommandCompletionPending = false;
+                BathCommandCompletion = "done";
                 BathCommandCompletionAgeMs = 0;
                 BathCommandConfirmed = BathCommandSetpoint;
+                BathSetpoint = BathCommandSetpoint;
                 BathState = "done";
             }
             else
@@ -1125,6 +1166,64 @@ public sealed class DeviceModel
                 BathCommandCompletionAgeMs = (int)(_bathCompletionElapsed * 1000.0);
             }
         }
+    }
+
+    private void LatchBathFault(string reason)
+    {
+        _bathFaultLatched = true;
+        BathCascadeFaultReason = reason;
+    }
+
+    /// <summary>Hub 10.6 bath stop: abort + manual on the node, cascade off, route kept.</summary>
+    public void StopBath()
+    {
+        TemperatureCommanded = false;
+        BathModeAuto = false;
+        BathStopPending = true;
+        BathCommandPending = false;
+        if (BathCommandCompletionPending)
+        {
+            BathCommandCompletionPending = false;
+            BathCommandCompletion = "stopped";
+        }
+        if (BathState is "running" or "settling") BathState = "aborted";
+        BathCascadeState = "off";
+        BathCascadePausedReason = "";
+        BathCascadeFaultReason = "";
+        _bathIntegral = 0.0;
+    }
+
+    /// <summary>Hub 10.6 bathCascadeReset: clears the latch and re-arms the node guard.</summary>
+    public void ResetBathCascade()
+    {
+        _bathFaultLatched = false;
+        BathCascadeFaultReason = "";
+        BathCascadePausedReason = "";
+        BathCascadeState = TemperatureCommanded ? "waiting_inputs" : "off";
+        if (BathCommandCompletionPending)
+        {
+            BathCommandCompletionPending = false;
+            BathCommandCompletion = "none";
+        }
+        if (BathCommEnabled) BathModeAuto = true;
+        if (BathGuard == "suspended") BathGuard = "watch";
+        _bathIntegral = 0.0;
+    }
+
+    /// <summary>Route change: nothing of the bath survives; leaving the bath stops the node.</summary>
+    public void SetTemperatureRoute(bool viaBath)
+    {
+        if (viaBath == TempControlViaBath) return;
+        var leavingBath = TempControlViaBath;
+        TempControlViaBath = viaBath;
+        TemperatureCommanded = false;
+        _bathFaultLatched = false;
+        BathCascadeFaultReason = "";
+        BathCommandPending = false;
+        BathCommandCompletionPending = false;
+        BathCommandCompletion = "none";
+        _bathIntegral = 0.0;
+        if (leavingBath) BathModeAuto = false;
     }
 
     private void StepFlowAndPressure(double dt)

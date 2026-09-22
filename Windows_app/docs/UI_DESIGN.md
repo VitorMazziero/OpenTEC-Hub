@@ -2107,3 +2107,10 @@ operator context. The C404 drawer is secondary and keeps `BathPv`, confirmed bat
 filtered PV, calculated output, guard, saturation and pause reason in separate cards. The route
 toggle is disabled until the Hub advertises bath telemetry; restoring it from settings never
 dispatches a command. The permanent safety note reads: **liberar a cascata não desliga o C404**.
+
+Since Hub 10.6 the route/communication toggles mirror the Hub echo (a just-flipped toggle wins for
+5 s while its echo is pending); a diverging saved preference is shown in the alarm colour. The
+card no longer has its own reactor setpoint field — a caption points to the temperature row.
+**Parar banho** is always enabled with a connected Hub; **Reset falha** only in `fault`, with the
+reason in pt-BR. Action results (`LastActionText`) are kept apart from the Hub state line. The
+tuning expander shows whether the draft equals the vigent Hub tuning.

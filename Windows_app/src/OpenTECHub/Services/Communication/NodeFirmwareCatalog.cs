@@ -39,7 +39,7 @@ public static class NodeFirmwareCatalog
         [Pump] = new(StringComparer.OrdinalIgnoreCase) { "3.9", "3.10", "3.12" },
         [Flowmeter] = new(StringComparer.OrdinalIgnoreCase) { "v11", "v11.0", "v12.0" },
         [Biomass] = new(StringComparer.OrdinalIgnoreCase) { "v11", "v11.1" },
-        [Bath] = new(StringComparer.OrdinalIgnoreCase) { "r3", "r3.1" },
+        [Bath] = new(StringComparer.OrdinalIgnoreCase) { "r3.2" },
     };
 
     /// <summary>Versions this build was validated with for <paramref name="device"/>; empty for an unknown name.</summary>

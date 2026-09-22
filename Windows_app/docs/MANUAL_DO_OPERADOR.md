@@ -320,6 +320,31 @@ desvio persistente ou nó offline, corrija a causa indicada pelo alarme antes de
 os parâmetros de painel e as séries de gráfico podem ser restaurados na próxima sessão, mas o
 aplicativo nunca envia comandos automaticamente ao abrir.
 
+**Estados do banho.** Dois controles independentes:
+
+| Guarda do C404 | Cascata do Hub | Comportamento | Comandos locais (celular, `/ui`) |
+|---|---|---|---|
+| manual | desligada | o C404 fica com o operador; nada é revertido (estado após **Parar banho**) | livres |
+| automática | desligada | a guarda defende o último SP comandado; mudanças no painel são desfeitas | livres |
+| automática | ativa | o Hub calcula o SP do C404 a partir de `Tempval`; painel revertido | bloqueados (só Abortar) |
+| manual | ativa | a cascata **aguarda** ("guarda do C404 em manual") e não envia nada | bloqueados |
+| automática | falha | o Hub para de enviar; o C404 mantém o último SP | bloqueados |
+
+A cascata só controla com a guarda em automático. Ao enviar um novo **Setpoint do reator** na via
+externa, o Hub pede o modo automático ao nó uma vez.
+
+**Parar banho.** Desliga a cascata, aborta a sequência em curso e deixa o C404 em manual no último
+SP; a via e a comunicação não mudam. Desligar a linha de temperatura na via externa e a parada de
+emergência têm o mesmo efeito. Para retomar, envie um novo setpoint do reator.
+
+**Falha da cascata.** O cartão mostra o motivo (banho recusou o comando, erro na sequência do
+C404, guarda suspensa, comando não concluído em 300 s, alvo alterado por fora). Corrija a causa e
+use **Reset falha**; o reset também devolve a guarda do C404 ao automático.
+
+**Receitas.** Na via externa, um bloco de temperatura só segue quando a temperatura do reator
+(`Tempval`, válida) permanece dentro de ±0,5 °C do alvo por 30 s contínuos. Enquanto isso a
+receita mostra "aguardando o reator atingir…"; pule o bloco ou pare a receita se necessário.
+
 ## 10. Elaboração e Execução de Receitas
 
 No módulo **Receitas**, o usuário pode desenhar bateladas automatizadas conectando blocos de processo:

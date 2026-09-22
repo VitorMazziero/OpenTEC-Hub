@@ -430,6 +430,35 @@ public static class TelemetryKeys
     public const string BathCascadePausedReason = "BathCascadePausedReason";
     public const string BathCascadeLastUpdateMs = "BathCascadeLastUpdateMs";
 
+    // ---- External bath / thermal cascade (Hub 10.6) ----------------------
+    public const string TempvalValid = "TempvalValid";
+    public const string TempvalAgeMs = "TempvalAgeMs";
+    public const string BathOwned = "BathOwned";
+    public const string BathCascadeActive = "BathCascadeActive";
+    public const string BathCascadeFaultReason = "BathCascadeFaultReason";
+    public const string BathStopPending = "BathStopPending";
+    public const string BathCommandCompletion = "BathCommandCompletion";
+    public const string BathOperationError = "BathOperationError";
+    public const string BathNodeRejectId = "BathNodeRejectId";
+    public const string BathNodeRejectError = "BathNodeRejectError";
+    public const string BathNodeSpMin = "BathNodeSpMin";
+    public const string BathNodeSpMax = "BathNodeSpMax";
+    public const string TempSetpointCommanded = "TempSetpointCommanded";
+    public const string TempModuleActuatorOn = "TempModuleActuatorOn";
+    public const string BathCascadeConfigError = "BathCascadeConfigError";
+    public const string BathCascadeKp = "BathCascadeKp";
+    public const string BathCascadeTiS = "BathCascadeTiS";
+    public const string BathCascadeBiasC = "BathCascadeBiasC";
+    public const string BathCascadePeriodMs = "BathCascadePeriodMs";
+    public const string BathCascadeFilterS = "BathCascadeFilterS";
+    public const string BathCascadeCommandMinMs = "BathCascadeCommandMinMs";
+    public const string BathCascadeCommandBandC = "BathCascadeCommandBandC";
+    public const string BathCascadeSlewCMin = "BathCascadeSlewCMin";
+    public const string BathCascadeOffsetHighC = "BathCascadeOffsetHighC";
+    public const string BathCascadeOffsetLowC = "BathCascadeOffsetLowC";
+    public const string BathCascadeOutputMinC = "BathCascadeOutputMinC";
+    public const string BathCascadeOutputMaxC = "BathCascadeOutputMaxC";
+
     // ---- Hub identity (v9) -----------------------------------------------
 
     /// <summary>Hub firmware build, e.g. <c>9.1.0-dev</c>. Diagnostic only.</summary>

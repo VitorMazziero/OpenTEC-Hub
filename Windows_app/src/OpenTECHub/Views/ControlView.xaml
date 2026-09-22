@@ -584,7 +584,7 @@
                                 <!-- Hub-routed external bath and thermal cascade.  The reactor PV
                                      remains the authoritative process value; C404 fields are
                                      shown separately so an operator cannot confuse the two. -->
-                                <Border Background="{DynamicResource SurfaceBrush}"
+                                <Border Background="{DynamicResource SurfaceCardBrush}"
                                         BorderBrush="{DynamicResource StrokeDefaultBrush}"
                                         BorderThickness="1"
                                         CornerRadius="{StaticResource RadiusSmall}"
@@ -619,7 +619,7 @@
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding IsCommEnabled, Mode=TwoWay}" Style="{StaticResource ToggleSwitchStyle}" ToolTip="Habilitar comunicação do C404" />
                                             <TextBlock Grid.Column="2" Text="Referência reator" VerticalAlignment="Center" Margin="12,0,6,0" />
                                             <TextBox Grid.Column="3" Text="{Binding ReactorSetpointText, UpdateSourceTrigger=PropertyChanged}" />
-                                            <Button Grid.Column="4" Content="Aplicar" Command="{Binding ApplySetpointCommand}" IsEnabled="{Binding CanApplySetpoint}" Margin="8,0,6,0" />
+                                            <Button Grid.Column="4" Content="Enviar setpoint" Command="{Binding ApplySetpointCommand}" IsEnabled="{Binding CanApplySetpoint}" Margin="8,0,6,0" />
                                             <TextBlock Grid.Column="5" Text="PV real" VerticalAlignment="Center" Margin="8,0,6,0" />
                                             <TextBlock Grid.Column="6" Text="{Binding ReactorPvText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" />
                                         </Grid>
@@ -675,7 +675,7 @@
                                                             <StackPanel Margin="0,0,6,0"><TextBlock Text="Saída mínima" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeOutputMinText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
                                                             <StackPanel><TextBlock Text="Saída máxima" Style="{StaticResource CaptionTextStyle}" /><TextBox Text="{Binding CascadeOutputMaxText, UpdateSourceTrigger=PropertyChanged}" /></StackPanel>
                                                         </UniformGrid>
-                                                        <Button Content="Aplicar sintonia" Command="{Binding ApplyTuningCommand}" HorizontalAlignment="Left" />
+                                                        <Button Content="Enviar sintonia" Command="{Binding ApplyTuningCommand}" HorizontalAlignment="Left" />
                                                     </StackPanel>
                                                 </Expander>
                                             </StackPanel>

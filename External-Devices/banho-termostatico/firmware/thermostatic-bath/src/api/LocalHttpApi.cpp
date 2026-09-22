@@ -40,6 +40,7 @@ const char uiPage[] PROGMEM = R"rawliteral(<!DOCTYPE html><html><head><meta char
 button{padding:.6em 1em;font-size:1em}input{font-size:1.1em;width:6em}pre{background:#f3f3f3;padding:.6em;font-size:.8em;overflow:auto}
 .warn{color:#b00}.ok{color:#080}</style></head><body>
 <h2>Banho Termostatico</h2>
+<div class="warn" id="own"></div>
 <div>Setpoint (sombra): <span class="big" id="sp">--</span> <span id="known"></span></div>
 <div>Modo: <b id="mode">--</b> <small id="guard"></small> &nbsp; desvio: <b id="dev">--</b>
 <button onclick="cmd({mode:'manual'})">Manual</button><button onclick="cmd({mode:'auto'})">Automatico</button></div>
@@ -59,6 +60,7 @@ button{padding:.6em 1em;font-size:1em}input{font-size:1.1em;width:6em}pre{backgr
 const $=i=>document.getElementById(i);
 function cmd(o){fetch('/command',{method:'POST',body:JSON.stringify(o)}).then(r=>r.text()).then(t=>{$('log').textContent=t+'\n'+$('log').textContent}).catch(e=>{$('log').textContent='erro: '+e})}
 function poll(){fetch('/status').then(r=>r.json()).then(s=>{
+$('own').textContent=s.hub_owned?'Controlado pelo Hub: somente Abortar esta disponivel.':'';
 $('sp').textContent=s.sp_shadow.toFixed(1);$('known').textContent=s.sp_known?'':'(desconhecido)';$('known').className=s.sp_known?'ok':'warn';
 $('mode').textContent=s.mode;$('guard').textContent='('+s.guard+(s.guard_corrections?', '+s.guard_corrections+' correcoes':'')+')';
 $('dev').textContent=s.deviation_c==null?'--':s.deviation_c.toFixed(1);$('dev').className=s.deviation_c?'warn':'ok';

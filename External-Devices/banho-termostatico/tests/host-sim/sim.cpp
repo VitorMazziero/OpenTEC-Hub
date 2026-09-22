@@ -618,6 +618,64 @@ int main(int argc, char** argv) {
     CHECK(rejected == "{\"ok\":false,\"error\":\"range\"}", "reply=%s", rejected.c_str());
     CHECK(g_lastCmdId == 101, "refused revision was acknowledged: %lu", (unsigned long)g_lastCmdId); }
 
+  printf("== W. Hub rejection is published until the same cmd_id is accepted (r3.2)\n");
+  resetWorld(c, 30.0f);
+  g_hubRejectCmdId = 0; g_hubRejectErr[0] = '\0';
+  { String reply;
+    CHECK(processCommand("{\"cmd_id\":103,\"setpoint\":999.0}", reply, CommandSource::Hub), "hub reject not recognized");
+    CHECK(g_hubRejectCmdId == 103 && strcmp(g_hubRejectErr, "range") == 0,
+          "rej=%lu err=%s", (unsigned long)g_hubRejectCmdId, g_hubRejectErr);
+    String local;
+    processCommand("{\"cmd_id\":104,\"setpoint\":999.0}", local);
+    CHECK(g_hubRejectCmdId == 103, "local refusal overwrote hub rejection: %lu", (unsigned long)g_hubRejectCmdId);
+    String accepted;
+    CHECK(processCommand("{\"cmd_id\":103,\"setpoint\":30.2}", accepted, CommandSource::Hub), "hub accept not recognized");
+    CHECK(g_lastCmdId == 103, "ack=%lu", (unsigned long)g_lastCmdId);
+    CHECK(g_hubRejectCmdId == 0 && g_hubRejectErr[0] == '\0', "rejection not cleared");
+    runUntilIdle(c, 30000); }
+
+  printf("== X. Hub ownership: local API may only abort/stop; ownership expires (r3.2)\n");
+  resetWorld(c, 30.0f);
+  g_cfg.hubEnabled = 1;
+  g_hubOwnerFlag = true; g_hubOwnerSeenMs = g_now;
+  { String localSp, localCfg, localMode, hubSp, localAbort;
+    const uint32_t ackBefore = g_lastCmdId;
+    CHECK(processCommand("{\"setpoint\":31.0}", localSp), "local setpoint not recognized");
+    CHECK(localSp == "{\"ok\":false,\"error\":\"hub_owned\"}", "reply=%s", localSp.c_str());
+    CHECK(!setpointBusy(), "local setpoint started a sequence under hub ownership");
+    CHECK(processCommand("{\"hub_enabled\":0}", localCfg), "local config not recognized");
+    CHECK(localCfg == "{\"ok\":false,\"error\":\"hub_owned\"}" && g_cfg.hubEnabled == 1, "reply=%s", localCfg.c_str());
+    CHECK(processCommand("{\"cmd_id\":105,\"mode\":\"manual\"}", localMode), "local mode not recognized");
+    CHECK(g_lastCmdId == ackBefore, "refused local command changed ack");
+    CHECK(processCommand("{\"cmd_id\":106,\"setpoint\":30.4}", hubSp, CommandSource::Hub), "hub setpoint not recognized");
+    CHECK(setpointBusy(), "hub setpoint refused under its own ownership: %s", hubSp.c_str());
+    CHECK(processCommand("{\"abort\":1}", localAbort), "local abort not recognized");
+    CHECK(localAbort == "{\"ok\":true,\"action\":\"abort\"}" && !setpointBusy(), "reply=%s", localAbort.c_str());
+    g_now += HUB_OWNERSHIP_TIMEOUT_MS + 1;
+    String afterExpiry;
+    CHECK(processCommand("{\"setpoint\":30.3}", afterExpiry), "post-expiry setpoint not recognized");
+    CHECK(afterExpiry.indexOf("\"ok\":true") >= 0, "ownership did not expire: %s", afterExpiry.c_str());
+    runUntilIdle(c, 30000);
+    g_hubOwnerFlag = false; g_cfg.hubEnabled = 0; }
+
+  printf("== Y. stop aborts a running sequence and leaves the guard in manual (r3.2)\n");
+  resetWorld(c, 30.0f);
+  guardSetMode(MODE_AUTO, "sim");
+  { String e, stopReply, dup;
+    CHECK(setpointRequestAbsolute(33.0f, e), "%s", e.c_str());
+    runFor(c, 1500);
+    CHECK(setpointBusy(), "sequence finished before stop");
+    CHECK(processCommand("{\"cmd_id\":107,\"stop\":1}", stopReply, CommandSource::Hub), "stop not recognized");
+    CHECK(stopReply == "{\"ok\":true,\"action\":\"stop\"}", "reply=%s", stopReply.c_str());
+    CHECK(!setpointBusy() && !keypadBusy(), "relays still active after stop");
+    CHECK(g_mode == MODE_MANUAL && guardState() == GUARD_OFF, "mode=%u guard=%s", g_mode, guardStateName());
+    CHECK(g_lastCmdId == 107, "stop not acknowledged: %lu", (unsigned long)g_lastCmdId);
+    const unsigned long pressesAfterStop = c.pressCount;
+    runFor(c, 20000);
+    CHECK(c.pressCount == pressesAfterStop, "relays pressed after stop");
+    CHECK(processCommand("{\"cmd_id\":107,\"stop\":1}", dup, CommandSource::Hub), "stop duplicate not recognized");
+    CHECK(dup == "{\"ok\":true,\"action\":\"duplicate\"}", "reply=%s", dup.c_str()); }
+
   printf("\n%s (%d failure(s))\n", g_failures ? "FAILED" : "ALL PASSED", g_failures);
   return g_failures ? 1 : 0;
 }

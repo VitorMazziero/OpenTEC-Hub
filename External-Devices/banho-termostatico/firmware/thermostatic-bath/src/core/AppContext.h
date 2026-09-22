@@ -83,6 +83,20 @@ extern unsigned long g_otaRebootAtMs;
 extern String g_otaRejectReason;
 
 extern volatile uint8_t g_hubFailStreak;
+
+// Posse do Hub (r3.2). O Hub declara em toda resposta do /bathData se a cascata dele
+// esta dona do banho (cabecalho X-Hub-Owner). Enquanto a posse vale, a API local so
+// aceita abort/stop; ela expira sozinha quando o Hub para de responder, entao um Hub
+// desligado nunca prende o banho.
+constexpr unsigned long HUB_OWNERSHIP_TIMEOUT_MS = 10000;
+extern volatile bool g_hubOwnerFlag;
+extern volatile unsigned long g_hubOwnerSeenMs;
+bool hubOwnershipActive(unsigned long now);
+
+// Ultimo comando do Hub recusado pelo parser (publicado no /bathData para o Hub nao
+// reentregar as cegas ate o timeout). Escrito e lido apenas no loop principal.
+extern uint32_t g_hubRejectCmdId;
+extern char g_hubRejectErr[32];
 constexpr uint8_t LINK_WATCHDOG_FAILS = 8;
 extern volatile bool g_hubAnnounced;
 

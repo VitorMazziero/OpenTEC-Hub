@@ -1,5 +1,17 @@
 # Changelog — Banho termostático
 
+## 2026-09-22 — posse do Hub, parada e recusa publicada (r3.2)
+
+- Posse do Hub: com `X-Hub-Owner: 1` na resposta do `/bathData` (validade de 10 s), a API
+  local recusa com `409 hub_owned` tudo exceto `abort`/`stop`; `/status` publica `hub_owned`
+  e `hub_owner_age_ms`; a página `/ui` avisa quando o Hub controla.
+- Nova ação `stop` (abort + modo manual persistido) usada pela parada do Hub.
+- Push publica `rej_cmd_id`/`rej_err` (recusa de comando do Hub) e `sp_min`/`sp_max`;
+  campos de texto codificados para URL.
+- `403`/`404` do Hub refazem o `nodeHello` no ciclo seguinte (antes: até 30 s).
+- Pilha da tarefa `HubLink` 6 → 7 kB; anúncio `ver=r3.2`.
+- Simulação no PC: cenários W (recusa publicada), X (posse) e Y (stop).
+
 ## 2026-09-22 — compatibilidade e cadência integrada (r3.1)
 
 - Anúncio ao Hub passa a `ver=r3.1`.

@@ -4,20 +4,23 @@
 
 ## Implementado e validado em software
 
-- Firmware ativo: `firmware/thermostatic-bath` r3.1 — `BathClient r3.1`.
-- Compilação com ESP32 core 3.3.11 e FQBN `esp32:esp32:esp32s3`: 1 083 125 B de flash
-  (82%) e 48 248 B de RAM global (14%).
+- Firmware ativo: `firmware/thermostatic-bath` r3.2 — `BathClient r3.2`.
+- Compilação com ESP32 core 3.3.11 e FQBN `esp32:esp32:esp32s3`: 1 085 689 B de flash
+  (82%) e 48 344 B de RAM global (14%) (r3.2).
 - Controle do C404: setpoint/hold/toques/correção/abort, display, modos e guarda.
-- Enlace r3.1 do Hub:
+- Enlace r3.2 do Hub:
   - tarefa FreeRTOS própria para hello/push/HTTP;
   - snapshot protegido e fila fixa de comandos;
-  - `/bathData`, `ver=r3.1`, MAC real, fase/erro/display/mode/guard/ACK observáveis;
+  - `/bathData`, `ver=r3.2`, MAC real, fase/erro/display/mode/guard/ACK observáveis;
+  - recusa de comando do Hub publicada (`rej_cmd_id`/`rej_err`) e faixa `sp_min`/`sp_max`;
+  - posse do Hub (`X-Hub-Owner`, 10 s): API local só aceita `abort`/`stop`; ação `stop`
+    (abort + manual) para a parada do Hub; re-hello imediato após 403/404;
   - com `hub_enabled=1`, período efetivo limitado a 2 s para respeitar a janela do Hub;
   - push não é suspenso durante hold;
   - `hub_enabled=0` por padrão até a integração.
-- `tests/host-sim`: 34 cenários passam com os fontes reais de setpoint, guarda, teclado,
+- `tests/host-sim`: 37 cenários passam com os fontes reais de setpoint, guarda, teclado,
   parser e contexto. Inclui três reentregas do mesmo `cmd_id` causando uma única sequência e
-  comando recusado sem avanço do ACK.
+  comando recusado sem avanço do ACK, recusa publicada (W), posse do Hub (X) e `stop` (Y).
 - Aplicativo Android próprio do banho: `apps/flutter`, versão 1.1.0+2, quatro abas
   (Operação, Modos, Bancada, Config), reentrega idempotente, traço de 10 min, diagnóstico e
   aviso de firmware incompatível. `flutter analyze`, `flutter test` e build de APK passam.
@@ -43,7 +46,7 @@ Planos:
 
 - Gates G1–G9 de `VALIDATION.md`: nenhum fechado.
 - Relés, temporização real, display, sensoriamento, NVS, Wi-Fi/OTA e guarda contra o C404 real.
-- Enlace r3.1 durante hold de 60 s, stack watermark e reentrega por perda de Wi-Fi após o Hub
+- Enlace r3.2 durante hold de 60 s, stack watermark e reentrega por perda de Wi-Fi após o Hub
   implementar o contrato.
 - App Android contra o dispositivo real, incluindo G3b/G7b.
 - Identificação térmica e sintonia com água antes de qualquer cultivo.

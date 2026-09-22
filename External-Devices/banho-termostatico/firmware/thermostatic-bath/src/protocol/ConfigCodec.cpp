@@ -128,6 +128,15 @@ bool runAction(const char* payload, String& reply, bool& accepted) {
   float value;
   char keyBuf[8];
 
+  // Parada do Hub (r3.2): abort + modo manual numa unica revisao confiavel. Depois
+  // dela nem a cascata nem a guarda acionam reles; o C404 fica no ultimo SP.
+  if (getJsonValue(payload, "stop") == 1) {
+    setpointAbort();
+    guardSetMode(MODE_MANUAL, "stop");
+    accepted = true;
+    replyOk(reply, "stop");
+    return true;
+  }
   if (getJsonValue(payload, "abort") == 1) {
     setpointAbort();
     accepted = true;
@@ -205,8 +214,17 @@ bool runAction(const char* payload, String& reply, bool& accepted) {
 }
 }  // namespace
 
-bool processCommand(const char* payload, String& reply) {
+namespace {
+bool processCommandImpl(const char* payload, String& reply, CommandSource source) {
   if (!payload) { replyError(reply, "empty"); return false; }
+
+  // Com a cascata do Hub dona do banho, a API local nao move o C404 nem muda a
+  // configuracao. Abort/stop continuam livres: parar nunca depende do Hub.
+  if (source == CommandSource::Local && hubOwnershipActive(millis()) &&
+      getJsonValue(payload, "abort") != 1 && getJsonValue(payload, "stop") != 1) {
+    replyError(reply, "hub_owned");
+    return true;
+  }
 
   // Reentrega da mesma revisao (Hub reenvia ate ver o ack). Acoes de tecla nunca
   // podem ser reaplicadas por reentrega: cada toque extra mudaria o SP.
@@ -297,6 +315,32 @@ bool processCommand(const char* payload, String& reply) {
   }
   return seen;
 }
+}  // namespace
+
+bool processCommand(const char* payload, String& reply, CommandSource source) {
+  const bool seen = processCommandImpl(payload, reply, source);
+  if (source != CommandSource::Hub || !payload) return seen;
+
+  // Recusa de um comando do Hub fica registrada ate ele ser aceito: o Hub le
+  // rej_cmd_id/rej_err no push e decide sem esperar o timeout de conclusao.
+  const long cmdId = getJsonValue(payload, "cmd_id");
+  if (cmdId <= 0) return seen;
+  if (reply.indexOf("\"ok\":false") >= 0) {
+    String err = "rejected";
+    const int start = reply.indexOf("\"error\":\"");
+    if (start >= 0) {
+      const int from = start + 9;
+      const int end = reply.indexOf('"', from);
+      if (end > from) err = reply.substring(from, end);
+    }
+    g_hubRejectCmdId = static_cast<uint32_t>(cmdId);
+    snprintf(g_hubRejectErr, sizeof(g_hubRejectErr), "%s", err.c_str());
+  } else if (static_cast<uint32_t>(cmdId) == g_hubRejectCmdId) {
+    g_hubRejectCmdId = 0;
+    g_hubRejectErr[0] = '\0';
+  }
+  return seen;
+}
 
 String getConfigAsJson() {
   char buf[660];
@@ -317,7 +361,8 @@ String getConfigAsJson() {
 }
 
 String getStatusAsJson() {
-  char buf[860];
+  char buf[980];
+  const unsigned long nowMs = millis();
   const bool pvOk = displayPvValid();
   const bool spOk = displaySpValid();
   float deviation;
@@ -331,7 +376,8 @@ String getStatusAsJson() {
            "\"hold_ms\":%lu,\"hold_rounds\":%u,\"hold_rate\":%.1f,"
            "\"display_alive\":%s,\"display_pv\":%s,\"display_sp\":%s,\"display_text\":\"%s\","
            "\"manual_presses\":%lu,\"manual_age_s\":%ld,"
-           "\"wifi_status\":%d,\"ip\":\"%s\",\"ota\":%s,\"last_cmd_id\":%lu}",
+           "\"wifi_status\":%d,\"ip\":\"%s\",\"ota\":%s,\"last_cmd_id\":%lu,"
+           "\"hub_owned\":%s,\"hub_owner_age_ms\":%ld}",
            BoardConfig::DeviceKey, BoardConfig::FirmwareTag,
            static_cast<unsigned long>(millis() / 1000),
            modeName(g_mode), guardStateName(), devOk ? String(deviation, 2).c_str() : "null",
@@ -350,6 +396,8 @@ String getStatusAsJson() {
            g_manualActivityMs ? static_cast<long>((millis() - g_manualActivityMs) / 1000) : -1L,
            WiFi.status(), WiFi.localIP().toString().c_str(),
            g_otaInProgress ? "true" : "false",
-           static_cast<unsigned long>(g_lastCmdId));
+           static_cast<unsigned long>(g_lastCmdId),
+           hubOwnershipActive(nowMs) ? "true" : "false",
+           g_hubOwnerSeenMs ? static_cast<long>(nowMs - g_hubOwnerSeenMs) : -1L);
   return String(buf);
 }

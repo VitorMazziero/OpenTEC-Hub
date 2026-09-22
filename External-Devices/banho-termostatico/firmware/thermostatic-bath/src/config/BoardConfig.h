@@ -46,8 +46,8 @@ constexpr const char* AccessPointSsid = "Banho Termostatico";
 constexpr const char* HubUrl = "http://192.168.4.1/bathData";
 constexpr const char* HubHelloUrl = "http://192.168.4.1/nodeHello";
 constexpr const char* DeviceKey = "bath";
-constexpr const char* FirmwareVersion = "r3.1";
-constexpr const char* FirmwareTag = "BathClient r3.1 (bounded Hub cadence, C404 keypad, display reader, hold, modes)";
+constexpr const char* FirmwareVersion = "r3.2";
+constexpr const char* FirmwareTag = "BathClient r3.2 (Hub ownership, stop, C404 keypad, display reader, hold, modes)";
 
 // Valor de partida do setpoint-sombra quando a NVS esta vazia (pedido do projeto:
 // o C404 do banho esta em 30.0 na entrega). Ajustavel por `sync_sp`.

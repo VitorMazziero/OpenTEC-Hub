@@ -97,7 +97,7 @@ void checkWifi(bool hubEnabled) {
   }
 }
 
-bool httpGet(const String& url, int& code, String& body) {
+bool httpGet(const String& url, int& code, String& body, String* hubOwner) {
   HTTPClient http;
   http.begin(url);
   http.setReuse(false);
@@ -105,8 +105,13 @@ bool httpGet(const String& url, int& code, String& body) {
 #if defined(HTTPC_STRICT_FOLLOW_REDIRECTS)
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 #endif
+  if (hubOwner) {
+    static const char* headerKeys[] = { "X-Hub-Owner" };
+    http.collectHeaders(headerKeys, 1);
+  }
   code = http.GET();
   body = code > 0 ? http.getString() : String("err=") + code;
+  if (hubOwner) *hubOwner = code > 0 ? http.header("X-Hub-Owner") : String();
   http.end();
   return code >= 200 && code < 300;
 }

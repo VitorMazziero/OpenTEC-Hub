@@ -1,8 +1,8 @@
 # Protocolo — Banho termostático (`banho-termostatico`)
 
-**Versão do firmware:** `r3.1` (`BathClient r3.1`); API local compatível com r2
+**Versão do firmware:** `r3.2` (`BathClient r3.2`); API local compatível com r2, exceto a recusa `hub_owned` (§3.3)
 **Rede:** AP `Banho Termostatico` (aberto, canal 6), `192.168.8.1`; STA para o Hub opcional
-**Compatibilidade com Hub:** nenhuma ainda (`hub_enabled = 0`); rota `/bath` proposta, ver §6
+**Compatibilidade com Hub:** Hub `10.6.0-dev` ou superior (§6); `hub_enabled = 0` por padrão
 
 ---
 
@@ -28,7 +28,7 @@ A serial (115200) aceita os mesmos JSONs, mais `status` e `config`.
 ## 2. Estado (`GET /status`)
 
 ```json
-{"device":"bath","version":"BathClient r3.1 …","uptime_s":120,
+{"device":"bath","version":"BathClient r3.2 …","uptime_s":120,
  "mode":"manual","guard":"off","deviation_c":null,"guard_corrections":0,"arrows_held_ms":0,
  "sp_shadow":30.00,"sp_known":true,"sp_target":31.50,"sp_source":0,
  "seq_state":"running","seq_kind":"setpoint","seq_phase":"presses","seq_error":"",
@@ -36,7 +36,8 @@ A serial (115200) aceita os mesmos JSONs, mais `status` e `config`.
  "hold_ms":0,"hold_rounds":0,"hold_rate":0.0,
  "display_alive":false,"display_pv":null,"display_sp":null,"display_text":"",
  "manual_presses":0,"manual_age_s":-1,
- "wifi_status":6,"ip":"0.0.0.0","ota":false,"last_cmd_id":0}
+ "wifi_status":6,"ip":"0.0.0.0","ota":false,"last_cmd_id":0,
+ "hub_owned":false,"hub_owner_age_ms":-1}
 ```
 
 | Campo | Significado |
@@ -46,6 +47,8 @@ A serial (115200) aceita os mesmos JSONs, mais `status` e `config`.
 | `deviation_c` | `display_sp − sp_target` em °C; `null` sem display legível. É o "desvio" que o modo manual só reporta |
 | `guard_corrections` | Reversões feitas pelo guarda desde o boot |
 | `arrows_held_ms` | Há quanto tempo `▲`+`▼` estão pressionadas manualmente (0 fora do gesto; exige sensoriamento) |
+| `hub_owned` | `true` enquanto a cascata do Hub é dona do banho (§3.3); a API local só aceita `abort`/`stop` |
+| `hub_owner_age_ms` | Idade da última resposta do Hub que declarou a posse; `-1` se nunca houve |
 | `sp_shadow` | Setpoint que o firmware acredita estar no C404 (°C, quantizado em `step_c`) |
 | `sp_known` | `false` quando a sombra deixou de ser confiável: toque manual visto, reboot no meio de uma sequência, abort, ou display inválido no modo display |
 | `sp_target` | Último setpoint **comandado** (persistido): referência do desvio e do modo automático. Uma mudança manual no painel não o altera |
@@ -67,6 +70,7 @@ enquanto outra sequência corre e com `ota_in_progress` durante upload.
 
 | Chave | Exemplo | Efeito |
 |---|---|---|
+| `stop` | `{"stop":1}` | (r3.2) Parada do Hub: `abort` + modo `manual` persistido numa só revisão. Sempre aceito e confirmado; depois dele nem a cascata nem a guarda acionam relés e o C404 fica no último SP |
 | `abort` | `{"abort":1}` | Abre todos os relés, limpa a fila. No modo sombra, `sp_known = false`. Abortar uma correção do guarda o suspende (§3.2) |
 | `mode` | `{"mode":"auto"}`, `{"mode":"manual"}` (ou `1`/`0`) | Troca o modo (§3.2); aceito mesmo com sequência em curso. Resposta traz `mode` |
 | `sync_sp` | `{"sync_sp":30.0}` | Declara o SP lido no painel; `sp_known = true`. Não toca em relé |
@@ -147,6 +151,17 @@ GPIO 40 (WIRING.md §5) acende no modo `auto` e apaga no `manual`, atualizado na
 Alternativas sem tocar no painel: o comando `mode`, ou um botão próprio na caixa
 (`ModeButtonPin` no `BoardConfig.h`, desligado por padrão).
 
+### 3.3 Posse do Hub (r3.2)
+
+O Hub declara em toda resposta do `/bathData` o cabeçalho `X-Hub-Owner: 1` enquanto a
+cascata dele controla o banho, e `0` quando não. O nó considera a posse válida por
+10 s a partir da última resposta com `1` e somente com `hub_enabled = 1`. Enquanto ela
+vale, **toda** ação ou chave de configuração vinda da API local (`/command`, `/config`,
+`/setpoint`, `/ui`, `bath_app`, `bath_app.py`) é recusada com `409`
+`{"ok":false,"error":"hub_owned"}`, exceto `abort` e `stop`. Mudanças no painel físico
+continuam cobertas pela guarda em modo automático. A posse expira sozinha se o Hub parar
+de responder, portanto um Hub desligado nunca prende o banho.
+
 ## 4. Configuração (`GET /config`, `POST /config`)
 
 | Chave | Padrão | Faixa | Uso |
@@ -184,12 +199,12 @@ o estado (`sp_shadow`, `sp_known`, `seq_busy`, `sp_target`, `mode`) em `bath_st`
 boot que encontra `seq_busy = 1` marca `sp_known = false`. No modo display a sombra é
 reconstruída do painel nos primeiros ~300 ms após o display ficar vivo.
 
-## 6. Contrato r3.1 com o Hub 10.5.1
+## 6. Contrato r3.2 com o Hub 10.6
 
 Com `hub_enabled = 1`, a tarefa `HubLink` procura `ModuloTECNAL_1/2`, envia:
 
 ```text
-GET /nodeHello?dev=bath&ver=r3.1&mac=<MAC real>
+GET /nodeHello?dev=bath&ver=r3.2&mac=<MAC real>
 ```
 
 e, a cada `send_period`, inclusive durante toques/hold:
@@ -202,16 +217,23 @@ GET /bathData
   &display_sp=<display_sp|-1>&display_sp_ok=<0|1>&sp_source=<0|1>
   &mode=<0|1>&guard=<guard_state>&dev=<display−alvo|0>&dev_ok=<0|1>
   &time=<s>&ack_cmd_id=<n>
+  &rej_cmd_id=<n>&rej_err=<motivo>&sp_min=<in.L>&sp_max=<in.H>
 ```
+
+Os textos vão codificados para URL. `rej_cmd_id`/`rej_err` (r3.2) trazem o último comando
+**do Hub** recusado pelo parser e o motivo literal (`range`, `busy`, `display_invalid`…);
+são limpos quando a mesma revisão é aceita. `sp_min`/`sp_max` permitem ao Hub limitar a
+saída da cascata à faixa que o nó aceita. Um `403`/`404` do Hub força novo `nodeHello` no
+ciclo seguinte (reboot do Hub apaga o registro).
 
 O enlace roda em tarefa própria e lê somente um snapshot protegido. A resposta JSON é colocada
 numa fila fixa e `processCommand` é chamado no loop principal; a tarefa HTTP nunca toca relés
 nem o `SetpointManager` diretamente. `/diag` expõe `hub_task_stack_min` para dimensionar a
-pilha de 6 kB na bancada.
+pilha de 7 kB na bancada.
 
 Resposta `200` iniciada por `{` é tratada como comando por carona. Reentrega do mesmo
 `cmd_id` responde `duplicate` sem reaplicar toques. Comando recusado não avança
 `ack_cmd_id`, portanto a caixa confiável do Hub continua pendente.
 
-O Hub 10.4 atual ainda não implementa `/bathData`; manter `hub_enabled=0` até executar
-`../../docs/Planos/IMPLEMENTATION_PLAN_BANHO_HUB.md` e os ensaios integrados.
+O Hub 10.6 aceita somente nós `r3.2` ou superiores; manter `hub_enabled=0` até os ensaios
+integrados H08. Comandos que o Hub pode entregar: `setpoint`, `mode`, `sync_sp`, `stop`.

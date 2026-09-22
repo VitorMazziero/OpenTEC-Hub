@@ -46,6 +46,15 @@ class String {
   friend String operator+(const char* a, const String& b) { return String(std::string(a) + b.s_); }
   void reserve(size_t n) { s_.reserve(n); }
   bool isEmpty() const { return s_.empty(); }
+  int indexOf(const char* c, int from = 0) const {
+    const size_t p = s_.find(c, static_cast<size_t>(from));
+    return p == std::string::npos ? -1 : static_cast<int>(p);
+  }
+  int indexOf(char c, int from = 0) const {
+    const size_t p = s_.find(c, static_cast<size_t>(from));
+    return p == std::string::npos ? -1 : static_cast<int>(p);
+  }
+  String substring(int from, int to) const { return String(s_.substr(from, to - from)); }
  private:
   std::string s_;
 };

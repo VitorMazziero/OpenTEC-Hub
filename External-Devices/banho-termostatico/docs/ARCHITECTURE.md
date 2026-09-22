@@ -16,7 +16,7 @@ Mesma organização dos demais dispositivos externos: um sketch de duas linhas e
 | `protocol/ConfigCodec` | Parser JSON manual, ações, configuração, `/status` e `/config` em JSON |
 | `api/LocalHttpApi` | Rotas HTTP, página `/ui`, OTA |
 | `network/NetworkManager` | AP sempre ativo; conexão STA solicitada exclusivamente pela tarefa `HubLink` |
-| `network/HubLink` | tarefa HTTP no core 0; snapshot protegido; hello/push r3.1 com período integrado máximo de 2 s; fila fixa que devolve comandos ao loop principal; medição de pilha |
+| `network/HubLink` | tarefa HTTP no core 0; snapshot protegido; hello/push r3.2 com período integrado máximo de 2 s, recusa publicada e posse do Hub (`X-Hub-Owner`); fila fixa que devolve comandos ao loop principal; medição de pilha |
 | `storage/NvsConfig` | `bath_cfg` (parâmetros) e `bath_st` (sombra, confiança, `seq_busy`) |
 
 ## Invariantes

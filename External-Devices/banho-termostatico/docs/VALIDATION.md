@@ -115,10 +115,10 @@ Upload de `thermostatic-bath.ino.bin` por `/update` com uma sequência em andame
 relés abrem no início do upload (`abort`), o nó reinicia e `/status` responde. Desligar o
 ESP32 durante o controle: o C404 continua controlando e as teclas físicas funcionam.
 
-## G10 — Enlace r3.1 com o Hub (executar com o Hub 10.5.1)
+## G10 — Enlace r3.2 com o Hub (executar com o Hub 10.6)
 
 1. Habilitar `hub_enabled=1` somente depois de G1–G9 e do handler `/bathData` existir.
-2. Confirmar `/nodes`: `dev=bath`, `ver=r3.1` e MAC real.
+2. Confirmar `/nodes`: `dev=bath`, `ver=r3.2` e MAC real.
 3. Executar um hold de 60 s: `/bathData` deve continuar próximo de `send_period`; nenhum
    toque/hold pode ser alongado por HTTP. Registrar `hub_task_stack_min` antes/depois.
 4. Entregar a mesma revisão três vezes por perda de Wi-Fi: uma única sequência física e
@@ -126,6 +126,13 @@ ESP32 durante o controle: o C404 continua controlando e as teclas físicas funci
 5. Enviar comando fora da faixa e durante `busy`: o ACK não avança.
 6. Iniciar OTA durante sequência: relés abrem, tarefa de rede deixa de iniciar requests e o
    nó reinicia atendendo `/status`.
+7. Com a cascata do Hub ativa (`hub_owned=true` no `/status`), tentar `setpoint`, `mode` e
+   `hub_enabled` pelo `bath_app`/`/ui`: `409 hub_owned` e nenhum relé; `abort` funciona.
+   Desligar o Hub: `hub_owned` cai em até 10 s e a API local volta a operar.
+8. Reiniciar o Hub com o nó ligado: o nó volta a `BathOnline` em poucos segundos (403 →
+   hello imediato), sem esperar 30 s.
+9. Parada do Hub durante hold: `stop` entregue, relés abertos, `mode=manual`, C404 no
+   último SP.
 
 Este gate valida o enlace e a concorrência no hardware; os cenários U/V do host-sim validam
 apenas o parser/idempotência.

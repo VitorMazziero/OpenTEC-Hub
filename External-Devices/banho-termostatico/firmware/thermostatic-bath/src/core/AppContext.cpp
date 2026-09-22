@@ -28,6 +28,16 @@ String g_otaRejectReason = "";
 volatile uint8_t g_hubFailStreak = 0;
 volatile bool g_hubAnnounced = false;
 
+volatile bool g_hubOwnerFlag = false;
+volatile unsigned long g_hubOwnerSeenMs = 0;
+uint32_t g_hubRejectCmdId = 0;
+char g_hubRejectErr[32] = "";
+
+bool hubOwnershipActive(unsigned long now) {
+  if (!g_cfg.hubEnabled || !g_hubOwnerFlag || g_hubOwnerSeenMs == 0) return false;
+  return now - g_hubOwnerSeenMs <= HUB_OWNERSHIP_TIMEOUT_MS;
+}
+
 const char* keyName(Key k) {
   switch (k) {
     case KEY_STAR:  return "star";

@@ -20,7 +20,7 @@ constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
 // cada 2 s deixa margem para jitter sem alterar o período escolhido para a UI
 // local. Em falha, o backoff continua crescendo e o Hub pausa de forma segura.
 constexpr uint32_t HUB_CONTROL_MAX_PERIOD_MS = 2000;
-constexpr uint32_t HUB_TASK_STACK_BYTES = 6144;
+constexpr uint32_t HUB_TASK_STACK_BYTES = 7168;
 constexpr size_t COMMAND_PAYLOAD_BYTES = 384;
 
 struct HubSnapshot {
@@ -44,6 +44,10 @@ struct HubSnapshot {
   float deviation;
   bool deviationOk;
   uint32_t ackCmdId;
+  uint32_t rejCmdId;
+  char rejErr[32];
+  float spMin;
+  float spMax;
 };
 
 struct HubCommandMessage {
@@ -96,6 +100,25 @@ void enqueueCommand(const String& body) {
   }
 }
 
+// Codifica um texto curto para a query string. Hoje os literais são seguros, mas um
+// erro futuro com espaço ou '&' não pode quebrar o push inteiro (400 no Hub).
+void urlEncode(const char* in, char* out, size_t capacity) {
+  static const char hex[] = "0123456789ABCDEF";
+  size_t o = 0;
+  for (const char* p = in; p && *p && o + 1 < capacity; ++p) {
+    const unsigned char c = static_cast<unsigned char>(*p);
+    if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+      out[o++] = static_cast<char>(c);
+    } else {
+      if (o + 3 >= capacity) break;
+      out[o++] = '%';
+      out[o++] = hex[c >> 4];
+      out[o++] = hex[c & 0x0F];
+    }
+  }
+  out[o] = '\0';
+}
+
 bool pushToHub(const HubSnapshot& s, unsigned long scheduleNow) {
   static unsigned long lastSendMs = 0;
   unsigned long interval = s.sendPeriodMs;
@@ -106,25 +129,44 @@ bool pushToHub(const HubSnapshot& s, unsigned long scheduleNow) {
   if (scheduleNow - lastSendMs < interval) return false;
   lastSendMs = scheduleNow;
 
-  char url[640];
+  char state[40], phase[48], error[144], guard[48], rejErr[96];
+  urlEncode(s.state, state, sizeof(state));
+  urlEncode(s.phase, phase, sizeof(phase));
+  urlEncode(s.error, error, sizeof(error));
+  urlEncode(s.guard, guard, sizeof(guard));
+  urlEncode(s.rejErr, rejErr, sizeof(rejErr));
+
+  char url[900];
   snprintf(url, sizeof(url),
            "%s?sp=%.2f&known=%d&target=%.2f&state=%s&phase=%s&err=%s"
            "&pv=%.2f&pv_ok=%d&display_sp=%.2f&display_sp_ok=%d&sp_source=%u"
-           "&mode=%u&guard=%s&dev=%.2f&dev_ok=%d&time=%.1f&ack_cmd_id=%lu",
-           BoardConfig::HubUrl, s.sp, s.known ? 1 : 0, s.target, s.state, s.phase, s.error,
+           "&mode=%u&guard=%s&dev=%.2f&dev_ok=%d&time=%.1f&ack_cmd_id=%lu"
+           "&rej_cmd_id=%lu&rej_err=%s&sp_min=%.2f&sp_max=%.2f",
+           BoardConfig::HubUrl, s.sp, s.known ? 1 : 0, s.target, state, phase, error,
            s.pvOk ? s.pv : -1.0f, s.pvOk ? 1 : 0,
            s.displaySpOk ? s.displaySp : -1.0f, s.displaySpOk ? 1 : 0, s.spSource,
-           s.mode, s.guard, s.deviationOk ? s.deviation : 0.0f, s.deviationOk ? 1 : 0,
-           s.nowMs / 1000.0f, static_cast<unsigned long>(s.ackCmdId));
+           s.mode, guard, s.deviationOk ? s.deviation : 0.0f, s.deviationOk ? 1 : 0,
+           s.nowMs / 1000.0f, static_cast<unsigned long>(s.ackCmdId),
+           static_cast<unsigned long>(s.rejCmdId), rejErr, s.spMin, s.spMax);
 
   int code = 0;
   String body;
-  if (httpGet(url, code, body)) {
+  String owner;
+  if (httpGet(url, code, body, &owner)) {
     g_hubFailStreak = 0;
+    // Posse declarada pelo Hub em toda resposta aceita; expira sozinha sem push.
+    g_hubOwnerFlag = owner == "1";
+    g_hubOwnerSeenMs = millis();
     if (code == 200) enqueueCommand(body);
     return true;
   }
 
+  // 403/404: o Hub não conhece este nó (reboot do Hub apaga o registro). Refazer o
+  // hello no próximo ciclo em vez de esperar o período de 30 s.
+  if (code == 403 || code == 404) {
+    g_hubAnnounced = false;
+    g_hubOwnerFlag = false;
+  }
   if (g_hubFailStreak < 255) g_hubFailStreak++;
   Serial.printf("[HubLink] HTTP error: %d (streak=%u)\n", code, g_hubFailStreak);
   return true;
@@ -208,6 +250,10 @@ void hubLinkPublishSnapshot(unsigned long now) {
   snprintf(next.guard, sizeof(next.guard), "%s", guardStateName());
   next.deviationOk = guardDeviation(next.deviation);
   next.ackCmdId = g_lastCmdId;
+  next.rejCmdId = g_hubRejectCmdId;
+  snprintf(next.rejErr, sizeof(next.rejErr), "%s", g_hubRejectErr);
+  next.spMin = g_cfg.spMin;
+  next.spMax = g_cfg.spMax;
 
   portENTER_CRITICAL(&g_snapshotMux);
   g_snapshot = next;
@@ -221,7 +267,7 @@ void hubLinkServiceMainLoop() {
   if (xQueueReceive(g_commandQueue, &message, 0) != pdTRUE) return;
 
   String reply;
-  processCommand(message.payload, reply);
+  processCommand(message.payload, reply, CommandSource::Hub);
   Serial.printf("[HubLink] Comando por carona: %s -> %s\n", message.payload, reply.c_str());
 }
 

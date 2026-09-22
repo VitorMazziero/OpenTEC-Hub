@@ -166,6 +166,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         BiomassControlViewModel biomassControl,
         PumpControlViewModel pumpControl,
         ServoDriveViewModel servoDrive,
+        ExternalBathViewModel externalBath,
         CalibrationViewModel calibration,
         KlaDeterminationViewModel klaDetermination,
         KlaMappingViewModel klaMapping,
@@ -280,6 +281,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         PumpControl = pumpControl;
         FoamControl = foamControl;
         FlaskAgitator = flaskAgitator;
+        ExternalBath = externalBath;
 
         Subsystems =
         [
@@ -354,7 +356,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             biomassVariable: Biomass,
             safetyCoordinator: safetyCoordinator,
             arbiter: device as ICommandArbiter,
-            dispatcher: manualDispatcher);
+            dispatcher: manualDispatcher,
+            externalBath: ExternalBath);
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 
@@ -511,6 +514,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>External-pump card state, for the synoptic's presence chips.</summary>
     public PumpControlViewModel PumpControl { get; }
+
+    /// <summary>Hub-routed Contemp C404 and its reactor-temperature cascade.</summary>
+    public ExternalBathViewModel ExternalBath { get; }
 
     /// <summary>Level/foam card state, for the synoptic's presence chips.</summary>
     public FoamControlViewModel FoamControl { get; }
@@ -1690,6 +1696,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         Settings.Dispose();
         Receitas.Dispose();
         Control.Dispose();
+        ExternalBath.Dispose();
         CascadeDetail.Dispose();
         Our.Dispose();
         Calibration.Dispose();

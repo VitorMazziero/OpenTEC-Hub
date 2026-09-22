@@ -27,9 +27,10 @@ public static class NodeFirmwareCatalog
     public const string Pump = "pump";
     public const string Flowmeter = "flowmeter";
     public const string Biomass = "biomass";
+    public const string Bath = "bath";
 
     /// <summary>Every wire name, in the Hub's registry order.</summary>
-    public static readonly IReadOnlyList<string> Devices = [Distance, Agitator, Pump, Flowmeter, Biomass];
+    public static readonly IReadOnlyList<string> Devices = [Distance, Agitator, Pump, Flowmeter, Biomass, Bath];
 
     private static readonly Dictionary<string, HashSet<string>> Validated = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -38,6 +39,7 @@ public static class NodeFirmwareCatalog
         [Pump] = new(StringComparer.OrdinalIgnoreCase) { "3.9", "3.10", "3.12" },
         [Flowmeter] = new(StringComparer.OrdinalIgnoreCase) { "v11", "v11.0", "v12.0" },
         [Biomass] = new(StringComparer.OrdinalIgnoreCase) { "v11", "v11.1" },
+        [Bath] = new(StringComparer.OrdinalIgnoreCase) { "r3", "r3.1" },
     };
 
     /// <summary>Versions this build was validated with for <paramref name="device"/>; empty for an unknown name.</summary>
@@ -65,6 +67,7 @@ public static class NodeFirmwareCatalog
         Pump => snapshot.PumpNode,
         Flowmeter => snapshot.FlowmeterNode,
         Biomass => snapshot.BiomassNode,
+        Bath => snapshot.BathNode,
         _ => ExternalNodeIdentity.Empty,
     };
 
@@ -76,6 +79,7 @@ public static class NodeFirmwareCatalog
         Pump => snapshot.PumpOnline,
         Flowmeter => snapshot.FlowmeterOnline,
         Biomass => snapshot.BiomassOnline,
+        Bath => snapshot.BathOnline,
         _ => false,
     };
 
@@ -87,6 +91,7 @@ public static class NodeFirmwareCatalog
         Pump => snapshot.HasPumpTelemetry,
         Flowmeter => true,
         Biomass => snapshot.HasBiomassTelemetry,
+        Bath => snapshot.HasBathTelemetry,
         _ => false,
     };
 
@@ -98,6 +103,7 @@ public static class NodeFirmwareCatalog
         Pump => ViewModels.DeviceNames.ExternalPump,
         Flowmeter => ViewModels.DeviceNames.Airflow,
         Biomass => ViewModels.DeviceNames.Absorbance,
+        Bath => "Banho externo C404",
         _ => device,
     };
 

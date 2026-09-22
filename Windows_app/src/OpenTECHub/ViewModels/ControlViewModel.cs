@@ -202,7 +202,8 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         ISafetyCoordinator? safetyCoordinator = null,
         ICommandArbiter? arbiter = null,
         IManualDispatcher? dispatcher = null,
-        IFileInteractionService? files = null)
+        IFileInteractionService? files = null,
+        ExternalBathViewModel? externalBath = null)
     {
         if (subsystems.Count != 5)
         {
@@ -238,6 +239,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         BiomassControl = biomassControl;
         PumpControl = pumpControl;
         ServoDrive = servoDrive;
+        ExternalBath = externalBath;
 
         Rows =
         [
@@ -396,6 +398,9 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
     /// <summary>The ASDA-B2 servo drive: measured shaft telemetry, and no motor control.</summary>
     public ServoDriveViewModel ServoDrive { get; }
+
+    /// <summary>Optional external-bath card, supplied by the shell composition root.</summary>
+    public ExternalBathViewModel? ExternalBath { get; }
 
     public bool CanActuate => _device.State == ConnectionState.Connected;
 

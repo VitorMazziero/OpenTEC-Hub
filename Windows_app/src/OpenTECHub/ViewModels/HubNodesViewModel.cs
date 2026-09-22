@@ -251,7 +251,7 @@ public sealed partial class HubNodesViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(LegacyHubNoticeText))]
     public partial string? HubFirmwareVersion { get; set; }
 
-    /// <summary>Nodes with an address in the aggregate frame, out of five.</summary>
+    /// <summary>Nodes with an address in the aggregate frame, out of six.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RegisteredCountText))]
     public partial int RegisteredCount { get; set; }

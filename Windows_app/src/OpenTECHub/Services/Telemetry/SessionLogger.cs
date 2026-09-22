@@ -75,6 +75,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
     /// knowing it exists. The two can then never be started out of step.
     /// </remarks>
     private StreamWriter? _servoWriter;
+    private StreamWriter? _bathWriter;
 
     /// <summary>The preamble is written on the first row, once the Hub has identified itself.</summary>
     /// <remarks>
@@ -83,6 +84,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
     /// the header state which Hub produced the file instead of leaving it unknown.
     /// </remarks>
     private bool _servoPreambleWritten;
+    private bool _bathPreambleWritten;
 
     public event Action? StatusChanged;
 
@@ -132,6 +134,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
                 }
 
                 OpenServoSidecar(path);
+                OpenBathSidecar(path);
 
                 CurrentPath = path;
                 _rowsWritten = 0;
@@ -177,6 +180,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
             {
                 _writer.WriteLine(BuildRow(snapshot, commandedRpm, connectionStatus));
                 WriteServoRow(snapshot);
+                WriteBathRow(snapshot);
                 _rowsWritten++;
                 changed = true;
                 FlushIfDue();
@@ -250,6 +254,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
 
         _writer?.Flush();
         _servoWriter?.Flush();
+        _bathWriter?.Flush();
         _lastFlushTimestamp = Stopwatch.GetTimestamp();
     }
 
@@ -276,6 +281,7 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
         }
 
         CloseServoSidecar();
+        CloseBathSidecar();
     }
 
     /// <summary>Derives the sidecar's path from the main log's.</summary>
@@ -311,6 +317,33 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
             // the reactor under control. Losing it costs the servo history and nothing else.
             _servoWriter = null;
             log.LogWarning(ex, "Could not open the servo sidecar at {Path}; continuing without it", path);
+        }
+    }
+
+    internal static string BathSidecarPath(string sessionPath)
+    {
+        var directory = Path.GetDirectoryName(sessionPath) ?? string.Empty;
+        var name = Path.GetFileNameWithoutExtension(sessionPath);
+        return Path.Combine(directory, name + BathSessionLogFormat.FileSuffix);
+    }
+
+    private void OpenBathSidecar(string sessionPath)
+    {
+        var path = BathSidecarPath(sessionPath);
+        try
+        {
+            var isNew = !File.Exists(path) || new FileInfo(path).Length == 0;
+            _bathWriter = new StreamWriter(path, append: true, new UTF8Encoding(false)) { AutoFlush = false };
+            _bathPreambleWritten = !isNew;
+            if (isNew)
+            {
+                _bathWriter.WriteLine(BathSessionLogFormat.Header);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _bathWriter = null;
+            log.LogWarning(ex, "Could not open the bath sidecar at {Path}; continuing without it", path);
         }
     }
 
@@ -421,6 +454,52 @@ public sealed class SessionLogger(ILogger<SessionLogger> log, ISettingsService? 
         {
             _servoWriter = null;
             _servoPreambleWritten = false;
+        }
+    }
+
+    private void WriteBathRow(SensorSnapshot snapshot)
+    {
+        if (_bathWriter is null)
+        {
+            return;
+        }
+
+        if (!_bathPreambleWritten)
+        {
+            _bathWriter.WriteLine(BathSessionLogFormat.BuildPreamble(
+                snapshot.HubFirmwareVersion,
+                snapshot.HubProtocolVersion,
+                AppVersionText,
+                Services.Communication.ExternalNodeProvenance.From(snapshot)));
+            _bathPreambleWritten = true;
+        }
+
+        _bathWriter.WriteLine(BuildBathRow(snapshot));
+    }
+
+    internal static string BuildBathRow(SensorSnapshot s)
+        => BathSessionLogFormat.BuildRow(s);
+
+    private void CloseBathSidecar()
+    {
+        if (_bathWriter is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _bathWriter.Flush();
+            _bathWriter.Dispose();
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Error closing the bath sidecar");
+        }
+        finally
+        {
+            _bathWriter = null;
+            _bathPreambleWritten = false;
         }
     }
 

@@ -1,5 +1,6 @@
 using OpenTECHub.Protocol;
 using OpenTECHub.ViewModels;
+using OpenTECHub.Services.Persistence;
 using Xunit;
 
 namespace OpenTECHub.Tests;
@@ -49,5 +50,31 @@ public sealed class ExternalBathViewModelTests
 
         Assert.False(vm.IsTempControlViaBath);
         Assert.Contains("recusado", vm.StatusText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Route_and_panel_preferences_round_trip_without_startup_commands()
+    {
+        var settings = new MemorySettingsService(new AppSettings());
+        var device = new RecordingDeviceService();
+        var dispatcher = new StubDispatcher();
+        using (var vm = new ExternalBathViewModel(device, settings, dispatcher)
+               {
+                   IsTempControlViaBath = true,
+                   IsCommEnabled = true,
+                   IsPanelExpanded = false,
+               })
+        {
+            Assert.Equal(2, dispatcher.Sent.Count);
+        }
+
+        Assert.True(settings.Current.ExternalBath.PreferExternalRoute);
+        Assert.True(settings.Current.ExternalBath.CommunicationEnabled);
+        Assert.False(settings.Current.ExternalBath.PanelExpanded);
+
+        using var restored = new ExternalBathViewModel(device, settings, new StubDispatcher());
+        Assert.True(restored.IsTempControlViaBath);
+        Assert.True(restored.IsCommEnabled);
+        Assert.False(restored.IsPanelExpanded);
     }
 }

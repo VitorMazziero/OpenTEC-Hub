@@ -30,7 +30,7 @@ public static class NodeFirmwareCatalog
     public const string Bath = "bath";
 
     /// <summary>Every wire name, in the Hub's registry order.</summary>
-    public static readonly IReadOnlyList<string> Devices = [Distance, Agitator, Pump, Flowmeter, Biomass];
+    public static readonly IReadOnlyList<string> Devices = [Distance, Agitator, Pump, Flowmeter, Biomass, Bath];
 
     private static readonly Dictionary<string, HashSet<string>> Validated = new(StringComparer.OrdinalIgnoreCase)
     {

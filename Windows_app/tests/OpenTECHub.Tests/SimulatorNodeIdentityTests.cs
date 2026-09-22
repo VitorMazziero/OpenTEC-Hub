@@ -103,7 +103,7 @@ public class SimulatorNodeIdentityTests
 
         Assert.NotNull(directory);
         Assert.NotNull(directory!.HubTimeMs);
-        Assert.Equal(5, directory.Nodes.Count);
+        Assert.Equal(6, directory.Nodes.Count);
         var pump = directory.Find("pump")!;
         Assert.Equal("192.168.4.4", pump.Identity.Ip);
         Assert.Equal("3.9", pump.Identity.FirmwareVersion);
@@ -131,7 +131,7 @@ public class SimulatorNodeIdentityTests
         var diagnostics = await client.FetchAsync($"127.0.0.1:{port}");
 
         Assert.NotNull(diagnostics);
-        Assert.Equal(5, diagnostics!.Nodes.Count);
+        Assert.Equal(6, diagnostics!.Nodes.Count);
         var pump = diagnostics.Find("pump")!;
         Assert.Equal(200, pump.Code);
         Assert.Equal(-58, pump.Rssi);

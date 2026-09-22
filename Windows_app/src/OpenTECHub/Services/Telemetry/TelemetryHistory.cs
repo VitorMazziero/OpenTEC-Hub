@@ -74,6 +74,17 @@ public enum TelemetryChannel
     /// Appended last, for the ordinal-stability reason the servo channels were.
     /// </remarks>
     Nutrient,
+
+    // External C404 cascade channels. Appended to preserve persisted enum ordinals.
+    BathPv,
+    BathCascadePvFiltered,
+    BathCascadeError,
+    BathCascadeP,
+    BathCascadeI,
+    BathCommandSetpoint,
+    BathCommandConfirmed,
+    BathSp,
+    BathTarget,
 }
 
 /// <summary>Downsampled series ready for a chart.</summary>
@@ -226,6 +237,18 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
 
             // Commanded nutrient duty, written by RecordNutrient each frame; NaN until then.
             _series[(int)TelemetryChannel.Nutrient][i] = double.NaN;
+
+            // Bath channels are gated on the Hub having advertised the node. Nullable
+            // values become chart gaps, never a misleading zero.
+            SetBath(TelemetryChannel.BathPv, i, snapshot, snapshot.BathPv);
+            SetBath(TelemetryChannel.BathCascadePvFiltered, i, snapshot, snapshot.BathCascadePvFiltered);
+            SetBath(TelemetryChannel.BathCascadeError, i, snapshot, snapshot.BathCascadeError);
+            SetBath(TelemetryChannel.BathCascadeP, i, snapshot, snapshot.BathCascadeP);
+            SetBath(TelemetryChannel.BathCascadeI, i, snapshot, snapshot.BathCascadeI);
+            SetBath(TelemetryChannel.BathCommandSetpoint, i, snapshot, snapshot.BathCommandSetpoint);
+            SetBath(TelemetryChannel.BathCommandConfirmed, i, snapshot, snapshot.BathCommandConfirmed);
+            SetBath(TelemetryChannel.BathSp, i, snapshot, snapshot.BathSp);
+            SetBath(TelemetryChannel.BathTarget, i, snapshot, snapshot.BathTarget);
 
             // The commanded agitation figure, unchanged: zero means "not commanded",
             // not "measured zero", so it charts as a gap.
@@ -395,4 +418,9 @@ public sealed class TelemetryHistory(int capacity = 86_400) : ITelemetryHistory
     /// </remarks>
     private void SetServo(TelemetryChannel channel, int index, SensorSnapshot snapshot, double value)
         => _series[(int)channel][index] = snapshot.HasServoSample ? value : double.NaN;
+
+    private void SetBath(TelemetryChannel channel, int index, SensorSnapshot snapshot, double? value)
+        => _series[(int)channel][index] = snapshot.HasBathTelemetry && value is { } number && double.IsFinite(number)
+            ? number
+            : double.NaN;
 }

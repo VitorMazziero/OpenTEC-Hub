@@ -7,7 +7,7 @@ using Xunit;
 namespace OpenTECHub.Tests;
 
 /// <summary>
-/// The "Nós na rede do Hub" panel: five fixed rows fed by the frame, enriched by
+/// The "Nós na rede do Hub" panel: six fixed rows fed by the frame, enriched by
 /// <c>/nodes</c> only on Wi-Fi, honest about a Hub that predates the keys.
 /// </summary>
 public class HubNodesViewModelTests
@@ -46,8 +46,8 @@ public class HubNodesViewModelTests
         using var vm = new HubNodesViewModel(device, (_, _) => Task.FromResult<HubNodeDirectory?>(null));
         device.PushTelemetry(TwoRegistered);
 
-        Assert.Equal(5, vm.Nodes.Count);
-        Assert.Equal(["distance", "agitator", "pump", "flowmeter", "biomass"], vm.Nodes.Select(n => n.Device));
+        Assert.Equal(6, vm.Nodes.Count);
+        Assert.Equal(["distance", "agitator", "pump", "flowmeter", "biomass", "bath"], vm.Nodes.Select(n => n.Device));
 
         var pump = vm.Nodes.Single(n => n.Device == "pump");
         Assert.Equal(DeviceNames.ExternalPump, pump.DisplayName);
@@ -64,7 +64,7 @@ public class HubNodesViewModelTests
         Assert.Equal("Aguardando telemetria", agitator.StateText);
 
         Assert.Equal(2, vm.RegisteredCount);
-        Assert.Equal("2/5 nós com endereço", vm.RegisteredCountText);
+        Assert.Equal("2/6 nós com endereço", vm.RegisteredCountText);
         Assert.False(vm.ShowLegacyHubNotice);
     }
 
@@ -301,7 +301,7 @@ public class ConnectionNodesCountTests
             PumpNode = new ExternalNodeIdentity("192.168.4.3", null, "3.9"),
             BiomassNode = new ExternalNodeIdentity(null, "AA", "v11"),
         });
-        Assert.Equal("1/5", vm.NodesText);
+        Assert.Equal("1/6", vm.NodesText);
 
         device.PushState(ConnectionState.Reconnecting);
         Assert.Equal("—", vm.NodesText);

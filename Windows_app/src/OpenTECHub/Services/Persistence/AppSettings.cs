@@ -6,6 +6,7 @@ using OpenTECHub.Protocol;
 using OpenTECHub.Services.Calibration;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.KlaTesting;
+using OpenTECHub.Services.Telemetry;
 
 namespace OpenTECHub.Services.Persistence;
 
@@ -95,6 +96,12 @@ public sealed record AppSettings
 
     /// <summary>Named, operator-saved cascade tunings. Loading one only stages the fields.</summary>
     public CascadeTuningPreset[] CascadeTuningPresets { get; init; } = [];
+
+    /// <summary>Preferred external-bath route and staged cascade tuning.</summary>
+    public ExternalBathSettings ExternalBath { get; init; } = new();
+
+    /// <summary>Last chart layout. Channel ids are stable enum names, never list indices.</summary>
+    public ChartSettings Charts { get; init; } = new();
 
     /// <summary>Persisted parameters for kLa determination tests. Which output carries which gas is <see cref="GasRig"/>.</summary>
     public KlaTestSettings KlaTest { get; init; } = new();
@@ -1138,6 +1145,39 @@ public sealed record LoggingSettings
     public bool AppendToExisting { get; init; } = true;
 }
 
+/// <summary>Persisted operator choices for the Hub-routed external bath.</summary>
+public sealed record ExternalBathSettings
+{
+    public bool PreferExternalRoute { get; init; }
+    public bool CommunicationEnabled { get; init; }
+    public bool Automatic { get; init; } = true;
+    public bool PanelExpanded { get; init; } = true;
+    public double ReactorSetpoint { get; init; } = 30.0;
+    public double CascadeKp { get; init; } = 0.5;
+    public double CascadeTi { get; init; } = 600.0;
+    public double CascadeBias { get; init; } = 0.6;
+    public int CascadePeriodMs { get; init; } = 10_000;
+    public double CascadeFilter { get; init; } = 20.0;
+    public int CascadeMinCommand { get; init; } = 30_000;
+    public double CascadeBand { get; init; } = 0.1;
+    public double CascadeSlew { get; init; } = 0.5;
+    public double CascadeOffsetHigh { get; init; } = 5.0;
+    public double CascadeOffsetLow { get; init; } = 5.0;
+    public double CascadeOutputMin { get; init; } = 5.0;
+    public double CascadeOutputMax { get; init; } = 90.0;
+}
+
+/// <summary>Persisted chart panel/window/channel selection.</summary>
+public sealed record ChartSettings
+{
+    public int PanelCount { get; init; } = 2;
+    public string Window { get; init; } = "30 min";
+    public string LeftChannel { get; init; } = nameof(TelemetryChannel.Temperature);
+    public string RightChannel { get; init; } = nameof(TelemetryChannel.Oxygen);
+    public string BottomLeftChannel { get; init; } = nameof(TelemetryChannel.PH);
+    public string BottomRightChannel { get; init; } = nameof(TelemetryChannel.Flow);
+}
+
 /// <summary>
 /// The v.6 session-log format, kept byte-compatible.
 /// </summary>
@@ -1233,6 +1273,57 @@ public static class ServoSessionLogFormat
             "# potencia e energia sao MECANICAS ESTIMADAS no eixo, nao consumo eletrico.",
             "# energia e integrada no no: zera no reboot dele e na zeragem comandada.",
             "# celula vazia significa sem leitura. Zero e uma leitura.");
+}
+
+/// <summary>External C404 cascade telemetry sidecar, kept separate from the frozen v.6 log.</summary>
+public static class BathSessionLogFormat
+{
+    public const string FileSuffix = "-bath-cascade.tsv";
+    public const int ContractVersion = 1;
+
+    public const string Header =
+        "time_min\ttempval\ttemp_filtered\tcascade_error\tcascade_p\tcascade_i\t" +
+        "command_setpoint\tcommand_confirmed\tbath_pv\tbath_sp\tbath_target\t" +
+        "bath_mode\tguard\tcascade_saturated\tcascade_state\tpaused_reason\troute";
+
+    public static string BuildPreamble(
+        string? hubFirmware,
+        int hubProtocol,
+        string appVersion,
+        IReadOnlyDictionary<string, Communication.ExternalNodeProvenance>? nodes = null)
+        => string.Join(
+            "\n",
+            $"# opentec-bath-cascade v{ContractVersion.ToString(CultureInfo.InvariantCulture)}",
+            $"# app: {appVersion}",
+            $"# hub_firmware: {(string.IsNullOrWhiteSpace(hubFirmware) ? "desconhecido" : hubFirmware)}",
+            $"# hub_protocol: {(hubProtocol < 0 ? "desconhecido" : hubProtocol.ToString(CultureInfo.InvariantCulture))}",
+            $"# nodes: {Communication.ExternalNodeProvenance.Describe(nodes)}",
+            "# tempval e a temperatura real do reator, lida pelo modulo via UART do Hub.",
+            "# celula vazia significa sem telemetria; zero e uma leitura.");
+
+    public static string BuildRow(SensorSnapshot s)
+    {
+        var fields = new[]
+        {
+            Number(s.TimeMinutes, 2), Number(s.Temperature, 2), Number(s.BathCascadePvFiltered, 2),
+            Number(s.BathCascadeError, 3), Number(s.BathCascadeP, 3), Number(s.BathCascadeI, 3),
+            Number(s.BathCommandSetpoint, 3), Number(s.BathCommandConfirmed, 3), Number(s.BathPv, 2),
+            Number(s.BathSp, 2), Number(s.BathTarget, 2),
+            s.BathMode is { } mode && s.HasBathTelemetry ? mode.ToString(CultureInfo.InvariantCulture) : "",
+            Cell(s.BathGuard), s.HasBathTelemetry ? (s.BathCascadeSaturated ? "1" : "0") : "",
+            Cell(s.BathCascadeState), Cell(s.BathCascadePausedReason),
+            s.TempControlViaBath is { } routed && s.HasBathTelemetry ? (routed ? "external" : "uart") : "",
+        };
+        return string.Join('\t', fields);
+    }
+
+    private static string Number(double? value, int decimals)
+        => value is { } number && double.IsFinite(number)
+            ? number.ToString($"F{decimals}", CultureInfo.InvariantCulture)
+            : "";
+
+    private static string Cell(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "" : value.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ');
 }
 
 /// <summary>Where the application keeps its files.</summary>

@@ -19,10 +19,13 @@ public sealed record SessionFileSummary(
     string ConnectionMedia,
     string FirstRow,
     string LastRow,
-    bool HasServoSidecar = false)
+    bool HasServoSidecar = false,
+    bool HasBathSidecar = false)
 {
     /// <summary>Where the servo sidecar would be, whether or not it exists.</summary>
     public string ServoSidecarPath => SessionLogger.ServoSidecarPath(Path);
+
+    public string BathSidecarPath => SessionLogger.BathSidecarPath(Path);
 
     public string DateRangeText => CreatedAt.Date == UpdatedAt.Date
         ? $"{CreatedAt:dd/MM/yyyy HH:mm}–{UpdatedAt:HH:mm}"
@@ -51,6 +54,10 @@ public sealed record SessionFileSummary(
     public string ServoStatus => HasServoSidecar
         ? "Com telemetria do servo drive"
         : "Sem telemetria do servo drive";
+
+    public string BathStatus => HasBathSidecar
+        ? "Com telemetria da cascata do banho"
+        : "Sem telemetria da cascata do banho";
 }
 
 /// <summary>Parsed session data that the dedicated dual-chart page can display.</summary>
@@ -166,6 +173,11 @@ public sealed class SessionFileService : ISessionFileService
                         continue;
                     }
 
+                    if (path.EndsWith(BathSessionLogFormat.FileSuffix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     candidates.Add(path);
                 }
             }
@@ -227,6 +239,11 @@ public sealed class SessionFileService : ISessionFileService
             series[channel] = servoSeries;
         }
 
+        foreach (var (channel, bathSeries) in LoadBathSidecar(summary))
+        {
+            series[channel] = bathSeries;
+        }
+
         return new SessionFileData(summary, series);
     }
 
@@ -249,6 +266,7 @@ public sealed class SessionFileService : ISessionFileService
     {
         var info = new FileInfo(path);
         var hasServo = File.Exists(SessionLogger.ServoSidecarPath(path));
+        var hasBath = File.Exists(SessionLogger.BathSidecarPath(path));
         var headerValid = false;
         var rowCount = 0;
         var firstRow = "";
@@ -312,7 +330,8 @@ public sealed class SessionFileService : ISessionFileService
             media.Count == 0 ? "—" : string.Join(" / ", media.Order()),
             firstRow,
             lastRow,
-            hasServo);
+            hasServo,
+            hasBath);
     }
 
     /// <summary>Column order of the servo sidecar, mapped to the channels it feeds.</summary>
@@ -399,6 +418,65 @@ public sealed class SessionFileService : ISessionFileService
         var timeArray = minutes.ToArray();
         return values.ToDictionary(
             pair => pair.Key,
+            pair => new ChannelSeries(timeArray, pair.Value.ToArray()));
+    }
+
+    private static readonly IReadOnlyDictionary<TelemetryChannel, int> BathColumns =
+        new Dictionary<TelemetryChannel, int>
+        {
+            [TelemetryChannel.BathCascadePvFiltered] = 2,
+            [TelemetryChannel.BathCascadeError] = 3,
+            [TelemetryChannel.BathCascadeP] = 4,
+            [TelemetryChannel.BathCascadeI] = 5,
+            [TelemetryChannel.BathCommandSetpoint] = 6,
+            [TelemetryChannel.BathCommandConfirmed] = 7,
+            [TelemetryChannel.BathPv] = 8,
+            [TelemetryChannel.BathSp] = 9,
+            [TelemetryChannel.BathTarget] = 10,
+        };
+
+    private static IReadOnlyDictionary<TelemetryChannel, ChannelSeries> LoadBathSidecar(
+        SessionFileSummary summary)
+    {
+        var path = summary.BathSidecarPath;
+        if (!File.Exists(path))
+        {
+            return new Dictionary<TelemetryChannel, ChannelSeries>();
+        }
+
+        var minutes = new List<double>();
+        var values = BathColumns.Keys.ToDictionary(channel => channel, _ => new List<double>());
+        try
+        {
+            using var reader = new StreamReader(path, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            while (reader.ReadLine() is { } line)
+            {
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#') ||
+                    line.StartsWith("time_min", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var fields = line.Split('\t');
+                if (!TryValue(fields, 0, out var minute))
+                {
+                    continue;
+                }
+
+                minutes.Add(minute);
+                foreach (var (channel, column) in BathColumns)
+                {
+                    values[channel].Add(TryValue(fields, column, out var value) ? value : double.NaN);
+                }
+            }
+        }
+        catch (IOException)
+        {
+            return new Dictionary<TelemetryChannel, ChannelSeries>();
+        }
+
+        var timeArray = minutes.ToArray();
+        return values.ToDictionary(pair => pair.Key,
             pair => new ChannelSeries(timeArray, pair.Value.ToArray()));
     }
 

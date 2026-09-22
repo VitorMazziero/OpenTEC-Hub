@@ -49,6 +49,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     private readonly IEventJournal? _journal;
     private readonly IDialogService? _dialogs;
     private UnitSettings _units;
+    private bool _restoringLayout;
     private SessionFileData? _loadedSession;
 
     /// <summary>
@@ -121,12 +122,17 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             new(TelemetryChannel.CascadeRateSetpoint, "Controle O₂ — SP de Taxa", "%/s", "Series3Brush"),
             new(TelemetryChannel.CascadeRateMeasured, "Controle O₂ — Taxa Medida", "%/s", "Series4Brush"),
             new(TelemetryChannel.CascadeKlaDemand, "Controle O₂ — Demanda kLa", "h⁻¹", "Series5Brush"),
+            new(TelemetryChannel.BathPv, "Banho — PV", "°C", "Series1Brush"),
+            new(TelemetryChannel.BathCascadePvFiltered, "Banho — PV filtrada", "°C", "Series2Brush"),
+            new(TelemetryChannel.BathCommandSetpoint, "Banho — saída calculada", "%", "Series3Brush"),
+            new(TelemetryChannel.BathCascadeError, "Banho — erro da cascata", "°C", "Series4Brush"),
         ];
 
         LeftChannel = Channels[0];
         RightChannel = Channels[1];
         BottomLeftChannel = Channels[2]; // pH
         BottomRightChannel = Channels[3]; // Vazão
+        RestoreLayout(settings.Current.Charts);
         ApplyUnits(_units);
         settings.Changed += OnSettingsChanged;
     }
@@ -527,17 +533,86 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             UnitConversions.PressureLabel(units.Pressure);
     }
 
-    partial void OnLeftChannelChanged(ChartChannelOption value) => LayoutChanged?.Invoke();
+    private void RestoreLayout(ChartSettings settings)
+    {
+        _restoringLayout = true;
+        try
+        {
+            PanelCount = settings.PanelCount is 1 or 2 or 4 ? settings.PanelCount : 2;
+            SelectedWindow = Windows.FirstOrDefault(window =>
+                string.Equals(window.Label, settings.Window, StringComparison.OrdinalIgnoreCase)) ?? Windows[1];
+            LeftChannel = FindChannel(settings.LeftChannel) ?? LeftChannel;
+            RightChannel = FindChannel(settings.RightChannel) ?? RightChannel;
+            BottomLeftChannel = FindChannel(settings.BottomLeftChannel) ?? BottomLeftChannel;
+            BottomRightChannel = FindChannel(settings.BottomRightChannel) ?? BottomRightChannel;
+        }
+        finally
+        {
+            _restoringLayout = false;
+        }
+    }
 
-    partial void OnRightChannelChanged(ChartChannelOption? value) => LayoutChanged?.Invoke();
+    private ChartChannelOption? FindChannel(string? name)
+        => Enum.TryParse<TelemetryChannel>(name, out var channel)
+            ? Channels.FirstOrDefault(option => option.Channel == channel)
+            : null;
 
-    partial void OnBottomLeftChannelChanged(ChartChannelOption? value) => LayoutChanged?.Invoke();
+    private void PersistLayout()
+    {
+        if (_restoringLayout)
+        {
+            return;
+        }
 
-    partial void OnBottomRightChannelChanged(ChartChannelOption? value) => LayoutChanged?.Invoke();
+        _settings.Update(current => current with
+        {
+            Charts = current.Charts with
+            {
+                PanelCount = this.PanelCount,
+                Window = SelectedWindow.Label,
+                LeftChannel = LeftChannel.Channel.ToString(),
+                RightChannel = RightChannel?.Channel.ToString() ?? "",
+                BottomLeftChannel = BottomLeftChannel?.Channel.ToString() ?? "",
+                BottomRightChannel = BottomRightChannel?.Channel.ToString() ?? "",
+            },
+        });
+    }
 
-    partial void OnPanelCountChanged(int value) => LayoutChanged?.Invoke();
+    partial void OnLeftChannelChanged(ChartChannelOption value)
+    {
+        PersistLayout();
+        LayoutChanged?.Invoke();
+    }
 
-    partial void OnSelectedWindowChanged(ChartWindow value) => LayoutChanged?.Invoke();
+    partial void OnRightChannelChanged(ChartChannelOption? value)
+    {
+        PersistLayout();
+        LayoutChanged?.Invoke();
+    }
+
+    partial void OnBottomLeftChannelChanged(ChartChannelOption? value)
+    {
+        PersistLayout();
+        LayoutChanged?.Invoke();
+    }
+
+    partial void OnBottomRightChannelChanged(ChartChannelOption? value)
+    {
+        PersistLayout();
+        LayoutChanged?.Invoke();
+    }
+
+    partial void OnPanelCountChanged(int value)
+    {
+        PersistLayout();
+        LayoutChanged?.Invoke();
+    }
+
+    partial void OnSelectedWindowChanged(ChartWindow value)
+    {
+        PersistLayout();
+        LayoutChanged?.Invoke();
+    }
 
     [RelayCommand]
     private void NewSession()

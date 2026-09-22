@@ -244,9 +244,10 @@ public sealed class HttpEndpoint(DeviceModel model, int port, Action<string> log
             "pump" => string.Create(CultureInfo.InvariantCulture, $"\"flow\":1.250,\"vol\":{model.PumpVolume:F3},\"mode\":{model.PumpMode}"),
             "flowmeter" => string.Create(CultureInfo.InvariantCulture, $"\"flow_rate\":{model.ReadFlow():F4},\"flow_sp\":{model.FlowSetpoint:F4}"),
             "biomass" => "\"absorbance\":0.421,\"raw\":24500,\"state\":1",
+            "bath" => string.Create(CultureInfo.InvariantCulture, $"\"tempval\":{model.ReadTemperature():F2},\"bath_pv\":{model.BathPv:F2},\"state\":\"{(model.BathNodeOnline ? "running" : "offline")}\""),
             _ => "",
         };
-        return $"{{{common},{extra}}}";
+        return string.IsNullOrEmpty(extra) ? $"{{{common}}}" : $"{{{common},{extra}}}";
     }
 
     private void HandleReadData(HttpListenerContext context)

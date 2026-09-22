@@ -410,6 +410,7 @@ public sealed class DeviceModel
         ("pump", "Pump"),
         ("flowmeter", "Flowmeter"),
         ("biomass", "Biomass"),
+        ("bath", "Bath"),
     ];
 
     /// <summary>False under <see cref="Scenario.LegacyHub"/>: a Hub from before the identity keys.</summary>

@@ -1085,4 +1085,62 @@ public sealed class AlarmServiceTests
         Assert.Equal("Gás: Reator (A) → Gás sem destino.", lines[2].Message);
         Assert.Equal(AuditSeverity.Warning, lines[2].Severity);
     }
+
+    [Fact]
+    public void External_bath_offline_waits_ten_seconds_and_is_acknowledgeable()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Routing.ExternalBath, true);
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathCommEnabled = true,
+            BathOnline = false,
+            TempControlViaBath = true,
+            Temperature = 30,
+        });
+
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(9));
+        Assert.False(h.Latched(AlarmId.ExternalBathOffline));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1.1));
+        Assert.True(h.Latched(AlarmId.ExternalBathOffline));
+        h.Service.Acknowledge(AlarmId.ExternalBathOffline);
+        Assert.True(h.Get(AlarmId.ExternalBathOffline)!.Acknowledged);
+    }
+
+    [Fact]
+    public void External_bath_fault_and_saturation_are_journalled_and_clear_after_recovery()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Routing.ExternalBath, true);
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathCommEnabled = true,
+            BathOnline = true,
+            TempControlViaBath = true,
+            BathState = "error",
+            BathError = "uart_timeout",
+            BathCascadeSaturated = true,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(0.1));
+        Assert.True(h.Latched(AlarmId.ExternalBathSequenceFault));
+        Assert.True(h.Latched(AlarmId.ExternalBathCascadeSaturated) == false); // saturation has persistence
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(10));
+        Assert.True(h.Latched(AlarmId.ExternalBathCascadeSaturated));
+        h.Device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathCommEnabled = true,
+            BathOnline = true,
+            TempControlViaBath = true,
+            Temperature = 30,
+            BathPv = 30,
+            BathState = "done",
+            BathCascadeState = "controlling",
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(5));
+        Assert.False(h.Latched(AlarmId.ExternalBathSequenceFault));
+        Assert.Contains(h.Journal.Entries, e => e.Message.Contains("Falha na sequência", StringComparison.Ordinal));
+    }
 }

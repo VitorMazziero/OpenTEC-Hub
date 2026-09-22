@@ -280,6 +280,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         FlaskAgitator.PropertyChanged += OnDosingStateChanged;
         BiomassControl.PropertyChanged += OnDosingStateChanged;
         PumpControl.PropertyChanged += OnDosingStateChanged;
+        if (ExternalBath is not null)
+        {
+            ExternalBath.PropertyChanged += OnDosingStateChanged;
+        }
 
         FlowControl.IsLoopRequested = _flowSubsystem.IsEnabled;
         PublishRoutingIntent();
@@ -1120,6 +1124,12 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         // The flask agitator has no Hub routing echo, so its offline alarm leans entirely on
         // this: it stays silent unless the operator has actually turned the agitator on.
         _alarms.SetRoutingRequested(DeviceNames.Routing.FlaskAgitator, FlaskAgitator.AppliedIsEnabled);
+        if (ExternalBath is not null)
+        {
+            _alarms.SetRoutingRequested(
+                DeviceNames.Routing.ExternalBath,
+                ExternalBath.IsTempControlViaBath && ExternalBath.IsCommEnabled);
+        }
     }
 
     private void OnDosingStateChanged(object? sender, PropertyChangedEventArgs e)
@@ -1277,6 +1287,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         _device.TelemetryReceived -= OnTelemetryReceived;
         BiomassControl.PropertyChanged -= OnDosingStateChanged;
         PumpControl.PropertyChanged -= OnDosingStateChanged;
+        if (ExternalBath is not null)
+        {
+            ExternalBath.PropertyChanged -= OnDosingStateChanged;
+        }
         ServoDrive.Dispose();
     }
 }

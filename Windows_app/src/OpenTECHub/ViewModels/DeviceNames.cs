@@ -74,6 +74,8 @@ public static class DeviceNames
 
     public const string FlaskAgitator = "Frasco Agitador";
 
+    public const string ExternalBath = "Banho externo C404";
+
     /// <summary>
     /// The ASDA-B2 drive. Not an external device: it lives in the Agitação drawer.
     /// </summary>
@@ -93,5 +95,6 @@ public static class DeviceNames
         public const string Distance = DeviceNames.Distance;
         public const string ServoDrive = DeviceNames.ServoDrive;
         public const string FlaskAgitator = DeviceNames.FlaskAgitator;
+        public const string ExternalBath = DeviceNames.ExternalBath;
     }
 }

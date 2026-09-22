@@ -255,6 +255,26 @@ public sealed class AlarmService : IAlarmService
             TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(2)),
         new(AlarmId.GasBothOpen, "A e B/C abertas", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(2)),
+        new(AlarmId.ExternalBathOffline, "Banho externo offline", AlarmSeverity.Critical,
+            TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(3)),
+        new(AlarmId.ExternalBathReactorPvInvalid, "PV do reator inválida", AlarmSeverity.Critical,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3)),
+        new(AlarmId.ExternalBathCommandTimeout, "Comando do banho não confirmado", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3)),
+        new(AlarmId.ExternalBathSequenceFault, "Falha na sequência do banho", AlarmSeverity.Critical,
+            TimeSpan.Zero, TimeSpan.FromSeconds(3)),
+        new(AlarmId.ExternalBathSetpointMismatch, "Setpoint do banho divergente", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3)),
+        new(AlarmId.ExternalBathCascadeSaturated, "Cascata do banho saturada", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5)),
+        new(AlarmId.ExternalBathReactorDeviation, "Desvio térmico do reator", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5)),
+        new(AlarmId.ExternalBathPvLimit, "PV do banho fora do limite", AlarmSeverity.Critical,
+            TimeSpan.Zero, TimeSpan.FromSeconds(3)),
+        new(AlarmId.ExternalBathImplausibleDelta, "Diferença banho–reator implausível", AlarmSeverity.Warning,
+            TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5)),
+        new(AlarmId.ExternalBathDualActuation, "Dupla atuação térmica", AlarmSeverity.Critical,
+            TimeSpan.Zero, TimeSpan.FromSeconds(3)),
     ];
 
     private readonly IDeviceService _device;
@@ -602,6 +622,59 @@ public sealed class AlarmService : IAlarmService
             "se divide entre o reator e a purga. Nenhum ensaio comanda isso; escolha uma entrada em " +
             "Controle › Vazão de Ar."),
 
+        AlarmId.ExternalBathOffline => (
+            connected && BathRouted() && _lastSnapshot is { HasBathTelemetry: true, BathCommEnabled: true, BathOnline: false },
+            "O banho externo está selecionado e habilitado, mas o Hub não o vê online há pelo menos 10 s."),
+
+        AlarmId.ExternalBathReactorPvInvalid => (
+            connected && BathRouted() && _lastSnapshot is { HasBathTelemetry: true } s &&
+            (!double.IsFinite(s.Temperature) || s.Temperature <= 10.0 || s.Temperature >= 100.0 || stale),
+            "A temperatura real do reator (Tempval) está inválida ou sem atualização; a cascata não deve ser avaliada."),
+
+        AlarmId.ExternalBathCommandTimeout => (
+            connected && BathRouted() && _lastSnapshot is { BathCommandCompletionPending: true } s &&
+            s.BathCommandCompletionAgeMs >= 10_000,
+            "O último comando do banho permanece pendente além do tempo de confirmação."),
+
+        AlarmId.ExternalBathSequenceFault => (
+            connected && BathRouted() && _lastSnapshot is { } s &&
+            (!string.IsNullOrWhiteSpace(s.BathError) ||
+             s.BathState.Equals("error", StringComparison.OrdinalIgnoreCase) ||
+             s.BathState.Equals("aborted", StringComparison.OrdinalIgnoreCase) ||
+             s.BathGuard.Equals("suspended", StringComparison.OrdinalIgnoreCase) ||
+             s.BathCascadeState.Equals("fault", StringComparison.OrdinalIgnoreCase)),
+            "O C404 ou a guarda da cascata reportou error, aborted ou suspended. Verifique o banho antes de retomar."),
+
+        AlarmId.ExternalBathSetpointMismatch => (
+            connected && BathRouted() && _lastSnapshot is { } s &&
+            (s.BathCascadeState.Contains("mismatch", StringComparison.OrdinalIgnoreCase) ||
+             (s.BathTarget is { } target && s.BathCommandConfirmed is { } confirmed &&
+              double.IsFinite(target) && double.IsFinite(confirmed) && Math.Abs(target - confirmed) > 0.2)),
+            "O setpoint confirmado pelo C404 não acompanha o alvo calculado pela cascata."),
+
+        AlarmId.ExternalBathCascadeSaturated => (
+            connected && BathRouted() && _lastSnapshot is { BathCascadeSaturated: true },
+            "A saída da cascata atingiu um limite; a temperatura do reator pode não acompanhar a referência."),
+
+        AlarmId.ExternalBathReactorDeviation => (
+            connected && BathRouted() && _lastSnapshot is { BathCascadeError: { } error } &&
+            double.IsFinite(error) && Math.Abs(error) > 2.0,
+            "O erro entre Tempval e o setpoint do reator permanece acima de 2 °C."),
+
+        AlarmId.ExternalBathPvLimit => (
+            connected && BathRouted() && _lastSnapshot is { BathPv: { } pv } &&
+            (!double.IsFinite(pv) || pv < 0.0 || pv > 100.0),
+            "A temperatura reportada pelo C404 está fora do limite absoluto de 0–100 °C."),
+
+        AlarmId.ExternalBathImplausibleDelta => (
+            connected && BathRouted() && _lastSnapshot is { BathPv: { } bath, Temperature: var reactor } &&
+            double.IsFinite(bath) && double.IsFinite(reactor) && Math.Abs(bath - reactor) > 20.0,
+            "A diferença entre a temperatura do banho e a temperatura real do reator excede 20 °C."),
+
+        AlarmId.ExternalBathDualActuation => (
+            connected && BathRouted() && _lastSnapshot is { TempControlViaBath: true, BathTempControlMode: 2 },
+            "O Hub indica a via externa ativa enquanto a via original também parece comandando temperatura."),
+
         _ => (false, ""),
     };
 
@@ -633,6 +706,7 @@ public sealed class AlarmService : IAlarmService
         Check(DeviceNames.Routing.ExternalPump, snapshot.PumpCommEnabled);
         Check(DeviceNames.Routing.Distance, snapshot.DistanceCommEnabled);
         Check(DeviceNames.Routing.ServoDrive, snapshot.ServoCommEnabled);
+        Check(DeviceNames.Routing.ExternalBath, snapshot.BathCommEnabled);
 
         // The banner shows one line, so the detail leads with the consequence and names the
         // devices plainly. The earlier wording spelled out the Hub's state per device and was
@@ -680,6 +754,10 @@ public sealed class AlarmService : IAlarmService
     /// </remarks>
     private bool RoutingRequested(string device)
         => _routingRequested.TryGetValue(device, out var requested) && requested;
+
+    private bool BathRouted()
+        => RoutingRequested(DeviceNames.Routing.ExternalBath) &&
+           _lastSnapshot is { TempControlViaBath: true };
 
     private static AuditSeverity ToAudit(AlarmSeverity severity)
         => severity == AlarmSeverity.Critical ? AuditSeverity.Error : AuditSeverity.Warning;

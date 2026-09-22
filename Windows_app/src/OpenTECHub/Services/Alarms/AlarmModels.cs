@@ -98,6 +98,27 @@ public enum AlarmId
 
     /// <summary>Both flowmeter inputs echoed open at once: A and B + C together, the air splits.</summary>
     GasBothOpen,
+
+    /// <summary>The external bath is selected and routed but no longer reports online.</summary>
+    ExternalBathOffline,
+    /// <summary>The reactor temperature input needed by the bath cascade is invalid or stale.</summary>
+    ExternalBathReactorPvInvalid,
+    /// <summary>A bath command remains pending beyond its completion budget.</summary>
+    ExternalBathCommandTimeout,
+    /// <summary>The C404 sequence or guard reports a fault/abort/suspension.</summary>
+    ExternalBathSequenceFault,
+    /// <summary>The bath setpoint/confirmation disagrees with the requested cascade state.</summary>
+    ExternalBathSetpointMismatch,
+    /// <summary>The Hub reports persistent output saturation in the bath cascade.</summary>
+    ExternalBathCascadeSaturated,
+    /// <summary>The cascade error remains outside the operator-safe band.</summary>
+    ExternalBathReactorDeviation,
+    /// <summary>The C404 PV is outside its absolute engineering limits.</summary>
+    ExternalBathPvLimit,
+    /// <summary>The bath and reactor readings differ by an implausible amount.</summary>
+    ExternalBathImplausibleDelta,
+    /// <summary>Both the original and external temperature paths appear active.</summary>
+    ExternalBathDualActuation,
 }
 
 /// <summary>Alarm severity — the colour and the audit level it maps to.</summary>

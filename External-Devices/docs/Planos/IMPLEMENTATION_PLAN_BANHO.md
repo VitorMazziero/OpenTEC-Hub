@@ -9,9 +9,10 @@
 | Documento | Responsabilidade | Estado em 2026-09-21 |
 |---|---|---|
 | `IMPLEMENTATION_PLAN_BANHO.md` | ideia geral e contrato entre componentes | este documento |
-| `IMPLEMENTATION_PLAN_BANHO_HUB.md` | todas as mudanças do firmware do Hub, incluindo integração do nó e cascata térmica | **planejado; não implementado** |
-| `IMPLEMENTATION_PLAN_BANHO_WINDOWS_APP.md` | protocolo, simulador, interface, alarmes, receitas e registros do Windows App | **planejado; não implementado** |
-| `IMPLEMENTATION_PLAN_BANHO_APP_ANDROID.md` | aplicativo Android próprio do banho, direto ao nó | **implementado** em `banho-termostatico/apps/flutter` |
+| `IMPLEMENTATION_PLAN_BANHO_HUB.md` | todas as mudanças do firmware do Hub, incluindo integração do nó e cascata térmica | **implementado** (10.5.1; corrigido em 10.6.0-dev) — físico pendente |
+| `IMPLEMENTATION_PLAN_BANHO_WINDOWS_APP.md` | protocolo, simulador, interface, alarmes, receitas e registros do Windows App | **implementado** (W01–W08; corrigido K06–K08) |
+| `IMPLEMENTATION_PLAN_BANHO_APP_ANDROID.md` | aplicativo Android próprio do banho, direto ao nó | **implementado** em `banho-termostatico/apps/flutter` (1.2.0: posse do Hub) |
+| `IMPLEMENTATION_PLAN_BANHO_CORRECOES.md` | auditoria de 2026-09-22 e correções K00–K11 em todos os contextos | **implementado em software** — bancada pendente |
 | `IMPLEMENTATION_PLAN_CONTROLE_CASCATA_BANHO.md` | fonte técnica original da cascata | incorporado ao plano do Hub; não executar separadamente |
 
 Há dois aplicativos Android diferentes no repositório:
@@ -84,9 +85,10 @@ dispositivo real nos gates G1–G9 permanece pendente.
 
 ### 3.3 Hub e Windows App
 
-Não implementados nesta entrega. O estado atual deve permanecer sem `DEV_BATH`, `/bathData`,
-`tempControlMode`, `bathBox`, telemetria `Bath*`, controlador de cascata ou interface do banho.
-Os roteiros autorizáveis estão nos dois planos individuais.
+Implementados em 2026-09-22 (Hub 10.5.1 e Windows W01–W08) e corrigidos no mesmo dia após
+auditoria (Hub 10.6.0-dev, nó r3.2, Windows K06–K08, `Android_app` K09, `bath_app` 1.2.0 K10);
+ver `IMPLEMENTATION_PLAN_BANHO_CORRECOES.md`. A `bathBox` deu lugar ao `BathCommandCoordinator`.
+Os gates físicos (G1–G9, H08 P01–P13, H09, H10) continuam pendentes.
 
 ## 4. Decisões de arquitetura
 
@@ -106,8 +108,14 @@ Os roteiros autorizáveis estão nos dois planos individuais.
    `tempSetpoint` é exigido.
 6. **Sem fallback automático:** dois banhos são equipamentos físicos diferentes. Nó ausente
    gera pausa/alarme; não troca silenciosamente para a via original.
-7. **`tempSetpoint=0` desativa a cascata, mas não desliga o C404:** o nó deixa de receber novos
-   alvos e o banho permanece no último SP. A interface deve dizer “liberado”, não “desligado”.
+7. **Parada do banho (revisada em 2026-09-22, D-2/D-4):** `bathAbort`, `tempSetpoint=0` na via
+   externa e `resetVariables` desligam a cascata e entregam `stop` ao nó (abort + guarda em
+   manual); o banho permanece no último SP, a via e `bathComm` não mudam. A interface deve
+   dizer “cascata desligada, C404 em manual no último SP”, nunca “desligado”.
+7a. **Posse do Hub (D-1):** com a cascata ativa o Hub é dono do nó (`X-Hub-Owner`); a API local
+   aceita só abort/stop. A guarda em automático continua revertendo o painel.
+7b. **Receitas (D-3):** na via externa um bloco de temperatura só avança quando o reator atinge
+   o valor pedido (banda e permanência).
 8. **Modo automático do nó não é a cascata:** o guarda do painel restaura o último alvo do
    C404; o PI do Hub muda esse alvo a partir do erro do reator.
 9. **Configuração de bancada fica local:** tempos de tecla, display, sensoriamento e parâmetros

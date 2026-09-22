@@ -1,7 +1,7 @@
 # PLANO DE IMPLEMENTAÇÃO DO WINDOWS APP: BANHO EXTERNO
 
 **Data:** 2026-09-21
-**Status:** W01–W08 implementados e validados em commits segregados; validação física permanece pendente
+**Status:** W01–W08 implementados; correções K06–K08 (Hub 10.6/nó r3.2) em `IMPLEMENTATION_PLAN_BANHO_CORRECOES.md`; validação física pendente
 **Base:** alterações W1–W17 do plano geral, alinhadas ao contrato final do plano do Hub
 **Alvo previsto:** OpenTECHub 0.26.4 → 0.27.0
 

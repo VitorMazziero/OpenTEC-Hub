@@ -1,7 +1,7 @@
 # PLANO DE IMPLEMENTAÇÃO DO HUB: BANHO EXTERNO E CASCATA TÉRMICA
 
 **Data:** 2026-09-21
-**Status:** planejamento detalhado — **nenhuma alteração no `ESP32S3-HUB` foi implementada**
+**Status:** H00–H07 implementados (10.5.1-dev); correções K00–K05 em 10.6.0-dev (ver `IMPLEMENTATION_PLAN_BANHO_CORRECOES.md`); H08–H10 físicos pendentes
 **Base consolidada:** `IMPLEMENTATION_PLAN_BANHO.md` + `IMPLEMENTATION_PLAN_CONTROLE_CASCATA_BANHO.md`
 **Alvo previsto:** `ESP32S3-HUB` 10.4.0-dev → 10.5.0
 

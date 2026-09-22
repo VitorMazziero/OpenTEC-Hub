@@ -4,7 +4,7 @@
 **Data de Emissão:** 2026-09-19
 **Atualizado:** 2026-09-21
 **Status:** **implementado e validado em software**; validação contra o dispositivo real pendente
-**Versão implementada:** 1.1.0+2
+**Versão implementada:** 1.2.0+3 (posse do Hub, firmware r3.2 — K10 do plano de correções)
 **Referência Normativa:** `../../banho-termostatico/docs/PROTOCOL.md` (r2/r3: rotas, `/status`, `/config`, ações, §3.1 hold, §3.2 modos), `../../banho-termostatico/docs/VALIDATION.md` (gates G1–G9)
 **Modelos a seguir:** `frasco-agitador/apps/flutter` (estrutura `models/pages/services/widgets/theme`, HTTP por `package:http`, *badge* de conexão, folha de diagnóstico, botão de emergência) e `bomba-peristaltica/apps/flutter` (`fl_chart`, `shared_preferences` para o host)
 **Relação com o outro plano:** independente de `IMPLEMENTATION_PLAN_BANHO.md`. Fala com o nó pelo AP `Banho Termostatico` (`192.168.8.1`) ou pelo IP que o nó receber na rede do Hub; não passa pelo Hub. É o equivalente Android do `bath_app.py` e da página `/ui`, e o que a bancada usa nos gates G1–G9 quando não há PC.

@@ -738,6 +738,18 @@ question from the table if a problem ever appears in the field.
 
 ---
 
+## 4.2 Banho externo C404 e cascata térmica (Hub 10.5.1)
+
+The Windows app treats `Tempval` as the real reactor temperature read by the module sensor via
+the Hub UART. It is distinct from `BathPv` (the C404 bath temperature). The PC sends only the
+reactor reference (`tempSetpoint`) and route/mode/acknowledgement commands; the Hub owns the PI
+and emits `BathCascadePvFiltered`, `BathCascadeError`, `BathCommandSetpoint`,
+`BathCommandConfirmed`, `BathCascadeP`, `BathCascadeI`, saturation, guard and pause state.
+
+When the bath node is absent, all bath fields remain nullable/absent and the app reports
+"aguardando telemetria" rather than inventing an offline node. The frozen v6 session log is not
+changed; bath telemetry is written to the versioned `-bath-cascade.tsv` sidecar.
+
 ## 5. Open questions for hardware verification
 
 These are behaviours v.6 relies on that could not be confirmed from the Python

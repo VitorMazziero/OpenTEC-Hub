@@ -1608,6 +1608,18 @@ resultado a revisar, e a interface convidava a aceitar um ponto falso.
 
 ---
 
+### D-056 · A cascata do banho permanece residente no Hub e o app registra a proveniência térmica
+
+**Status:** Accepted and implemented · 2026-09-22 · plano `IMPLEMENTATION_PLAN_BANHO_WINDOWS_APP.md`
+
+`Tempval` é a temperatura real do reator, lida pelo sensor do módulo via UART do Hub; `BathPv`
+é a temperatura do C404. O Windows App não calcula PI nem envia o setpoint do reator diretamente
+ao C404. A rota, os ACKs, a guarda e a falha pertencem ao mesmo atuador de temperatura; o log
+v6 permanece compatível e os campos do banho ficam no sidecar versionado `-bath-cascade.tsv`.
+
+Essa separação mantém receitas, alarmes e auditoria capazes de distinguir referência do reator,
+saída calculada e resposta física do banho.
+
 ## Open questions
 
 | # | Question | Blocks |

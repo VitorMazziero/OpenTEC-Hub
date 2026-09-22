@@ -2099,3 +2099,11 @@ Recorded so the previous revision's decisions are not silently lost.
 | `FontNumeric` = Consolas | Segoe UI + **tabular figures** | Monospace reads as a terminal, not an instrument |
 | Radius 4 / 8 / 12 | **4 / 6** | 8 px cards read as consumer software |
 | Section numbering | Renumbered | Cross-references in `ROADMAP.md` and in four source-file comments point at old section numbers and need updating |
+
+## Banho externo C404
+
+The temperature row uses **Setpoint do reator** and the reactor PV (`Tempval`) as its primary
+operator context. The C404 drawer is secondary and keeps `BathPv`, confirmed bath SP, cascade
+filtered PV, calculated output, guard, saturation and pause reason in separate cards. The route
+toggle is disabled until the Hub advertises bath telemetry; restoring it from settings never
+dispatches a command. The permanent safety note reads: **liberar a cascata não desliga o C404**.

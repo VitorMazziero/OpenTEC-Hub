@@ -41,6 +41,15 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ## [Unreleased]
 
+### Added — integração do banho externo C404 no Windows App
+
+- supervisão dos alarmes da cascata e hold de receitas até confirmação térmica;
+- persistência sem autoenvio da via, comunicação, painel, layout de séries e sintonia aplicada;
+- canais de PV do banho/PV filtrada/saída calculada e sidecar `-bath-cascade.tsv`, preservando o
+  log v6;
+- catálogo e simulador atualizados para seis nós, incluindo o banho `r3/r3.1`;
+- `Tempval` documentado como temperatura real do reator via UART; `BathPv` permanece a PV do C404.
+
 ### Added — calibração contínua em duas faixas e perfis de mangueira
 
 - **Fluxômetro v12.0 / Hub 10.3:** `Vt` tornou-se editável em volts; `0.0545 V` é

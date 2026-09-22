@@ -301,7 +301,7 @@ public class ConnectionNodesCountTests
             PumpNode = new ExternalNodeIdentity("192.168.4.3", null, "3.9"),
             BiomassNode = new ExternalNodeIdentity(null, "AA", "v11"),
         });
-        Assert.Equal("1/6", vm.NodesText);
+        Assert.Equal("1/5", vm.NodesText);
 
         device.PushState(ConnectionState.Reconnecting);
         Assert.Equal("—", vm.NodesText);

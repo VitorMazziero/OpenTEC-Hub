@@ -19,6 +19,15 @@ recebidos 7 quadros em ~14 s, sem falha de parse, com fluxômetro online, ~5,00 
 `FlowCommandId=FlowCommandAck=3313643496` e duas entregas. Recibo em
 [`evidence/bench/2026-09-14-flowmeter-usb.md`](evidence/bench/2026-09-14-flowmeter-usb.md).
 
+**22/09/2026 — integração do banho externo C404 no Windows App concluída (W01–W08).** O app
+supervisiona a cascata residente no Hub, mantém `Tempval` (temperatura real do reator via UART)
+separado de `BathPv`, aguarda confirmação em receitas, registra alarmes/estado e grava o sidecar
+`-bath-cascade.tsv` sem alterar o log v6. Preferências são restauradas como estado staged, nunca
+como comando de inicialização; o catálogo/simulador expõe seis nós. Build Release, suíte e smoke
+com `--workspace`/`--nav control` passaram (o build mantém apenas avisos de estilo já existentes).
+A integração continua software-complete, não sendo
+uma validação térmica de bancada.
+
 This document is the current release-status source. The detailed build sequence remains in
 [ROADMAP.md](ROADMAP.md), historical implementation evidence remains in
 [PHASE_LOG.md](PHASE_LOG.md), and released changes remain in [CHANGELOG.md](CHANGELOG.md).

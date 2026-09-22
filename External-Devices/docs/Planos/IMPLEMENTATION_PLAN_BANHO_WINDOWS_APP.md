@@ -1,7 +1,7 @@
 # PLANO DE IMPLEMENTAÇÃO DO WINDOWS APP: BANHO EXTERNO
 
 **Data:** 2026-09-21
-**Status:** W01–W04 implementados e validados; W05–W08 permanecem planejados
+**Status:** W01–W08 implementados e validados em commits segregados; validação física permanece pendente
 **Base:** alterações W1–W17 do plano geral, alinhadas ao contrato final do plano do Hub
 **Alvo previsto:** OpenTECHub 0.26.4 → 0.27.0
 
@@ -293,12 +293,16 @@ avançado e avisos de segurança; responsividade em telas pequena e grande.
 
 ### W05 — Integrar alarmes e segurança
 
+**Estado:** concluído em `5525d3f`.
+
 **Ações:** alarmes da seção 8, on-delay, latch/ack, journal e comportamento de stop/liberação.
 
 **Testes:** falha, recuperação, reconhecimento, reentrada, sem falso alarme em Hub antigo.
 **Commit:** `feat(windows): supervisionar falhas da cascata do banho`
 
 ### W06 — Integrar receitas
+
+**Estado:** concluído em `d0932ce`.
 
 **Ações:** hold por estado da cascata/ACK/done, timeout baseado no processo, validação de
 receitas e mensagens operacionais.
@@ -308,12 +312,18 @@ receitas e mensagens operacionais.
 
 ### W07 — Persistência, sessão, gráficos e catálogo
 
+**Estado:** concluído em `1f0eab9`.
+
 **Ações:** preferências sem autoenvio, colunas/séries, nó r3 e compatibilidade de arquivos.
 
 **Testes:** round-trip de settings, CSV antigo/novo, séries opcionais e catálogo com seis nós.
 **Commit:** `feat(windows): registrar e visualizar cascata do banho`
 
 ### W08 — Documentação, versão e validação de runtime
+
+**Estado:** concluído neste commit; a versão de produto continua derivada pelo MinVer e não foi
+promovida para `0.27.0` sem tag de release. O build Release e o smoke com workspace explícito
+foram executados; a validação de bancada do C404 continua fora do escopo do app.
 
 **Ações:** protocolo, ADRs, UI/manual/changelog/status; versão 0.27.0 somente após suíte verde;
 build Release e execução real com `--workspace`, navegação para Controle e logs frescos.

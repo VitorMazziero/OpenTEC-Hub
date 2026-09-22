@@ -308,7 +308,19 @@ O módulo **Potência** realiza a caracterização hidrodinâmica mecânica do v
 
 ---
 
-## 9. Elaboração e Execução de Receitas
+## 9. Banho externo C404
+
+Na linha **Temperatura**, o campo **Setpoint do reator** é a referência do reator. Ao selecionar
+**Banho externo C404**, confirme primeiro a via e a comunicação; somente depois aplique o setpoint.
+`Tempval` é a temperatura real do reator, enquanto `BathPv` é a temperatura do banho. A cascata,
+os ganhos PI, a guarda, a saturação e o motivo de pausa são calculados e supervisionados no Hub.
+
+Liberar ou abortar a cascata não desliga fisicamente o C404. Se houver falha, PV inválida,
+desvio persistente ou nó offline, corrija a causa indicada pelo alarme antes de retomar. A via,
+os parâmetros de painel e as séries de gráfico podem ser restaurados na próxima sessão, mas o
+aplicativo nunca envia comandos automaticamente ao abrir.
+
+## 10. Elaboração e Execução de Receitas
 
 No módulo **Receitas**, o usuário pode desenhar bateladas automatizadas conectando blocos de processo:
 - **Blocos Básicos:** Espera temporizada, Rampa de temperatura, Degrau de agitação, Pulso de alimentação de nutriente.
@@ -317,7 +329,7 @@ No módulo **Receitas**, o usuário pode desenhar bateladas automatizadas conect
 
 ---
 
-## 10. Alarmes, Históricos e Diagnóstico de Falhas
+## 11. Alarmes, Históricos e Diagnóstico de Falhas
 
 ### Monitor de Alarmes
 - O sistema classifica os desvios em: **Informativo** (azul), **Alerta** (amarelo) e **Crítico** (vermelho).

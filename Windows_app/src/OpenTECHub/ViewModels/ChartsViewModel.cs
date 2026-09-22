@@ -74,6 +74,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         _journal = journal;
         _dialogs = dialogs;
         _units = settings.Current.Units;
+        _restoringLayout = true;
 
         Windows =
         [
@@ -132,9 +133,10 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
         RightChannel = Channels[1];
         BottomLeftChannel = Channels[2]; // pH
         BottomRightChannel = Channels[3]; // Vazão
-        RestoreLayout(settings.Current.Charts);
+        RestoreLayout(settings.Current.Charts ?? new ChartSettings());
         ApplyUnits(_units);
         settings.Changed += OnSettingsChanged;
+        _restoringLayout = false;
     }
 
     public ITelemetryHistory History { get; }
@@ -566,7 +568,7 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
 
         _settings.Update(current => current with
         {
-            Charts = current.Charts with
+            Charts = (current.Charts ?? new ChartSettings()) with
             {
                 PanelCount = this.PanelCount,
                 Window = SelectedWindow.Label,

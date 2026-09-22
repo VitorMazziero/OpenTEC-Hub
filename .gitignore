@@ -39,6 +39,7 @@ External-Devices/tools/arduino-cli.local.yaml
 *.bin
 *.elf
 *.map
+*.obj
 
 # External-device imported toolchain output
 External-Devices/**/*.o

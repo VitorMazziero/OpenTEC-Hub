@@ -138,6 +138,42 @@ public sealed class RecipeEngineTests
     }
 
     [Fact]
+    public async Task Temperature_setpoint_waits_for_the_routed_bath_to_confirm_and_settle()
+    {
+        var (engine, device, _, _) = Build();
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            TempControlViaBath = true,
+            BathOnline = true,
+            BathCommEnabled = true,
+            BathCommandCompletionPending = true,
+            BathCascadeState = "controlling",
+            BathState = "running",
+            Temperature = 25.0,
+        });
+
+        await engine.StartAsync(SetpointRecipe(SetpointVariable.Temperature, 37));
+        await Task.Delay(20);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            TempControlViaBath = true,
+            BathOnline = true,
+            BathCommEnabled = true,
+            BathCommandCompletionPending = false,
+            BathCascadeState = "controlling",
+            BathState = "done",
+            Temperature = 37.2,
+        });
+
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
     public async Task Cascade_with_internal_loop_remains_running_after_stabilization()
     {
         var (engine, device, _, clock) = Build();

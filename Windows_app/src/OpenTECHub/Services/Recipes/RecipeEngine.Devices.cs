@@ -67,6 +67,40 @@ public sealed partial class RecipeEngine
             s => s.FlowControlEnabled,
             ct);
 
+    /// <summary>
+    /// Holds a temperature actuation while the Hub-routed bath acknowledges and settles it.
+    /// An old Hub (or the original UART route) deliberately satisfies immediately because it
+    /// cannot publish bath evidence; absence of support must never deadlock a legacy recipe.
+    /// </summary>
+    private Task AwaitBathTemperatureAppliedAsync(RecipeNode node, double target, CancellationToken ct)
+    {
+        if (!double.IsFinite(target) || target <= 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        // A recipe can legitimately start before the first telemetry frame arrives.  In that
+        // state the Hub has not advertised the bath route (and therefore cannot provide a
+        // meaningful confirmation); preserve the legacy fire-and-forget behaviour until a
+        // bath-capable snapshot is actually present.
+        if (_latest is not { HasBathTelemetry: true, TempControlViaBath: true })
+        {
+            return Task.CompletedTask;
+        }
+
+        return AwaitDeviceAsync(
+            node,
+            "Banho externo C404",
+            $"a referência do reator ({target:0.##} °C) não foi confirmada pela cascata.",
+            s => !s.HasBathTelemetry || s.TempControlViaBath is not true ||
+                 (s.BathOnline && s.BathCommEnabled != false &&
+                  !s.BathCommandCompletionPending &&
+                  s.BathCascadeState.Contains("controlling", StringComparison.OrdinalIgnoreCase) &&
+                  s.BathState is "done" or "running" &&
+                  double.IsFinite(s.Temperature) && Math.Abs(s.Temperature - target) <= 0.5),
+            ct);
+    }
+
     // ── External Wi-Fi nodes ─────────────────────────────────────────────────
     //
     // Every predicate below shares one escape clause: it is satisfied when the Hub has said

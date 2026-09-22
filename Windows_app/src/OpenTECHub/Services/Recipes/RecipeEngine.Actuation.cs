@@ -28,6 +28,10 @@ public sealed partial class RecipeEngine
                     {
                         await AwaitFlowAppliedAsync(node, value, ct).ConfigureAwait(false);
                     }
+                    else if (variable == SetpointVariable.Temperature)
+                    {
+                        await AwaitBathTemperatureAppliedAsync(node, value, ct).ConfigureAwait(false);
+                    }
 
                     break;
                 }
@@ -37,6 +41,7 @@ public sealed partial class RecipeEngine
                     // One combined command object — the protocol prefers it and it saves round trips.
                     var combined = OpenTECCommand.Create();
                     double? flowTarget = null;
+                    double? temperatureTarget = null;
                     foreach (var row in node.Rows("pontos").OfType<JsonObject>())
                     {
                         if (Enum.TryParse<SetpointVariable>(row["variavel"]?.GetValue<string>(), out var variable))
@@ -49,6 +54,10 @@ public sealed partial class RecipeEngine
                             {
                                 flowTarget = value;
                             }
+                            else if (variable == SetpointVariable.Temperature)
+                            {
+                                temperatureTarget = value;
+                            }
                         }
                     }
 
@@ -56,6 +65,10 @@ public sealed partial class RecipeEngine
                     if (flowTarget is { } target)
                     {
                         await AwaitFlowAppliedAsync(node, target, ct).ConfigureAwait(false);
+                    }
+                    else if (temperatureTarget is { } temperature)
+                    {
+                        await AwaitBathTemperatureAppliedAsync(node, temperature, ct).ConfigureAwait(false);
                     }
 
                     break;

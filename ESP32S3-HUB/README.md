@@ -5,8 +5,8 @@ Este repositório contém somente o firmware do Hub central ESP32-S3. O firmware
 ## Diretórios
 
 - `ESP32S3-HUB/`: firmware ativo e modularizado. O banner atual é
-  `10.3.0-dev`, protocolo 10. A versão 10.3 transporta a transição editável do
-  fluxômetro v12.0 e a calibração polinomial dupla da bomba v3.12, com ecos e CRC (Hub 10.4).
+  `10.5.0-dev`, protocolo 10. A versão 10.5 publica o contrato completo e o
+  diagnóstico da cascata térmica externa; a via de controle ainda requer validação física.
 - `_old/`: snapshots históricos v1-v8, preservados sem edição.
 - `docs/`: arquitetura, contrato HTTP e critérios de validação.
 - `tests/contracts/`: verificações executáveis do contrato preservado.

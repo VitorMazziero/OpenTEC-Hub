@@ -19,6 +19,8 @@ Este repositório contém apenas o Hub central ESP32-S3. O nó ASDA-B2, o aplica
 - `sensor/SensorUart.h`: setters, sincronização e UART OpenTEC;
 - `devices/ServoDevice.{h,cpp}`: amostra atômica, presença, estado desejado
   revisionado do motor e fila de eventos Servo;
+- `control/ExternalBathCascade.{h,cpp}`: controlador PI puro, filtro, limites,
+  anti-windup, máquina de estados e snapshot da cascata térmica;
 - `protocol/JsonUtils.{h,cpp}`: busca manual e conversões estritas;
 - `protocol/HttpCommandQueue.{h,cpp}`: fila fixa entre callbacks HTTP e o loop.
 
@@ -32,6 +34,17 @@ Os arquivos legados `.h` formam deliberadamente uma única unidade de compilaç�
 - `ServoDevice` e `HttpCommandQueue` possuem mutexes próprios.
 - `/command` apenas valida o frame completo e o coloca em fila; o `loop` executa todas as mutações, inclusive NVS.
 - A telemetria copia o estado compartilhado sob mutex e monta o JSON após liberar a região crítica.
+- O snapshot do banho é copiado sob `stateMutex`; a cascata e a montagem do JSON
+  não executam alocação nem I/O dentro da região crítica.
+
+## Via térmica externa
+
+`TempControlRoute::UartModule` mantém a via histórica. `ExternalBath` só calcula
+quando há referência nova, `Tempval` fresco, nó r3 online, `bathComm`, modo auto,
+SP de display confirmado e guarda não suspensa. A saída do PI é limitada e enviada
+pela `bathBox`; ACK, estado `done` e cooldown são condições independentes. Reboot,
+SP zero, PV stale, erro ou retorno à UART limpam a atuação transitória e não fazem
+fallback automático para a placa original.
 
 ## Controle direto do ASDA-B2
 

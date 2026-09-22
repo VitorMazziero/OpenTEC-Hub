@@ -1,4 +1,4 @@
-# Validação do Hub 10 e comando direto ASDA-B2
+# Validação do Hub 10.5, cascata térmica e comando direto ASDA-B2
 
 ## Verificações locais
 
@@ -12,6 +12,10 @@ git status --short --branch
 
 O script preserva os dez hashes legados e testa endpoints/chaves, fila Servo,
 presença e a mailbox latest-wins do motor. Build e fixtures não aprovam hardware.
+
+Para o banho externo, a suíte também cobre `/bathData`, validade temporal de
+`Tempval`, transação de `bathCascade*`, reboot sem retomada, snapshot com `null`,
+estado PI, ACK separado de `done` e orçamento do quadro agregado.
 
 ## Ordem de gravação
 
@@ -63,6 +67,15 @@ presença e a mailbox latest-wins do motor. Build e fixtures não aprovam hardwa
     quadro parcial e envio em `RUNNING`/`WAITING`; reiniciar e confirmar persistência.
 17. Compatibilidade: conectar fluxômetro v11 e bomba 3.10, confirmar leitura dos campos
     legados e bloqueio explícito das funções modernas, sem chave ausente tratada como zero.
+18. Banho r3 / Hub 10.5: executar os gates G1–G9 do nó; confirmar `/nodeHello`, presença
+    de 60 s, `/bathData` válido e rejeição atômica de payload incompleto/não finito.
+19. Troca térmica: com a placa original em zero, mudar para `tempControlMode=1`, verificar
+    `100B`, exigir novo `tempSetpoint` e confirmar que nenhum `B` direto é enviado.
+20. Cascata: confirmar PV real por `Tempval`, SP de display, `BathCommandSetpoint`,
+    ACK, `BathState=done`, cooldown mínimo, latest-wins, pausa por PV stale e fault por
+    erro/abort/guarda suspensa. Repetir com perda de Wi-Fi e reboot.
+21. Registrar degraus com água para identificação e sintonia; não promover defaults para
+    produção sem aprovação do responsável do processo.
 
 ## Gate de liberação
 

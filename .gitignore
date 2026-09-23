@@ -83,3 +83,41 @@ Desktop.ini
 *.swp
 /scratch/
 /test_*.cs
+
+# ---------------------------------------------------------------------------
+# CAD, malhas e arquivos de fatiador ficam FORA do git (2026-09-23).
+# Nao sao versionados: vivem apenas na pasta do OneDrive. Padroes sem distincao
+# de maiusculas para valer tambem fora do Windows.
+# ---------------------------------------------------------------------------
+*.[Ss][Ll][Dd][Pp][Rr][Tt]
+*.[Ss][Ll][Dd][Aa][Ss][Mm]
+*.[Ss][Ll][Dd][Dd][Rr][Ww]
+*.[Ee][Aa][Ss][Mm]
+*.[Ee][Pp][Rr][Tt]
+*.[Ee][Dd][Rr][Ww]
+*.[Ss][Tt][Ee][Pp]
+*.[Ss][Tt][Pp]
+*.[Ss][Tt][Ll]
+*.[Ii][Gg][Ss]
+*.[Ii][Gg][Ee][Ss]
+*.[Ss][Aa][Tt]
+*.[Xx]_[Tt]
+*.[Xx]_[Bb]
+*.[Pp][Rr][Tt]
+*.[Ff][Cc][Ss][Tt][Dd]
+*.[Ff]3[Dd]
+*.[Ff]3[Zz]
+*.[Dd][Xx][Ff]
+*.[Dd][Ww][Gg]
+*.3[Mm][Ff]
+*.[Oo][Bb][Jj]
+*.3[Dd][Xx][Mm][Ll]
+*.[Mm]3[Dd]
+*.[Aa]3[Dd]
+*.[Pp]2[Mm]
+*.[Cc][Hh][Ii][Tt][Uu][Bb][Oo][Xx]
+*.[Pp][Mm]5[Ss]
+*.[Cc][Xx][Dd][Ll][Pp][Vv]4
+*.[Pp][Ww][Ss][Cc][Ee][Nn][Ee]
+*.[Cc][Tt][Bb]
+*.[Gg][Cc][Oo][Dd][Ee]

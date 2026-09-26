@@ -62,7 +62,7 @@ class _ModeCardState extends State<ModeCard> {
     }
 
     final isAuto = st.mode == BathMode.auto;
-    final modeHoldMs = s.config.values['mode_hold_ms']?.toInt() ?? 3000;
+    final modeHoldMs = s.config.values['mode_hold_ms']?.toInt() ?? 1000;
 
     return Card(
       child: Padding(

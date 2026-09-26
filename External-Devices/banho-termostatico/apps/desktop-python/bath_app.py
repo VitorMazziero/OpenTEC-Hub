@@ -19,6 +19,9 @@ Linha de comando (uma acao por chamada, imprime a resposta JSON):
     python bath_app.py abort
     python bath_app.py config press_ms=150 gap_ms=150
     python bath_app.py display
+    python bath_app.py log                  (ultimas 64 linhas do registro de eventos)
+    python bath_app.py capture [n] [us]     (analisador logico do display; salva JSON)
+    python bath_app.py scope <gpio> [n] [us] (osciloscopio pelo ADC, GPIO 1..10; salva JSON)
 """
 
 from __future__ import annotations
@@ -54,6 +57,10 @@ CONFIG_FIELDS = [
     ("disp_seg_low", int, "0/1 segmento aceso = LOW"),
     ("disp_dig_low", int, "0/1 digito ativo = LOW"),
     ("disp_seg_lead", int, "0/1 segmentos mudam antes do digito"),
+    ("disp_mode", int, "0 linhas de digito, 1 janelas por 2DISP"),
+    ("disp_slot_us", int, "duracao da janela de digito (us), modo 1"),
+    ("disp_sp_bank", int, "nivel de 2DISP do display do SP, modo 1"),
+    ("disp_decimals", int, "casas decimais do C404 (d.P); ponto fora disso = leitura invalida"),
     ("home_margin", int, "toques extras no home"),
     ("send_period", int, "periodo do push ao Hub (ms)"),
     ("hold_enabled", int, "0/1 tecla mantida no modo display"),
@@ -64,6 +71,7 @@ CONFIG_FIELDS = [
     ("hold_stall_ms", int, "display parado com tecla mantida = soltar (ms)"),
     ("mode_hold_ms", int, "^+v mantidas por este tempo alternam o modo (0 desliga)"),
     ("guard_delay_ms", int, "modo auto: painel parado por este tempo antes de reverter (ms)"),
+    ("guard_check_ms", int, "modo auto: intervalo entre avaliacoes do display (ms)"),
 ]
 
 
@@ -104,6 +112,50 @@ class BathClient:
     def display(self) -> dict[str, Any]:
         return self.get("/display")
 
+    def capture(self, n: int = 2000, period_us: int = 10) -> dict[str, Any]:
+        url = self._url(f"/capture?n={n}&us={period_us}")
+        with urllib.request.urlopen(url, timeout=TIMEOUT_S + 5) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+
+def summarize_scope(sc: dict[str, Any], divider: float = 5.1 / (3.3 + 5.1)) -> str:
+    """Levels of an ADC trace; C404-side voltage assumes the 3.3k/5.1k divider."""
+    mv = sc["mv"]
+    lo, hi = min(mv), max(mv)
+    mean = sum(mv) / len(mv)
+    lines = [f"GPIO {sc['pin']}: {len(mv)} amostras a {sc['period_us']} us "
+             f"({sc['elapsed_us'] / 1000:.1f} ms reais)",
+             f"no GPIO:  min {lo} mV  media {mean:.0f} mV  max {hi} mV",
+             f"no C404 (divisor 3,3k/5,1k): min {lo / divider / 1000:.2f} V  "
+             f"media {mean / divider / 1000:.2f} V  max {hi / divider / 1000:.2f} V",
+             "histograma (mV no GPIO):"]
+    bins = 10
+    width = max(1, (hi - lo) // bins + 1)
+    counts = [0] * bins
+    for v in mv:
+        counts[min(bins - 1, (v - lo) // width)] += 1
+    for i, c in enumerate(counts):
+        bar = "#" * round(50 * c / len(mv))
+        lines.append(f"  {lo + i * width:5d}-{lo + (i + 1) * width - 1:5d} {c:5d} {bar}")
+    return "\n".join(lines)
+
+
+def summarize_capture(cap: dict[str, Any]) -> str:
+    """Per-line duty, edge count and frequency of a /capture result."""
+    data = cap["data"]
+    samples = [int(data[i:i + 4], 16) for i in range(0, len(data), 4)]
+    seconds = cap["elapsed_us"] / 1e6
+    lines = [f"{len(samples)} amostras a {cap['period_us']} us "
+             f"({cap['elapsed_us'] / 1000:.1f} ms reais)",
+             f"{'linha':6} {'HIGH %':>7} {'bordas':>7} {'Hz':>8}"]
+    for bit, name in enumerate(cap["bits"]):
+        levels = [(v >> bit) & 1 for v in samples]
+        high = 100.0 * sum(levels) / len(levels)
+        edges = sum(1 for a, b in zip(levels, levels[1:]) if a != b)
+        hz = edges / 2 / seconds if seconds > 0 else 0.0
+        lines.append(f"{name:6} {high:7.1f} {edges:7d} {hz:8.0f}")
+    return "\n".join(lines)
+
 
 # ---------------------------------------------------------------------------
 # Linha de comando
@@ -128,6 +180,41 @@ def run_cli(client: BathClient, args: list[str]) -> int:
             result = client.command(payload)
         elif verb == "display":
             result = client.display()
+        elif verb == "log":
+            with urllib.request.urlopen(client._url("/log"), timeout=TIMEOUT_S) as resp:
+                print(resp.read().decode("utf-8", errors="replace"))
+            return 0
+        elif verb == "scope":
+            pin = int(rest[0])
+            n = int(rest[1]) if len(rest) > 1 else 2000
+            period = int(rest[2]) if len(rest) > 2 else 40
+            with urllib.request.urlopen(client._url(f"/scope?pin={pin}&n={n}&us={period}"),
+                                        timeout=TIMEOUT_S + 5) as resp:
+                sc = json.loads(resp.read().decode("utf-8"))
+            if not sc.get("ok"):
+                result = sc
+            else:
+                from datetime import datetime
+                path = f"scope_gpio{pin}_{datetime.now():%Y%m%d_%H%M%S}.json"
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(sc, fh)
+                print(summarize_scope(sc))
+                print(f"salvo em {path}")
+                return 0
+        elif verb == "capture":
+            n = int(rest[0]) if rest else 2000
+            period = int(rest[1]) if len(rest) > 1 else 10
+            cap = client.capture(n, period)
+            if not cap.get("ok"):
+                result = cap
+            else:
+                from datetime import datetime
+                path = f"capture_{datetime.now():%Y%m%d_%H%M%S}.json"
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(cap, fh)
+                print(summarize_capture(cap))
+                print(f"salvo em {path}")
+                return 0
         elif verb == "sp":
             result = client.command({"setpoint": float(rest[0])})
         elif verb == "delta":

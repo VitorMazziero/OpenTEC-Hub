@@ -52,17 +52,21 @@ Fonte 5 V (−)
 
 ## 2. Relés — ESP32 → HW-280 → teclas do C404
 
-Cada canal do HW-280 deve ficar com o jumper em `CENTRAL–L`, para que o relé seja acionado
-quando o GPIO correspondente for colocado em nível LOW.
+Cada canal do HW-280 deve ficar com o jumper em **`CENTRAL–H`**, para que o relé seja acionado
+quando o GPIO correspondente for colocado em nível HIGH (`BoardConfig::RelayActiveLow = false`).
+O modo `L` foi abandonado em 2026-09-24: com o GPIO em 3,3 V e o módulo em 5 V, os LEDs ficavam
+acesos fracos em repouso e o relé não soltava.
 
 ### 2.1 Entradas do HW-280
 
-| ESP32 GPIO | HW-280 | Tecla do C404 |
-|---|---|---|
-| **4** | IN1 | `*` |
-| **5** | IN2 | `▲` |
-| **6** | IN3 | `▼` |
-| **7** | IN4 | `ENTER` |
+Mapa de 2026-09-25: **relé N no ponto `CHN`**.
+
+| ESP32 GPIO | HW-280 | Relé | Ponto do C404 | Tecla do C404 |
+|---|---|---|---|---|
+| **4** | IN1 | 1 | `CH1` | `*` |
+| **5** | IN2 | 2 | `CH2` | `ENTER` |
+| **6** | IN3 | 3 | `CH3` | `▲` |
+| **7** | IN4 | 4 | `CH4` | `▼` |
 
 ### 2.2 Contatos dos relés ligados às teclas
 
@@ -73,10 +77,10 @@ ele simplesmente faz a mesma conexão elétrica que o botão faz quando é press
 
 | Relé | `COM` | `NO` |
 |---|---|---|
-| 1 (`*`) | terminal 1 da tecla `*` | terminal 2 da tecla `*` |
-| 2 (`▲`) | terminal comum de `▲/▼` | terminal exclusivo de `▲` |
-| 3 (`▼`) | terminal comum de `▲/▼` — mesmo ponto usado pelo relé 2 | terminal exclusivo de `▼` |
-| 4 (`ENTER`) | terminal 1 da tecla `ENTER` | terminal 2 da tecla `ENTER` |
+| 1 (`*`) | +5 V (outro terminal da tecla `*`) | `CH1` |
+| 2 (`ENTER`) | +5 V (outro terminal da tecla `ENTER`) | `CH2` |
+| 3 (`▲`) | +5 V (comum `▲/▼`) | `CH3` |
+| 4 (`▼`) | +5 V (comum `▲/▼`) — mesmo ponto usado pelo relé 3 | `CH4` |
 
 Foi confirmado por teste de continuidade que `▲` e `▼` têm esta estrutura:
 
@@ -88,14 +92,14 @@ terminal exclusivo de ▲ ── botão ▲ ──┐
 terminal exclusivo de ▼ ── botão ▼ ──┘
 ```
 
-Assim, a ligação dos relés 2 e 3 fica:
+Assim, a ligação dos relés 3 e 4 fica:
 
 ```text
-terminal comum de ▲/▼ ───── COM relé 2
-                      └──── COM relé 3
+terminal comum de ▲/▼ ───── COM relé 3
+                      └──── COM relé 4
 
-terminal exclusivo de ▲ ─── NO relé 2
-terminal exclusivo de ▼ ─── NO relé 3
+terminal exclusivo de ▲ ─── NO relé 3
+terminal exclusivo de ▼ ─── NO relé 4
 ```
 
 O mesmo fio do terminal comum pode ser bifurcado para os dois bornes `COM`.
@@ -103,12 +107,71 @@ O mesmo fio do terminal comum pode ser bifurcado para os dois bornes `COM`.
 Total: **7 fios únicos** entre o painel do C404 e os contatos dos quatro relés.
 Os contatos do relé não têm polaridade.
 
+### 2.3 Onde soldar: pontos `CH1…CH4`, nunca nos terminais das chaves
+
+Confirmado em bancada (2026-09-24): os pontos `CH1`, `CH2`, `CH3` e `CH4` da placa do C404 são
+as **linhas das quatro teclas** (CH = chave), no mesmo nó elétrico do terminal "quente" de cada
+chave. Solde o fio `NO` de cada relé no `CH` correspondente, ou em uma via da mesma trilha, e
+não nas pernas da chave tátil.
+
+Motivo: o calor do ferro nos terminais deformou o mecanismo das chaves; depois de um toque
+elas continuavam fechadas por dentro e o C404 fazia auto-repetição (SP descendo sem parar,
+entrando em menu sozinho). Isso aconteceu com todos os fios já retirados, e só o toque na
+tecla disparava o defeito.
+
+Correspondência medida por continuidade (C404 fora da tomada), 2026-09-24:
+
+| Ponto | Tecla | Outro terminal da tecla | Relé | `NO` do relé | `COM` do relé | GPIO do relé |
+|---|---|---|---|---|---|---|
+| `CH1` | `*` | +5 V do C404 | 1 | `CH1` | +5 V | 4 |
+| `CH2` | `ENTER` | +5 V do C404 | 2 | `CH2` | +5 V | 5 |
+| `CH3` | `▲` | +5 V (comum `▲/▼`) | 3 | `CH3` | +5 V | 6 |
+| `CH4` | `▼` | +5 V (comum `▲/▼`) | 4 | `CH4` | +5 V | 7 |
+
+Como funcionam as teclas: cada `CH` tem um pull-down no C404 (os ~10 kΩ medidos com a
+tecla solta) e a tecla liga o `CH` ao +5 V. **Tecla solta = `CH` em ~0 V; apertada = 5 V.**
+O relé repete isso: `COM` no lado +5 V da tecla, `NO` no `CH`.
+
+Se o lado +5 V das quatro teclas for o mesmo nó (confirme com continuidade entre o terminal
++5 V do `*`, do `ENTER` e o comum `▲/▼`), basta **um** fio desse nó até o HW-280, jumpeado
+nos quatro `COM`: são 5 fios ao painel em vez de 7. Se não for o mesmo nó, mantenha um fio
+por tecla como na §2.2.
+
+Este +5 V é o do próprio C404, mas passa só pelo contato do relé, igual ao botão: nada do
+ESP32 ou da fonte dedicada é ligado a ele. Nunca ligue esse ponto ao `5V` do ESP32.
+
+Nos `CH` só entram o contato do relé (aberto em repouso), os pull-downs de correção abaixo e,
+se usado, o sensoriamento de alta impedância da §4. Não ligue divisores de display neles.
+
+**Pull-downs de correção (2026-09-24; removidos em 2026-09-25, ficam só os originais do C404).** O C404 deste banho tem fuga do +5 V para os `CH`:
+em repouso eles ficavam entre 1 e 3 V, e o `▼` era lido como apertado. Com **1 kΩ do `CH` ao
+GND do C404** a linha volta a ~0 V. Critério: medindo entre os dois pads da tecla (`CH` ↔
++5 V), tecla solta deve dar **≥ 4 V**. Quando a tecla ou o relé fecha, o 1 kΩ consome ~5 mA do
++5 V do C404, o que é aceitável. O relé e o sensoriamento continuam funcionando igual.
+
 ---
 
 ## 3. Leitura do display — C404 → divisor → ESP32
 
+> **Montagem adotada em 2026-09-26 (12:40):** segmentos `A…G`, `PD` do **pad do CN2 → 20 kΩ em
+> série → GPIO 8…15, sem resistor para o GND**; `2DISP` → divisor 3,3 k/5,1 k → GPIO 38; `1A…1D`
+> e `1L` **desligados** (o firmware conta as janelas a partir de `2DISP`, `disp_mode = 1`). O
+> aviso abaixo, de ler do lado do PIC, fica como alternativa sem o risco dos picos de 5 V.
+>
+> **Atualização 2026-09-26: os pads `A…G`, `PD` e `1A…1D` do CN2 não servem.** Neles o sinal
+> aceso fica em ~2 V (LED ligado direto ao pad). Os segmentos são lidos na ponta do resistor de
+> 100 Ω do lado do PIC, e os dígitos no resistor de base de Q9–Q13 do lado do PIC, com divisor
+> 3,3 kΩ + **6,8 kΩ**. `2DISP` continua no pad. Mapa da placa e medições em `HARDWARE.md` §3;
+> passo a passo em `MONTAGEM_ETAPAS.md` §2.4. A tabela abaixo continua valendo para os GPIOs;
+> muda só o ponto do C404.
+
+> **Estado em 2026-09-24: seção suspensa.** A primeira montagem ligou os divisores de "dígito"
+> em `CH1…CH4`, que são as teclas (§2.3), e o display nunca foi lido. As linhas de dígito do
+> display ainda não foram identificadas. Não religue esta seção antes da tabela de medição
+> da §3.2 estar preenchida. Preferir o CD74HC4050 aos divisores (HARDWARE.md §3).
+
 O C404 trabalha com sinais de aproximadamente 5 V e os GPIOs do ESP32-S3 não devem receber
-5 V diretamente. Por isso, cada uma das 13 linhas do display passa por um divisor de tensão.
+5 V diretamente. Por isso, cada linha do display passa por um divisor de tensão.
 
 Cada linha usa este mesmo circuito:
 
@@ -133,16 +196,52 @@ Os 26 resistores dos 13 divisores compartilham o mesmo GND do item 1.
 | 6 | `F` | segmento F | → | **13** | `13` |
 | 7 | `G` | segmento G | → | **14** | `14` |
 | 8 | `PD` | ponto decimal | → | **15** | `15` |
-| 9 | `CH1` | dígito 1 | → | **16** | `16` |
-| 10 | `CH2` | dígito 2 | → | **17** | `17` |
-| 11 | `CH3` | dígito 3 | → | **18** | `18` |
-| 12 | `CH4` | dígito 4 | → | **21** | `21` |
-| 13 | `2DISP` | seleção display superior/inferior | → | **38** | `38` |
+| 9 | `1A` | dígito 1 (hipótese 2026-09-25) | → | **16** | `16` |
+| 10 | `1B` | dígito 2 | → | **17** | `17` |
+| 11 | `1C` | dígito 3 | → | **18** | `18` |
+| 12 | `1D` | dígito 4 | → | **21** | `21` |
+| 13 | `2DISP` | seleção display superior/inferior (hipótese) | → | **38** | `38` |
+| 14 | `1L` | varredura dos LEDs (só captura, não decodificado) | → | **39** | `39` |
 | — | `GND` | referência | fio direto | `GND` | `GND` |
 
-Não ligar ao ESP32: `1A`, `1L`, `1D`, `1B`, `1C`, `+5V` e `5VA`.
-Os pontos `1A`, `1L`, `1D`, `1B` e `1C` não tiveram função identificada e não são necessários
-para esta montagem.
+Montagem adotada em 2026-09-25 (sem CD74HC4050 disponível): **divisor 3,3 kΩ série + 5,1 kΩ
+para GND em cada uma das 14 linhas**, como no esquema acima. Regras que passam a valer:
+ESP32 ligado **antes** do C404 e desligado **depois** (com o ESP32 sem alimentação os diodos de
+proteção prendem as entradas perto de 0,6 V e deformam o display); ligar uma linha por vez no
+início e conferir o painel e os `CH` a cada grupo (MONTAGEM_ETAPAS.md §2.3). Se aparecer um
+CD74HC4050, ele substitui os divisores sem mudar os GPIOs.
+
+Não ligar ao ESP32: `CH1`, `CH2`, `CH3`, `CH4` (teclas, §2.3), `+5V` e `5VA`.
+
+Os GPIOs 16, 17, 18 e 21 continuam reservados no firmware para as quatro linhas de dígito;
+muda só o ponto do C404 ligado a eles. Hipótese de trabalho para os pontos restantes:
+`1A, 1B, 1C, 1D` = dígitos do display 1 (A–D), `1L` = LEDs de sinalização, `2DISP` = seleção
+ou habilitação do display 2. Nenhuma delas foi medida.
+
+### 3.2 Medição obrigatória antes de religar
+
+C404 ligado, ESP32 **sem nenhum fio ao C404**, multímetro em tensão DC com a ponta preta no GND
+do C404 (nunca continuidade com o C404 energizado):
+
+| Ponto | DC parado | Reage a alguma tecla? | Frequência (Hz) | Conclusão |
+|---|---|---|---|---|
+| `1A` | | | | |
+| `1B` | | | | |
+| `1C` | | | | |
+| `1D` | | | | |
+| `1L` | | | | |
+| `2DISP` | | | | |
+| `A` | | | | |
+| `PD` | | | | |
+
+Linha de dígito ou segmento: média intermediária (ex.: 1–4 V), frequência de centenas de Hz
+a alguns kHz, não reage a teclas. Linha de tecla: ~5 V parada, cai a ~0 V com uma tecla.
+Se algum segmento reagir a tecla, o teclado é varrido pelas linhas do display e qualquer carga
+nelas volta a gerar toques fantasmas: nesse caso só o CD74HC4050 serve.
+
+Regra permanente: **nunca energize o C404 com os divisores ligados e o ESP32 desligado.**
+O ESP32 sem alimentação prende cada entrada perto de 0,6 V pelos diodos de proteção e deforma
+o display (segmentos errados, "Y" no visor superior).
 
 ### 3.1 Ordem assumida dos segmentos
 
@@ -176,11 +275,11 @@ Ela serve para:
 
 Não é necessário adicionar outro fio até a placa das teclas do C404.
 
-Os fios dos terminais exclusivos de `▲` e `▼` já chegam aos bornes `NO` dos relés 2 e 3:
+Os fios dos terminais exclusivos de `▲` e `▼` já chegam aos bornes `NO` dos relés 3 e 4:
 
 ```text
-terminal exclusivo de ▲ ───── NO do relé 2
-terminal exclusivo de ▼ ───── NO do relé 3
+terminal exclusivo de ▲ ───── NO do relé 3
+terminal exclusivo de ▼ ───── NO do relé 4
 ```
 
 O sensoriamento é retirado desses mesmos bornes `NO`.
@@ -189,11 +288,11 @@ Em outras palavras: em cada `NO` haverá o fio da tecla **e** o resistor de 100 
 sensoriamento.
 
 ```text
-NO relé 2
+NO relé 3
    ├── fio que já vai ao terminal exclusivo de ▲
    └── resistor de 100 kΩ → circuito de leitura do GPIO 2
 
-NO relé 3
+NO relé 4
    ├── fio que já vai ao terminal exclusivo de ▼
    └── resistor de 100 kΩ → circuito de leitura do GPIO 42
 ```
@@ -203,8 +302,10 @@ sensoriamento.
 
 ### 4.2 Divisor usado em cada tecla
 
-O C404 pode manter o terminal exclusivo da tecla próximo de 5 V quando ela está solta.
-O ESP32 não deve receber essa tensão diretamente. Por isso cada tecla usa este divisor:
+O terminal exclusivo da tecla é o próprio `CH` (§2.3): ~0 V com a tecla solta e **5 V com
+ela apertada** (pelo dedo ou pelo relé). O ESP32 não deve receber 5 V diretamente. Por isso
+cada tecla usa este divisor, e o firmware lê a tecla como **ativa em HIGH**
+(`BoardConfig::SenseActiveHigh`):
 
 ```text
 borne NO do relé ──[ 100 kΩ ]──●── GPIO do ESP32
@@ -223,7 +324,7 @@ Ligação completa:
 ```text
                          ▲
 
-terminal exclusivo ▲ ───┬──── NO relé 2
+terminal exclusivo ▲ ───┬──── NO relé 3
                         │
                       100 kΩ
                         │
@@ -236,7 +337,7 @@ terminal exclusivo ▲ ───┬──── NO relé 2
 
                          ▼
 
-terminal exclusivo ▼ ───┬──── NO relé 3
+terminal exclusivo ▼ ───┬──── NO relé 4
                         │
                       100 kΩ
                         │
@@ -249,8 +350,8 @@ terminal exclusivo ▼ ───┬──── NO relé 3
 
 | Tecla | Ponto usado no HW-280 | GPIO ESP32-S3 | Rótulo no DevKit |
 |---|---|---|---|
-| `▲` | relé 2, `NO` | **2** | `2` |
-| `▼` | relé 3, `NO` | **42** | `42` |
+| `▲` | relé 3, `NO` | **2** | `2` |
+| `▼` | relé 4, `NO` | **42** | `42` |
 
 ### 4.3 Configuração dos GPIOs
 
@@ -310,13 +411,14 @@ Resultado esperado:
 
 | Medição | Tecla solta | Tecla pressionada |
 |---|---:|---:|
-| `NO` relé 2 (`▲`) | ~5 V estáveis | ~0 V |
-| `NO` relé 3 (`▼`) | ~5 V estáveis | ~0 V |
-| `COM` de `▲/▼` | ~0 V | ~0 V |
+| `NO` relé 3 (`▲`, `CH3`) | ~0–0,8 V (pull-down) | ~5 V |
+| `NO` relé 4 (`▼`, `CH4`) | ~0–0,8 V (pull-down) | ~5 V |
+| `COM` de `▲/▼` (+5 V) | ~5 V | ~5 V |
 
-Se ocorrer o contrário — `NO` em ~0 V e `COM` em ~5 V — pare. A ligação está invertida em
-relação ao que o sensoriamento pressupõe. Como `▲` e `▼` compartilham o mesmo `COM`, usar o
-lado errado pode tornar as duas teclas indistinguíveis para o ESP32.
+(Corrigido em 2026-09-25: as teclas do C404 são ativas em HIGH; o `CH` fica em ~0 V solto e vai a
+5 V apertado. O firmware lê assim, `BoardConfig::SenseActiveHigh = true`.) Se o `NO` ficar em
+~5 V com a tecla solta, pare: ou o sensoriamento foi ligado ao `COM` (+5 V), que é comum às duas
+setas e as tornaria indistinguíveis, ou o `CH` tem fuga (ver `CURRENT_STATUS.md`).
 
 Se o multímetro mostrar um valor claramente instável ou intermediário em vez de aproximadamente
 5 V estáveis com a tecla solta, o C404 pode estar verificando as teclas por pulsos. Um multímetro
@@ -526,7 +628,7 @@ Faça nesta ordem.
 ```text
                          SENSO UP
 
-NO relé 2 ──[100 kΩ]──●──── GPIO 2
+NO relé 3 ──[100 kΩ]──●──── GPIO 2
                       │
                    [150 kΩ]
                       │
@@ -535,7 +637,7 @@ NO relé 2 ──[100 kΩ]──●──── GPIO 2
 
                         SENSO DOWN
 
-NO relé 3 ──[100 kΩ]──●──── GPIO 42
+NO relé 4 ──[100 kΩ]──●──── GPIO 42
                       │
                    [150 kΩ]
                       │

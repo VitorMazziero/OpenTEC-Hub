@@ -32,6 +32,9 @@ Decide-se:
 
 ## G3b — Auto-repetição das setas (dimensiona o hold)
 
+Parcial (2026-09-26, observado no painel): passo imediato, ~0,5 s de espera, ~10 passos/s
+(1 °C/s), sem aceleração relatada. Falta medir a cauda após soltar, com o display lido.
+
 Com o display já legível (G6) ou, antes disso, olhando o painel: `{"key":"up","hold_ms":2000}`
 e depois 5000 e 10000, anotando quanto o SP andou em cada um. Decide-se:
 
@@ -65,9 +68,12 @@ Iniciar um `setpoint` longo, resetar o ESP32. Após o boot `/status` deve mostra
 
 ## G6 — Caracterização do display (HARDWARE.md §3)
 
-1. Osciloscópio em `CH1`…`CH4`, `2DISP`, `A` e `PD` (referência no GND do C404): registrar
-   tensão, polaridade, frequência e a ordem segmento/dígito. Anexar as capturas em
-   `tests/evidence/display/`.
+Parcial (2026-09-26): leitura por janelas de `2DISP` (`disp_mode=1`) decodifica PV e SP; itens
+1–3 abaixo substituídos pelo `MONTAGEM_ETAPAS.md` §2.5. Faltam 4–6.
+
+1. Preencher a tabela de WIRING.md §3.2 (`1A…1D`, `1L`, `2DISP`, `A`, `PD`; **não** `CH1…CH4`,
+   que são as teclas) e, com osciloscópio, registrar tensão, polaridade, frequência e a ordem
+   segmento/dígito. Anexar as capturas em `tests/evidence/display/`.
 2. Ligar os 13 divisores. `GET /display`: `alive:true` e `frames` crescendo.
 3. Ajustar `disp_seg_low`, `disp_dig_low`, `disp_seg_lead` até `text` reproduzir o painel.
    Se os oito caracteres saírem embaralhados, corrigir `PvDigits/SpDigits` no `BoardConfig.h`.

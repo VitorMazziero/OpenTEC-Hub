@@ -16,6 +16,8 @@
 | `/config`, `/command` | POST JSON | Ações e configuração (§3, §4); mesmo parser |
 | `/setpoint?sp=31.5` | POST | Atalho para `{"setpoint":31.5}` (aceita também corpo JSON) |
 | `/display` | GET | Leitor de display: `alive`, `frames`, `text`, `pv`, `sp`, `sp_live`, `live_frames`, `raw[8]` |
+| `/scope?pin=8&n=2000&us=40` | GET | Diagnóstico: osciloscópio de um canal pelo ADC1 (GPIO 1–10 exceto 3). `n` 10–4000, `us` 20–10000, `n × us` ≤ 2 s; recusa com `busy` se houver toques em curso. Resposta: `mv` (tensão no GPIO em mV, antes do divisor ser descontado), `period_us`, `elapsed_us`. O pino volta a entrada digital no fim |
+| `/capture?n=2000&us=10` | GET | Diagnóstico: analisador lógico das 14 linhas do display. `n` amostras (10–8000) a cada `us` µs (2–1000; `n × us` ≤ 1 s); níveis elétricos crus, sem polaridade. Resposta: `bits` (ordem A…G, PD, 1A…1D, 2DISP, 1L), `period_us`, `elapsed_us`, `data` (4 dígitos hex por amostra). Bloqueia o laço durante a captura: usar só com o banho parado |
 | `/ui` | GET | Página HTML mínima para celular |
 | `/update` | GET/POST | OTA (mesma página e regras dos outros nós: só `.ino.bin`) |
 
@@ -133,7 +135,14 @@ e reage ao desvio `display_sp − sp_target` conforme o modo:
 | Modo | Mudança manual no painel | O nó faz |
 |---|---|---|
 | `manual` (padrão) | Permitida | Só reporta: `deviation_c` em `/status` e `dev` no push ao Hub. `sp_shadow` segue o painel; `sp_target` fica |
-| `auto` | "Não permitida": revertida | O guarda espera o painel **parar** — display estável e nenhuma tecla manual pressionada por `guard_delay_ms` (5 s) — e executa `{"setpoint": sp_target}` com a sequência normal (§3.1, com hold). Reverte quantas vezes for preciso |
+| `auto` | "Não permitida": revertida | O guarda só **arma** depois de um toque manual em `▲`/`▼` visto pelo sensoriamento. Armado, espera as teclas soltas por `guard_delay_ms` (5 s), confirma o **mesmo** valor desviado em duas avaliações seguidas (uma a cada `guard_check_ms`, 10 s) e executa `{"setpoint": sp_target}` com a sequência normal (§3.1, com hold). Depois de corrigir, desarma |
+
+**Desvio sem toque não é corrigido (2026-09-26).** Um valor diferente no display sem toque
+manual é tratado como leitura ruim: só aparece em `guard_ignored` (e no `/log`). Motivo: com
+o guarda antigo, uma leitura errada de 0,1 °C disparava correções reais e o SP oscilou
+35,0 ↔ 34,9 até o guarda se suspender. Consequência: o modo `auto` exige o sensoriamento de
+`▲`/`▼` (`sense_enabled = 1`); sem ele o guarda nunca arma. `/status` mostra `guard_armed`.
+Entrar no modo `auto` pelo gesto `▲`+`▼` já arma (o par pode ter mexido no SP).
 
 O guarda só age no modo display (`sp_source = 1`); no modo sombra não há como ver a mudança,
 e o modo `auto` fica em `guard = watch` sem agir. Ele se **suspende** (`guard = suspended`)
@@ -142,7 +151,7 @@ após 3 correções seguidas com erro ou quando o operador aborta uma correção
 troca de modo. Um novo `setpoint` comandado passa a ser o alvo que o guarda defende.
 
 **Troca de modo pelo painel:** `▲`+`▼` pressionadas juntas, fisicamente, por `mode_hold_ms`
-(3 s) alternam o modo — uma troca por pressionamento, solte antes de repetir. Só o
+(1 s) alternam o modo — uma troca por pressionamento, solte antes de repetir. Só o
 sensoriamento das teclas enxerga o gesto (`sense_enabled = 1`, `sense_mask` com bits 1 e 2;
 WIRING.md §3b); `arrows_held_ms` mostra a contagem. O manual do C404 não atribui função ao
 par de setas; o que o C404 faz com as duas pressionadas é o gate G7b do `VALIDATION.md` — se
@@ -178,7 +187,15 @@ de responder, portanto um Hub desligado nunca prende o banho.
 | `sense_enabled` | 0 | 0–1 | Leitura das teclas |
 | `sense_mask` | 6 | 0–15 | Linhas de sensoriamento ligadas: bit0 `*`, bit1 `▲`, bit2 `▼`, bit3 `ENTER` (6 = só as setas, montagem atual) |
 | `hub_enabled` | 0 | 0–1 | STA + push para o Hub |
-| `disp_seg_low`, `disp_dig_low`, `disp_seg_lead` | 1, 1, 0 | 0–1 | Polaridade e fase do display (HARDWARE.md §3) |
+| `disp_mode` | 1 | 0–1 | Leitor do display: 0 = linhas de dígito (ISR em `1A…1D`); 1 = janelas de ~1 ms contadas a partir das bordas de `2DISP`, sem linhas de dígito (C404 deste banho, `HARDWARE.md` §3) |
+| `disp_slot_us` | 1023 | 200–5000 | Duração de uma janela de dígito no modo 1 (medido ~1020–1025 µs) |
+| `disp_sp_bank` | 0 | 0–1 | Nível de `2DISP` em que o display do SP é varrido, modo 1 |
+| `disp_decimals` | 1 | 0–3 | Casas decimais do C404 (`d.P`). Leitura sem o ponto nessa casa é inválida (`display_pv`/`display_sp` = `null`) |
+
+Proteções da leitura (2026-09-26): `display_sp` fora de `sp_min`–`sp_max` é inválido (nenhuma
+sequência parte dele nem a sombra o segue); durante um hold, um salto maior que 20 passos
+entre leituras solta a tecla e desliga o hold daquela sequência.
+| `disp_seg_low`, `disp_dig_low`, `disp_seg_lead` | 0, 1, 0 | 0–1 | Polaridade dos segmentos (0 = aceso em HIGH, montagem com 20 kΩ em série) e, só no modo 0, polaridade e fase dos dígitos (HARDWARE.md §3) |
 | `home_margin` | 20 | 0–1000 | Toques extras de `▼` no `home` |
 | `send_period` | 1000 | 100–60000 | Período do push ao Hub (ms) |
 | `hold_enabled` | 1 | 0–1 | Tecla mantida com o display fechando a malha (só com `sp_source = 1`) |
@@ -187,8 +204,9 @@ de responder, portanto um Hub desligado nunca prende o banho.
 | `hold_lag_ms` | 80 | 0–2000 | Atraso display → decisão → relé aberto, compensado pela taxa medida |
 | `hold_settle_ms` | 600 | 0–10000 | Espera após soltar antes de reler o display (> 300 ms do filtro) |
 | `hold_stall_ms` | 2500 | 200–20000 | Display parado com a tecla mantida por este tempo = soltar (sem auto-repetição) |
-| `mode_hold_ms` | 3000 | 0–20000 | `▲`+`▼` (ou o botão da caixa) mantidas por este tempo alternam o modo; 0 desliga o gesto |
+| `mode_hold_ms` | 1000 | 0–20000 | `▲`+`▼` (ou o botão da caixa) mantidas por este tempo alternam o modo; 0 desliga o gesto |
 | `guard_delay_ms` | 5000 | 1000–60000 | Modo `auto`: painel parado e teclas soltas por este tempo antes de reverter |
+| `guard_check_ms` | 10000 | 100–60000 | Modo automático: intervalo entre avaliações do display contra o alvo. O leitor do display continua contínuo; só a decisão de reverter é espaçada. Reação a uma mudança manual: entre 1 e 2 intervalos |
 
 Configuração é recusada (`busy`) com sequência em andamento. Persistida em `bath_cfg`;
 o estado (`sp_shadow`, `sp_known`, `seq_busy`, `sp_target`, `mode`) em `bath_st`.

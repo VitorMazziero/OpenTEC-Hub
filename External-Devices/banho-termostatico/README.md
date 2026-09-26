@@ -23,7 +23,7 @@ terminando a toques; ver `docs/PROTOCOL.md` §3.1.
 Como os relés ficam em paralelo com as teclas, o operador continua podendo mudar o SP no
 painel. Dois modos (`docs/PROTOCOL.md` §3.2): **manual** só reporta o desvio em relação ao
 último SP comandado; **automático** reverte a mudança assim que o painel fica parado. O modo
-troca pelo app, pelo Hub ou mantendo `▲`+`▼` por 3 s no painel (com o sensoriamento das setas,
+troca pelo app, pelo Hub ou mantendo `▲`+`▼` por 1 s no painel (com o sensoriamento das setas,
 `docs/WIRING.md` §3b).
 
 Duas fontes da verdade para o setpoint, selecionáveis por `sp_source`:

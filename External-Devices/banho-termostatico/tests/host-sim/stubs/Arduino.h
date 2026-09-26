@@ -14,6 +14,7 @@
 #define INPUT 0
 #define OUTPUT 1
 #define INPUT_PULLUP 2
+#define INPUT_PULLDOWN 3
 #define IRAM_ATTR
 #define PROGMEM
 
@@ -65,6 +66,7 @@ struct SerialClass {
     if (!g_serialVerbose) return 0;
     va_list ap; va_start(ap, fmt); int n = vprintf(fmt, ap); va_end(ap); return n;
   }
+  void print(const char* s) { if (g_serialVerbose) ::printf("%s", s); }
   void println(const char* s) { if (g_serialVerbose) ::printf("%s\n", s); }
   void println(const String& s) { println(s.c_str()); }
   void println() { if (g_serialVerbose) ::printf("\n"); }

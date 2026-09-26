@@ -32,8 +32,11 @@ uint32_t g_total = 0;
 uint32_t g_unconfirmed = 0;
 void (*g_onPress)(Key) = nullptr;
 
+constexpr int RELAY_ON = BoardConfig::RelayActiveLow ? LOW : HIGH;
+constexpr int RELAY_OFF = BoardConfig::RelayActiveLow ? HIGH : LOW;
+
 inline void relayWrite(Key key, bool closed) {
-  digitalWrite(RELAY_PINS[key], closed ? LOW : HIGH);
+  digitalWrite(RELAY_PINS[key], closed ? RELAY_ON : RELAY_OFF);
 }
 
 void releaseAll() {
@@ -71,13 +74,13 @@ void openActiveRelay(unsigned long now, bool notify) {
 }  // namespace
 
 void keypadInit() {
-  // O registrador de saida do ESP32 parte em 0: configurar OUTPUT antes de escrever
-  // HIGH fecharia os quatro reles por alguns microssegundos a cada boot. A escrita
-  // precede o pinMode de proposito.
+  // O registrador de saida do ESP32 parte em 0: com reles ativos em LOW, configurar
+  // OUTPUT antes de escrever o nivel de repouso fecharia os quatro por alguns
+  // microssegundos a cada boot. A escrita precede o pinMode de proposito.
   for (int i = 0; i < KEY_COUNT; ++i) {
-    digitalWrite(RELAY_PINS[i], HIGH);
+    digitalWrite(RELAY_PINS[i], RELAY_OFF);
     pinMode(RELAY_PINS[i], OUTPUT);
-    digitalWrite(RELAY_PINS[i], HIGH);
+    digitalWrite(RELAY_PINS[i], RELAY_OFF);
   }
 }
 

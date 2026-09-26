@@ -3,13 +3,17 @@
 #include <Arduino.h>
 #include <Update.h>
 #include <WiFi.h>
+#include <esp_timer.h>
 
 #include "../config/BoardConfig.h"
 #include "../core/AppContext.h"
+#include "../core/EventLog.h"
 #include "../display/DisplayReader.h"
+#include "../keypad/KeyPresser.h"
 #include "../network/HubLink.h"
 #include "../protocol/ConfigCodec.h"
 #include "../setpoint/SetpointGuard.h"
+#include "../setpoint/SetpointManager.h"
 
 namespace {
 
@@ -124,6 +128,8 @@ void handleDisplay() {
   float live;
   json += ",\"sp_live\":" + (displayLiveSp(live) ? String(live, 2) : String("null"));
   json += ",\"live_frames\":" + String(displayLiveFrameCount());
+  json += ",\"mode\":" + String(g_cfg.dispMode);
+  json += ",\"leds\":" + String(displayLedSegments());
   json += ",\"raw\":[";
   for (int i = 0; i < BoardConfig::DigitCount; ++i) {
     if (i) json += ",";
@@ -131,6 +137,90 @@ void handleDisplay() {
   }
   json += "]}";
   sendJson(200, json);
+}
+
+// GET /scope?pin=8&n=2000&us=40 -> osciloscopio de um canal pelo ADC1 (diagnostico da
+// etapa 2: niveis reais das linhas do display, que nao sao 0/5 V). So GPIO 1..10 (ADC1;
+// o ADC2 disputa com o Wi-Fi). O pino volta a entrada digital no fim: 8..10 sao
+// segmentos lidos por registrador, e o 1 (sense de `*`) nao esta ligado.
+void handleScope() {
+  const long pin = server.hasArg("pin") ? server.arg("pin").toInt() : -1;
+  long n = server.hasArg("n") ? server.arg("n").toInt() : 2000;
+  long us = server.hasArg("us") ? server.arg("us").toInt() : 40;
+  if (pin < 1 || pin > 10 || pin == 3 || n < 10 || n > 4000 || us < 20 || us > 10000 ||
+      n * us > 2000000L) {
+    sendJson(400, "{\"ok\":false,\"error\":\"range\"}");
+    return;
+  }
+  if (keypadBusy() || setpointBusy()) {
+    sendJson(409, "{\"ok\":false,\"error\":\"busy\"}");
+    return;
+  }
+  uint16_t* buf = static_cast<uint16_t*>(malloc(n * sizeof(uint16_t)));
+  if (!buf) {
+    sendJson(503, "{\"ok\":false,\"error\":\"no_memory\"}");
+    return;
+  }
+  analogSetPinAttenuation(pin, ADC_11db);
+  const int64_t start = esp_timer_get_time();
+  int64_t next = start;
+  for (long k = 0; k < n; ++k) {
+    while (esp_timer_get_time() < next) {
+    }
+    buf[k] = static_cast<uint16_t>(analogReadMilliVolts(pin));
+    next += us;
+  }
+  const uint32_t elapsed = static_cast<uint32_t>(esp_timer_get_time() - start);
+  pinMode(pin, INPUT);
+  String json;
+  json.reserve(120 + n * 5);
+  json += "{\"ok\":true,\"pin\":" + String(pin) + ",\"n\":" + String(n) +
+          ",\"period_us\":" + String(us) + ",\"elapsed_us\":" + String(elapsed) + ",\"mv\":[";
+  for (long k = 0; k < n; ++k) {
+    if (k) json += ',';
+    json += String(buf[k]);
+  }
+  json += "]}";
+  free(buf);
+  sendJson(200, json);
+}
+
+// GET /capture?n=2000&us=10 -> analisador logico das linhas do display (diagnostico
+// da etapa 2). Limites mantem a captura abaixo de ~1 s e o texto abaixo de ~32 kB.
+void handleCapture() {
+  long n = server.hasArg("n") ? server.arg("n").toInt() : 2000;
+  long us = server.hasArg("us") ? server.arg("us").toInt() : 10;
+  if (n < 10 || n > 8000 || us < 2 || us > 1000 || n * us > 1000000L) {
+    sendJson(400, "{\"ok\":false,\"error\":\"range\"}");
+    return;
+  }
+  uint16_t* buf = static_cast<uint16_t*>(malloc(n * sizeof(uint16_t)));
+  if (!buf) {
+    sendJson(503, "{\"ok\":false,\"error\":\"no_memory\"}");
+    return;
+  }
+  const uint32_t elapsed = displayCapture(buf, static_cast<size_t>(n), static_cast<uint32_t>(us));
+  String json;
+  json.reserve(160 + n * 4);
+  json += "{\"ok\":true,\"n\":" + String(n) + ",\"period_us\":" + String(us) +
+          ",\"elapsed_us\":" + String(elapsed) +
+          ",\"bits\":[\"A\",\"B\",\"C\",\"D\",\"E\",\"F\",\"G\",\"PD\","
+          "\"1A\",\"1B\",\"1C\",\"1D\",\"2DISP\",\"1L\"],\"data\":\"";
+  char hex[5];
+  for (long k = 0; k < n; ++k) {
+    snprintf(hex, sizeof(hex), "%04x", buf[k]);
+    json += hex;
+  }
+  json += "\"}";
+  free(buf);
+  sendJson(200, json);
+}
+
+// GET /log -> ultimas linhas do registro de eventos (texto).
+void handleLog() {
+  static char buf[64 * 146 + 1];
+  eventLogText(buf, sizeof(buf));
+  server.send(200, "text/plain; charset=utf-8", buf);
 }
 
 void handleUi() {
@@ -236,6 +326,9 @@ void setupLocalHttpApi() {
   server.on("/command", HTTP_POST, handleCommand);
   server.on("/setpoint", HTTP_POST, handleSetpoint);
   server.on("/display", HTTP_GET, handleDisplay);
+  server.on("/capture", HTTP_GET, handleCapture);
+  server.on("/scope", HTTP_GET, handleScope);
+  server.on("/log", HTTP_GET, handleLog);
   server.on("/ui", HTTP_GET, handleUi);
   server.on("/update", HTTP_GET, handleOtaPage);
   server.on("/update", HTTP_POST, handleOtaUploadDone, handleOtaChunk);

@@ -1,5 +1,7 @@
 #include "ConfigCodec.h"
 
+#include "../core/EventLog.h"
+
 #include <WiFi.h>
 
 #include "../config/BoardConfig.h"
@@ -70,33 +72,33 @@ constexpr float SP_ABS_MAX = 900.0f;
 bool applyU16(const char* payload, const char* key, uint16_t& target, long minVal, long maxVal, bool& seen) {
   const long value = getJsonValue(payload, key);
   if (!findJsonValueStart(payload, key)) return false;
-  if (value < minVal || value > maxVal) { Serial.printf("[CMD] %s=%ld fora da faixa; ignorado.\n", key, value); return false; }
+  if (value < minVal || value > maxVal) { logPrintf("[CMD] %s=%ld fora da faixa; ignorado.\n", key, value); return false; }
   seen = true;
   if (static_cast<uint16_t>(value) == target) return false;
   target = static_cast<uint16_t>(value);
-  Serial.printf("[CMD] %s = %u\n", key, target);
+  logPrintf("[CMD] %s = %u\n", key, target);
   return true;
 }
 
 bool applyU8(const char* payload, const char* key, uint8_t& target, long minVal, long maxVal, bool& seen) {
   if (!findJsonValueStart(payload, key)) return false;
   const long value = getJsonValue(payload, key);
-  if (value < minVal || value > maxVal) { Serial.printf("[CMD] %s=%ld fora da faixa; ignorado.\n", key, value); return false; }
+  if (value < minVal || value > maxVal) { logPrintf("[CMD] %s=%ld fora da faixa; ignorado.\n", key, value); return false; }
   seen = true;
   if (static_cast<uint8_t>(value) == target) return false;
   target = static_cast<uint8_t>(value);
-  Serial.printf("[CMD] %s = %u\n", key, target);
+  logPrintf("[CMD] %s = %u\n", key, target);
   return true;
 }
 
 bool applyFloat(const char* payload, const char* key, float& target, float minVal, float maxVal, bool& seen) {
   float value;
   if (!getJsonFloat(payload, key, value)) return false;
-  if (value < minVal || value > maxVal) { Serial.printf("[CMD] %s=%.3f fora da faixa; ignorado.\n", key, value); return false; }
+  if (value < minVal || value > maxVal) { logPrintf("[CMD] %s=%.3f fora da faixa; ignorado.\n", key, value); return false; }
   seen = true;
   if (value == target) return false;
   target = value;
-  Serial.printf("[CMD] %s = %.3f\n", key, target);
+  logPrintf("[CMD] %s = %.3f\n", key, target);
   return true;
 }
 
@@ -230,7 +232,7 @@ bool processCommandImpl(const char* payload, String& reply, CommandSource source
   // podem ser reaplicadas por reentrega: cada toque extra mudaria o SP.
   const long cmdId = getJsonValue(payload, "cmd_id");
   if (cmdId > 0 && static_cast<uint32_t>(cmdId) == g_lastCmdId) {
-    Serial.printf("[CMD] cmd_id=%ld ja aplicado; ignorando reentrega.\n", cmdId);
+    logPrintf("[CMD] cmd_id=%ld ja aplicado; ignorando reentrega.\n", cmdId);
     replyOk(reply, "duplicate");
     return true;
   }
@@ -245,7 +247,7 @@ bool processCommandImpl(const char* payload, String& reply, CommandSource source
     guardSetMode(MODE_MANUAL, "reset_nvs");
     saveNvsState(false);
     if (cmdId > 0) g_lastCmdId = static_cast<uint32_t>(cmdId);
-    Serial.println("[CMD] NVS limpa e padroes restaurados.");
+    logPrintln("[CMD] NVS limpa e padroes restaurados.");
     replyOk(reply, "reset_nvs");
     return true;
   }
@@ -277,6 +279,10 @@ bool processCommandImpl(const char* payload, String& reply, CommandSource source
   changed |= applyU8(payload, "disp_seg_low", g_cfg.dispSegLow, 0, 1, seen);
   changed |= applyU8(payload, "disp_dig_low", g_cfg.dispDigLow, 0, 1, seen);
   changed |= applyU8(payload, "disp_seg_lead", g_cfg.dispSegLead, 0, 1, seen);
+  changed |= applyU8(payload, "disp_mode", g_cfg.dispMode, 0, 1, seen);
+  changed |= applyU16(payload, "disp_slot_us", g_cfg.dispSlotUs, 200, 5000, seen);
+  changed |= applyU8(payload, "disp_sp_bank", g_cfg.dispSpBank, 0, 1, seen);
+  changed |= applyU8(payload, "disp_decimals", g_cfg.dispDecimals, 0, 3, seen);
   changed |= applyU16(payload, "home_margin", g_cfg.homeMargin, 0, 1000, seen);
   changed |= applyU8(payload, "hold_enabled", g_cfg.holdEnabled, 0, 1, seen);
   changed |= applyU16(payload, "hold_min_steps", g_cfg.holdMinSteps, 1, 1000, seen);
@@ -286,6 +292,7 @@ bool processCommandImpl(const char* payload, String& reply, CommandSource source
   changed |= applyU16(payload, "hold_stall_ms", g_cfg.holdStallMs, 200, 20000, seen);
   changed |= applyU16(payload, "mode_hold_ms", g_cfg.modeHoldMs, 0, 20000, seen);
   changed |= applyU16(payload, "guard_delay_ms", g_cfg.guardDelayMs, 1000, 60000, seen);
+  changed |= applyU16(payload, "guard_check_ms", g_cfg.guardCheckMs, 100, 60000, seen);
   {
     const long v = getJsonValue(payload, "send_period");
     if (findJsonValueStart(payload, "send_period") && v >= PERIOD_MIN_MS && v <= PERIOD_MAX_MS) {
@@ -296,7 +303,7 @@ bool processCommandImpl(const char* payload, String& reply, CommandSource source
 
   if (g_cfg.spMin >= g_cfg.spMax) {
     // Faixa invertida deixaria todo pedido fora de faixa; restaura a anterior.
-    Serial.println("[CMD] sp_min >= sp_max; faixa recusada.");
+    logPrintln("[CMD] sp_min >= sp_max; faixa recusada.");
     loadNvsConfig();
     replyError(reply, "sp_range");
     return true;
@@ -343,25 +350,27 @@ bool processCommand(const char* payload, String& reply, CommandSource source) {
 }
 
 String getConfigAsJson() {
-  char buf[660];
+  char buf[760];
   snprintf(buf, sizeof(buf),
            "{\"press_ms\":%u,\"gap_ms\":%u,\"menu_ms\":%u,\"settle_ms\":%u,\"step_c\":%.3f,"
            "\"sp_min\":%.2f,\"sp_max\":%.2f,\"enter_key\":%u,\"confirm_key\":%u,\"sp_source\":%u,"
            "\"sense_enabled\":%u,\"sense_mask\":%u,\"hub_enabled\":%u,\"disp_seg_low\":%u,\"disp_dig_low\":%u,"
-           "\"disp_seg_lead\":%u,\"home_margin\":%u,\"send_period\":%lu,"
+           "\"disp_seg_lead\":%u,\"disp_mode\":%u,\"disp_slot_us\":%u,\"disp_sp_bank\":%u,\"disp_decimals\":%u,"
+           "\"home_margin\":%u,\"send_period\":%lu,"
            "\"hold_enabled\":%u,\"hold_min_steps\":%u,\"hold_stop_steps\":%u,\"hold_lag_ms\":%u,"
-           "\"hold_settle_ms\":%u,\"hold_stall_ms\":%u,\"mode_hold_ms\":%u,\"guard_delay_ms\":%u}",
+           "\"hold_settle_ms\":%u,\"hold_stall_ms\":%u,\"mode_hold_ms\":%u,\"guard_delay_ms\":%u,\"guard_check_ms\":%u}",
            g_cfg.pressMs, g_cfg.gapMs, g_cfg.menuMs, g_cfg.settleMs, g_cfg.stepC,
            g_cfg.spMin, g_cfg.spMax, g_cfg.enterKey, g_cfg.confirmKey, g_cfg.spSource,
            g_cfg.senseEnabled, g_cfg.senseMask, g_cfg.hubEnabled, g_cfg.dispSegLow, g_cfg.dispDigLow,
-           g_cfg.dispSegLead, g_cfg.homeMargin, static_cast<unsigned long>(g_cfg.sendPeriodMs),
+           g_cfg.dispSegLead, g_cfg.dispMode, g_cfg.dispSlotUs, g_cfg.dispSpBank, g_cfg.dispDecimals,
+           g_cfg.homeMargin, static_cast<unsigned long>(g_cfg.sendPeriodMs),
            g_cfg.holdEnabled, g_cfg.holdMinSteps, g_cfg.holdStopSteps, g_cfg.holdLagMs,
-           g_cfg.holdSettleMs, g_cfg.holdStallMs, g_cfg.modeHoldMs, g_cfg.guardDelayMs);
+           g_cfg.holdSettleMs, g_cfg.holdStallMs, g_cfg.modeHoldMs, g_cfg.guardDelayMs, g_cfg.guardCheckMs);
   return String(buf);
 }
 
 String getStatusAsJson() {
-  char buf[980];
+  char buf[1060];
   const unsigned long nowMs = millis();
   const bool pvOk = displayPvValid();
   const bool spOk = displaySpValid();
@@ -369,7 +378,7 @@ String getStatusAsJson() {
   const bool devOk = guardDeviation(deviation);
   snprintf(buf, sizeof(buf),
            "{\"device\":\"%s\",\"version\":\"%s\",\"uptime_s\":%lu,"
-           "\"mode\":\"%s\",\"guard\":\"%s\",\"deviation_c\":%s,\"guard_corrections\":%lu,\"arrows_held_ms\":%lu,"
+           "\"mode\":\"%s\",\"guard\":\"%s\",\"deviation_c\":%s,\"guard_corrections\":%lu,\"guard_armed\":%s,\"guard_ignored\":%lu,\"arrows_held_ms\":%lu,"
            "\"sp_shadow\":%.2f,\"sp_known\":%s,\"sp_target\":%.2f,\"sp_source\":%u,"
            "\"seq_state\":\"%s\",\"seq_kind\":\"%s\",\"seq_phase\":\"%s\",\"seq_error\":\"%s\","
            "\"presses_done\":%lu,\"presses_total\":%lu,\"presses_unconfirmed\":%lu,"
@@ -381,7 +390,8 @@ String getStatusAsJson() {
            BoardConfig::DeviceKey, BoardConfig::FirmwareTag,
            static_cast<unsigned long>(millis() / 1000),
            modeName(g_mode), guardStateName(), devOk ? String(deviation, 2).c_str() : "null",
-           static_cast<unsigned long>(guardCorrections()), keySenseArrowsHeldMs(millis()),
+           static_cast<unsigned long>(guardCorrections()), guardArmed() ? "true" : "false",
+           static_cast<unsigned long>(guardIgnored()), keySenseArrowsHeldMs(millis()),
            g_spShadow, g_spKnown ? "true" : "false", g_spTarget, g_cfg.spSource,
            setpointStateName(), setpointKindName(), setpointPhaseName(), setpointLastError().c_str(),
            static_cast<unsigned long>(keypadPressesDone()),

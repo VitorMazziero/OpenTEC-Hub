@@ -1,5 +1,7 @@
 #include "SetpointManager.h"
 
+#include "../core/EventLog.h"
+
 #include <math.h>
 
 #include "../display/DisplayReader.h"
@@ -31,6 +33,7 @@ constexpr uint32_t HOLD_CAP_EXTRA_MS = 5000;
 // Taxa maxima admitida na estimativa: acima disso e leitura errada, nao o C404.
 constexpr float HOLD_RATE_CAP_SPS = 500.0f;
 constexpr uint32_t RAW_HOLD_MAX_MS = 20000;
+constexpr float HOLD_JUMP_STEPS = 20.0f;
 
 SeqState g_state = SEQ_IDLE;
 SeqKind g_kind = KIND_NONE;
@@ -103,7 +106,7 @@ void finishSequence(SeqState finalState, const char* err) {
   g_phase = PHASE_NONE;
   g_lastError = err ? err : "";
   saveNvsState(false);
-  Serial.printf("[SP] Sequencia %s terminou: %s%s%s (sombra=%.2f, conhecido=%d, holds=%u, correcoes=%u)\n",
+  logPrintf("[SP] Sequencia %s terminou: %s%s%s (sombra=%.2f, conhecido=%d, holds=%u, correcoes=%u)\n",
                 setpointKindName(), setpointStateName(),
                 g_lastError.length() ? " - " : "", g_lastError.c_str(), g_spShadow, g_spKnown,
                 g_holdRounds, g_corrections);
@@ -190,12 +193,12 @@ void startHold(long remaining, unsigned long now) {
   g_holdChanges = 0;
   g_holdRate = 0.0f;
   ++g_holdRounds;
-  Serial.printf("[SP] Hold %s: faltam %ld toque(s) (rodada %u, teto %lu ms)\n",
+  logPrintf("[SP] Hold %s: faltam %ld toque(s) (rodada %u, teto %lu ms)\n",
                 keyName(key), distance, g_holdRounds, static_cast<unsigned long>(cap));
 }
 
 void endHold(const char* why, unsigned long now) {
-  Serial.printf("[SP] Solta apos %lu ms (%s): sombra=%.2f alvo=%.2f taxa=%.1f toques/s\n",
+  logPrintf("[SP] Solta apos %lu ms (%s): sombra=%.2f alvo=%.2f taxa=%.1f toques/s\n",
                 keypadHoldMs(now), why, g_spShadow, g_spTarget, g_holdRate);
   keypadRelease();
   g_phase = PHASE_HOLD_SETTLE;
@@ -209,7 +212,7 @@ void serviceHold(unsigned long now) {
   if (!keypadHolding()) {
     // Ainda na fila (o motor pega o passo na proxima volta) ou solto pelo teto.
     if (keypadBusy() && now - g_phaseSinceMs < 100) return;
-    Serial.println("[SP] Hold encerrado pelo teto do motor.");
+    logPrintln("[SP] Hold encerrado pelo teto do motor.");
     g_phase = PHASE_HOLD_SETTLE;
     g_phaseSinceMs = now;
     return;
@@ -218,6 +221,13 @@ void serviceHold(unsigned long now) {
   float sp;
   if (displayLiveSp(sp)) {
     g_holdBlindSinceMs = 0;
+    // A auto-repeticao anda ~1 passo por varredura do display; um salto maior que
+    // HOLD_JUMP_STEPS e leitura errada (digito ou ponto mal lido), nao movimento.
+    if (fabsf(sp - g_holdLastSp) > g_cfg.stepC * HOLD_JUMP_STEPS) {
+      g_holdDisabled = true;
+      endHold("salto na leitura do display", now);
+      return;
+    }
     if (fabsf(sp - g_holdLastSp) > g_cfg.stepC * 0.5f) {
       // A primeira mudanca e o toque em si, nao uma repeticao: fica fora da taxa.
       const unsigned long dt = now - g_holdLastChangeMs;
@@ -276,7 +286,7 @@ void planNextLeg(unsigned long now) {
   if (!enqueuePresses(remaining) || !enqueueRole(g_cfg.confirmKey, 0)) { failQueue(); return; }
   g_phase = PHASE_PRESSES;
   g_phaseSinceMs = now;
-  Serial.printf("[SP] Perna a toques: %ld de %s (sombra %.2f -> alvo %.2f)\n",
+  logPrintf("[SP] Perna a toques: %ld de %s (sombra %.2f -> alvo %.2f)\n",
                 labs(remaining), remaining >= 0 ? "up" : "down", g_spShadow, g_spTarget);
 }
 
@@ -293,7 +303,7 @@ void finalizeSetpoint(unsigned long now) {
     if (residual != 0) {
       if (g_corrections < MAX_CORRECTIONS && labs(residual) <= MAX_CORRECTION_STEPS) {
         ++g_corrections;
-        Serial.printf("[SP] Display em %.2f, alvo %.2f: correcao %u (%ld toque(s))\n",
+        logPrintf("[SP] Display em %.2f, alvo %.2f: correcao %u (%ld toque(s))\n",
                       g_spShadow, g_spTarget, g_corrections, residual);
         g_state = SEQ_RUNNING;
         g_phase = PHASE_ENTER;
@@ -363,7 +373,7 @@ bool setpointRequestAbsolute(float sp, String& err) {
     g_phase = PHASE_NONE;
     g_lastError = "";
     g_state = SEQ_DONE;
-    Serial.printf("[SP] Alvo %.2f ja vigente; nada a fazer.\n", target);
+    logPrintf("[SP] Alvo %.2f ja vigente; nada a fazer.\n", target);
     return true;
   }
 
@@ -379,7 +389,7 @@ bool setpointRequestAbsolute(float sp, String& err) {
     err = "queue_full";
     return false;
   }
-  Serial.printf("[SP] %.2f -> %.2f: %ld toque(s) de %s%s\n", base, target, labs(presses),
+  logPrintf("[SP] %.2f -> %.2f: %ld toque(s) de %s%s\n", base, target, labs(presses),
                 presses > 0 ? "up" : "down", g_planHold ? " (com hold)" : "");
   return true;
 }
@@ -400,7 +410,7 @@ bool setpointSync(float sp, String& err) {
   g_phase = PHASE_NONE;
   g_lastError = "";
   saveNvsState(false);
-  Serial.printf("[SP] Sombra sincronizada em %.2f\n", g_spShadow);
+  logPrintf("[SP] Sombra sincronizada em %.2f\n", g_spShadow);
   return true;
 }
 
@@ -432,7 +442,7 @@ bool setpointHome(bool hasTarget, float target, String& err) {
     err = "queue_full";
     return false;
   }
-  Serial.printf("[SP] Home: %ld toques de down, depois %ld de up (alvo %.2f)\n", span, up, g_spTarget);
+  logPrintf("[SP] Home: %ld toques de down, depois %ld de up (alvo %.2f)\n", span, up, g_spTarget);
   return true;
 }
 
@@ -449,7 +459,7 @@ bool setpointRawPress(Key key, uint16_t count, String& err) {
     err = "queue_full";
     return false;
   }
-  Serial.printf("[SP] Toque cru: %s x%u\n", keyName(key), count);
+  logPrintf("[SP] Toque cru: %s x%u\n", keyName(key), count);
   return true;
 }
 
@@ -467,7 +477,7 @@ bool setpointRawHold(Key key, uint32_t holdMs, String& err) {
     err = "queue_full";
     return false;
   }
-  Serial.printf("[SP] Hold cru: %s por %lu ms\n", keyName(key), static_cast<unsigned long>(holdMs));
+  logPrintf("[SP] Hold cru: %s por %lu ms\n", keyName(key), static_cast<unsigned long>(holdMs));
   return true;
 }
 

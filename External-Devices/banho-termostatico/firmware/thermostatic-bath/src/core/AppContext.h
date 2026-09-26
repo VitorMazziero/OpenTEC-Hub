@@ -35,9 +35,20 @@ struct BathConfig {
   uint8_t  senseEnabled = 0;
   uint8_t  senseMask    = 0x06;  // teclas com linha de sensoriamento ligada: bit0 *, bit1 ▲, bit2 ▼, bit3 ENTER
   uint8_t  hubEnabled   = 0;
-  uint8_t  dispSegLow   = 1;     // segmento aceso = nivel LOW
-  uint8_t  dispDigLow   = 1;     // digito ativo = nivel LOW
-  uint8_t  dispSegLead  = 0;     // 1: segmentos mudam antes da linha de digito
+  // Segmento aceso = nivel LOW. Padrao 0: no C404 deste banho o pad do segmento vai ao
+  // GPIO so por 20 k em serie e o aceso chega em ~2,0-2,4 V (HIGH).
+  uint8_t  dispSegLow   = 0;
+  uint8_t  dispDigLow   = 1;     // digito ativo = nivel LOW (so no modo 0)
+  uint8_t  dispSegLead  = 0;     // 1: segmentos mudam antes da linha de digito (so no modo 0)
+  // Modo do leitor: 0 = linhas de digito (ISR nas bordas de 1A..1D); 1 = janelas contadas
+  // a partir das bordas de 2DISP, sem linhas de digito (C404 deste banho: ~1 ms por
+  // janela, 4 janelas num banco e 4 + LEDs no outro).
+  uint8_t  dispMode     = 1;
+  uint16_t dispSlotUs   = 1023;  // duracao de uma janela de digito (us), modo 1
+  uint8_t  dispSpBank   = 0;     // nivel de 2DISP em que o display do SP e varrido, modo 1
+  // Casas decimais que o C404 mostra (d.P). Leitura com o ponto em outro lugar, ou sem
+  // ponto, e invalida: um ponto decimal perdido transformava 23.4 em 234 (2026-09-26).
+  uint8_t  dispDecimals = 1;
   uint16_t homeMargin   = 20;    // toques extras de ▼ no "home"
   uint32_t sendPeriodMs = 1000;
   // Tecla mantida (auto-repeticao do C404) com o display fechando a malha. So no
@@ -51,8 +62,12 @@ struct BathConfig {
   // Modos. O gesto ▲+▼ mantidas (fisicamente, com sensoriamento) alterna o modo;
   // 0 desliga o gesto. O guarda do modo automatico espera o display parado e as
   // teclas soltas por guardDelayMs antes de reverter um desvio.
-  uint16_t modeHoldMs    = 3000;
+  uint16_t modeHoldMs    = 1000;
   uint16_t guardDelayMs  = 5000;
+  // Intervalo entre avaliacoes do guarda (display x alvo). Pedido do operador: 10 s. O
+  // leitor do display continua rodando (a sombra e o /status dependem dele); so a
+  // decisao de reverter fica espacada. Reacao a uma mudanca manual: 10-20 s.
+  uint16_t guardCheckMs  = 10000;
 };
 
 extern WebServer server;

@@ -20,4 +20,11 @@ uint32_t displayFrameCount();
 bool displayLiveSp(float& out);
 uint32_t displayLiveFrameCount();
 uint8_t displayRawSegments(uint8_t digit);
+// Modo 1: padrao da janela dos LEDs de sinalizacao (bits como os segmentos).
+uint8_t displayLedSegments();
+// Captura crua para diagnostico (analisador logico): `n` amostras a cada `periodUs`
+// dos niveis eletricos, sem aplicar polaridade. Bits 0-7 segmentos A..G PD, 8-11
+// linhas de digito, 12 selecao de banco, 13 linha dos LEDs. Devolve o tempo real
+// decorrido em us. Bloqueia o laco pelo tempo da captura (limitado pela rota).
+uint32_t displayCapture(uint16_t* out, size_t n, uint32_t periodUs);
 String displayText();   // digitos decodificados; '?' marca padrao desconhecido

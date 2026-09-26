@@ -16,8 +16,8 @@ próprio `sim.cpp` substitui `DisplayReader` e `NvsConfig` por modelos e aliment
 
 | Modelo | O que reproduz |
 |---|---|
-| C404 | Incremento no toque após 20 ms; auto-repetição após um atraso (0,6 s) a uma taxa (10 toques/s); aceleração opcional (período menor ou passo de 1,0 °C); cauda opcional após soltar; toques discretos perdidos; janela com o display ilegível; limites `in.L`/`in.H`; dedos do operador nas teclas (com as duas setas, `▲` vence — hipótese até G7b) |
-| Sensoriamento | Linhas das teclas em LOW quando o relé ou o operador fecha a tecla; `KeySense.cpp` real faz o resto |
+| C404 | Incremento no toque após 20 ms; auto-repetição após um atraso (0,5 s, medido em 2026-09-26) a uma taxa (10 toques/s, medida); aceleração opcional (período menor ou passo de 1,0 °C); cauda opcional após soltar; toques discretos perdidos; janela com o display ilegível; limites `in.L`/`in.H`; dedos do operador nas teclas (com as duas setas, `▲` vence — hipótese até G7b) |
+| Sensoriamento | Linhas das teclas no nível ativo de `BoardConfig::SenseActiveHigh` (HIGH no C404 real) quando o relé ou o operador fecha a tecla; `KeySense.cpp` real faz o resto |
 | Display | Leitura ao vivo com 20 ms de atraso; leitura estável que só acompanha o valor 350 ms depois de ele parar e, até lá, mantém o valor estável anterior (como o `DisplayReader` real) |
 
 Cada cenário verifica o estado final, o SP do C404, a excursão (nunca além do alvo nos

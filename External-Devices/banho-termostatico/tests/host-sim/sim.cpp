@@ -31,6 +31,8 @@ static int g_pinLevel[64];
 unsigned long millis() { return g_now; }
 void digitalWrite(int pin, int level) { g_pinLevel[pin] = level; }
 int digitalRead(int pin) { return g_pinLevel[pin]; }
+// Relay contact state from the GPIO level, honouring the firmware's polarity.
+static bool relayClosed(int pin) { return g_pinLevel[pin] == (BoardConfig::RelayActiveLow ? LOW : HIGH); }
 void pinMode(int, int) {}
 void noInterrupts() {}
 void interrupts() {}
@@ -42,7 +44,7 @@ struct C404 {
   float lo = 5.0f, hi = 90.0f;
   bool autoRepeat = true;
   unsigned long debounceMs = 20;         // key down -> first increment
-  unsigned long repeatDelayMs = 600;     // hold -> repeats begin
+  unsigned long repeatDelayMs = 500;     // hold -> repeats begin (medido 2026-09-26)
   unsigned long repeatPeriodMs = 100;    // 10 steps/s
   unsigned long accelAfterMs = 0;        // 0 = no acceleration
   unsigned long fastPeriodMs = 100;
@@ -80,8 +82,8 @@ struct C404 {
   }
 
   void tick(unsigned long now) {
-    const bool up = g_pinLevel[BoardConfig::RelayUpPin] == LOW || userUp;
-    const bool down = g_pinLevel[BoardConfig::RelayDownPin] == LOW || userDown;
+    const bool up = relayClosed(BoardConfig::RelayUpPin) || userUp;
+    const bool down = relayClosed(BoardConfig::RelayDownPin) || userDown;
     const bool closed = up || down;
     if (closed && !wasClosed) {
       closedSince = now;
@@ -156,12 +158,15 @@ void resetNvsConfig() {}
 void loadNvsState() {}
 void saveNvsState(bool busy) { ++g_nvsWrites; if (busy) ++g_nvsBusyWrites; }
 
-// Key-sense lines: LOW when the relay or the operator closes the key.
+// Key-sense lines follow the real C404 (keys switch +5 V onto a pulled-down CH line):
+// the pressed level comes from BoardConfig so the sim tracks the firmware's polarity.
 static void driveSenseLines(const C404& c) {
-  g_pinLevel[BoardConfig::SensePins[KEY_STAR]]  = (g_pinLevel[BoardConfig::RelayStarPin] == LOW || c.userStar) ? LOW : HIGH;
-  g_pinLevel[BoardConfig::SensePins[KEY_UP]]    = (g_pinLevel[BoardConfig::RelayUpPin] == LOW || c.userUp) ? LOW : HIGH;
-  g_pinLevel[BoardConfig::SensePins[KEY_DOWN]]  = (g_pinLevel[BoardConfig::RelayDownPin] == LOW || c.userDown) ? LOW : HIGH;
-  g_pinLevel[BoardConfig::SensePins[KEY_ENTER]] = g_pinLevel[BoardConfig::RelayEnterPin] == LOW ? LOW : HIGH;
+  const int on = BoardConfig::SenseActiveHigh ? HIGH : LOW;
+  const int off = BoardConfig::SenseActiveHigh ? LOW : HIGH;
+  g_pinLevel[BoardConfig::SensePins[KEY_STAR]]  = (relayClosed(BoardConfig::RelayStarPin) || c.userStar) ? on : off;
+  g_pinLevel[BoardConfig::SensePins[KEY_UP]]    = (relayClosed(BoardConfig::RelayUpPin) || c.userUp) ? on : off;
+  g_pinLevel[BoardConfig::SensePins[KEY_DOWN]]  = (relayClosed(BoardConfig::RelayDownPin) || c.userDown) ? on : off;
+  g_pinLevel[BoardConfig::SensePins[KEY_ENTER]] = relayClosed(BoardConfig::RelayEnterPin) ? on : off;
 }
 
 // ---------------------------------------------------------------- harness
@@ -188,6 +193,7 @@ static void resetWorld(C404& c, float startSp) {
   g_cfg.enterKey = ROLE_NONE;      // manual §7.1: arrows act on the main screen
   g_cfg.confirmKey = ROLE_NONE;
   g_cfg.spSource = SP_SOURCE_DISPLAY;
+  g_cfg.guardCheckMs = 100;        // cadencia rapida nos cenarios; T11 usa o padrao de 10 s
   c.sp = startSp; c.startSp = startSp; c.minSteps = c.maxSteps = 0; c.history.clear();
   c.lastChangeMs = 0; c.wasClosed = false; c.pressCount = 0; c.releasedAt = 0;
   g_c404 = &c;
@@ -217,7 +223,7 @@ static void runFor(C404& c, unsigned long ms, std::function<void(unsigned long)>
     displayService(g_now);
     setpointService(g_now);
     guardService(g_now);
-    int nClosed = (g_pinLevel[4] == LOW) + (g_pinLevel[5] == LOW) + (g_pinLevel[6] == LOW) + (g_pinLevel[7] == LOW);
+    int nClosed = (relayClosed(4)) + (relayClosed(5)) + (relayClosed(6)) + (relayClosed(7));
     CHECK(nClosed <= 1, "two relays closed at once");
   }
 }
@@ -237,8 +243,8 @@ static Outcome runUntilIdle(C404& c, unsigned long maxMs, std::function<void(uns
     displayService(g_now);
     setpointService(g_now);
     guardService(g_now);
-    const bool anyClosed = g_pinLevel[4] == LOW || g_pinLevel[5] == LOW || g_pinLevel[6] == LOW || g_pinLevel[7] == LOW;
-    int nClosed = (g_pinLevel[4] == LOW) + (g_pinLevel[5] == LOW) + (g_pinLevel[6] == LOW) + (g_pinLevel[7] == LOW);
+    const bool anyClosed = relayClosed(4) || relayClosed(5) || relayClosed(6) || relayClosed(7);
+    int nClosed = (relayClosed(4)) + (relayClosed(5)) + (relayClosed(6)) + (relayClosed(7));
     CHECK(nClosed <= 1, "two relays closed at once");
     if (anyClosed && !closed) { closed = true; closedSince = g_now; ++o.relayCloses; }
     if (!anyClosed && closed) { closed = false; if (g_now - closedSince > o.maxRelayClosedMs) o.maxRelayClosedMs = g_now - closedSince; }
@@ -379,7 +385,7 @@ int main(int argc, char** argv) {
   { Outcome o = runUntilIdle(c, 60000, [](unsigned long t) { if (t == 2000) setpointAbort(); }); report("J", o, c);
     CHECK(o.state == SEQ_ABORTED, "state=%s", stateName(o.state));
     CHECK(o.elapsedMs <= 2001, "relays not opened promptly: %lu", o.elapsedMs);
-    CHECK(g_pinLevel[5] == HIGH && g_pinLevel[6] == HIGH, "relay still closed after abort");
+    CHECK(!relayClosed(BoardConfig::RelayUpPin) && !relayClosed(BoardConfig::RelayDownPin), "relay still closed after abort");
     CHECK(g_spKnown, "display mode keeps sp_known after abort"); }
 
   printf("== K. raw hold up 2000 ms\n");
@@ -409,7 +415,7 @@ int main(int argc, char** argv) {
   CHECK(setpointRequestAbsolute(35.0f, err), "%s", err.c_str());
   { Outcome o = runUntilIdle(c, 60000); report("N", o, c);
     CHECK(o.state == SEQ_DONE && fabsf(o.sp - 35.0f) < 0.01f, "state=%s sp=%.2f", stateName(o.state), o.sp);
-    CHECK(g_pinLevel[4] == HIGH && g_pinLevel[7] == HIGH, "relays open"); }
+    CHECK(!relayClosed(BoardConfig::RelayStarPin) && !relayClosed(BoardConfig::RelayEnterPin), "relays open"); }
 
   printf("== O. C404 keeps repeating 250 ms after release (slow release detection)\n");
   resetWorld(c, 30.0f);
@@ -487,7 +493,7 @@ int main(int argc, char** argv) {
   resetWorld(c, 30.0f);
   g_cfg.senseEnabled = 1;
   { int closes = 0; bool wasClosed = false;
-    runFor(c, 15000, [&](unsigned long t) { taps(c, 5, 500)(t); const bool cl = g_pinLevel[5] == LOW || g_pinLevel[6] == LOW; if (cl && !wasClosed) ++closes; wasClosed = cl; });
+    runFor(c, 15000, [&](unsigned long t) { taps(c, 5, 500)(t); const bool cl = relayClosed(BoardConfig::RelayUpPin) || relayClosed(BoardConfig::RelayDownPin); if (cl && !wasClosed) ++closes; wasClosed = cl; });
     float dev = 0; const bool devOk = guardDeviation(dev);
     printf("  T1: sp=%.1f mode=%s guard=%s deviation=%.2f manual_presses=%lu closes=%d\n", c.sp, modeName(g_mode), guardStateName(), dev, (unsigned long)g_manualPressCount, closes);
     CHECK(fabsf(c.sp - 30.5f) < 0.01f, "sp=%.2f", c.sp);
@@ -501,7 +507,7 @@ int main(int argc, char** argv) {
   g_cfg.senseEnabled = 1;
   guardSetMode(MODE_AUTO, "sim");
   { unsigned long firstRelayAt = 0;
-    runFor(c, 20000, [&](unsigned long t) { taps(c, 5, 500)(t); if (!firstRelayAt && (g_pinLevel[5] == LOW || g_pinLevel[6] == LOW)) firstRelayAt = t; });
+    runFor(c, 20000, [&](unsigned long t) { taps(c, 5, 500)(t); if (!firstRelayAt && (relayClosed(BoardConfig::RelayUpPin) || relayClosed(BoardConfig::RelayDownPin))) firstRelayAt = t; });
     printf("  T2: sp=%.1f guard=%s corrections=%lu first relay at %lu ms\n", c.sp, guardStateName(), (unsigned long)corrections(), firstRelayAt);
     CHECK(fabsf(c.sp - 30.0f) < 0.01f, "sp=%.2f", c.sp);
     CHECK(corrections() == 1, "corrections=%lu", (unsigned long)corrections());
@@ -589,12 +595,41 @@ int main(int argc, char** argv) {
 
   printf("== T9. auto mode: a commanded setpoint moves the target; guard keeps the new one\n");
   resetWorld(c, 30.0f);
+  g_cfg.senseEnabled = 1;
   guardSetMode(MODE_AUTO, "sim");
   { String e; CHECK(setpointRequestAbsolute(32.0f, e), "%s", e.c_str()); guardNotifyCommand();
     runFor(c, 20000, taps(c, 3, 12000));
     printf("  T9: sp=%.1f target=%.1f corrections=%lu\n", c.sp, g_spTarget, (unsigned long)corrections());
     CHECK(fabsf(c.sp - 32.0f) < 0.01f && fabsf(g_spTarget - 32.0f) < 0.01f, "sp=%.2f target=%.2f", c.sp, g_spTarget);
     CHECK(corrections() == 1, "corrections=%lu", (unsigned long)corrections()); }
+
+  printf("== T10. auto mode: display changes without a manual press are ignored (noise)\n");
+  resetWorld(c, 30.0f);
+  g_cfg.senseEnabled = 1;
+  guardSetMode(MODE_AUTO, "sim");
+  { const uint32_t ignoredBefore = guardIgnored();
+    int closes = 0; bool wasClosed = false;
+    runFor(c, 30000, [&](unsigned long t) {
+      if (t == 2000) c.sp = 30.7f;      // SP "muda" sem tecla nenhuma (leitura ruim simulada)
+      const bool cl = relayClosed(BoardConfig::RelayUpPin) || relayClosed(BoardConfig::RelayDownPin);
+      if (cl && !wasClosed) ++closes; wasClosed = cl; });
+    printf("  T10: sp=%.1f corrections=%lu ignored=%lu closes=%d armed=%d\n", c.sp,
+           (unsigned long)corrections(), (unsigned long)(guardIgnored() - ignoredBefore), closes, guardArmed());
+    CHECK(closes == 0 && corrections() == 0, "guard acted without a manual press (closes=%d)", closes);
+    CHECK(guardIgnored() - ignoredBefore == 1, "ignored=%lu", (unsigned long)(guardIgnored() - ignoredBefore));
+    CHECK(!guardArmed(), "armed without a manual press"); }
+
+  printf("== T11. auto mode with the default 10 s check: +0.5 by hand is reverted within 2 checks\n");
+  resetWorld(c, 30.0f);
+  g_cfg.senseEnabled = 1; g_cfg.guardCheckMs = BathConfig().guardCheckMs;
+  guardSetMode(MODE_AUTO, "sim");
+  { unsigned long firstRelayAt = 0;
+    runFor(c, 45000, [&](unsigned long t) { taps(c, 5, 500)(t); if (!firstRelayAt && (relayClosed(BoardConfig::RelayUpPin) || relayClosed(BoardConfig::RelayDownPin))) firstRelayAt = t; });
+    printf("  T11: sp=%.1f corrections=%lu first relay at %lu ms armed=%d\n", c.sp, (unsigned long)corrections(), firstRelayAt, guardArmed());
+    CHECK(fabsf(c.sp - 30.0f) < 0.01f, "sp=%.2f", c.sp);
+    CHECK(corrections() == 1, "corrections=%lu", (unsigned long)corrections());
+    CHECK(firstRelayAt >= 7200 && firstRelayAt <= 2250 + 5000 + 2 * 10000 + 1000, "correction started at %lu ms", firstRelayAt);
+    CHECK(!guardArmed(), "still armed after the correction"); }
 
   printf("== U. Hub redelivery: three copies of one cmd_id cause one sequence\n");
   resetWorld(c, 30.0f);

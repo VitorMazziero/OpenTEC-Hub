@@ -28,6 +28,10 @@ constexpr const char* KEY_HUB        = "hub_en";
 constexpr const char* KEY_SEG_LOW    = "disp_seg_low";
 constexpr const char* KEY_DIG_LOW    = "disp_dig_low";
 constexpr const char* KEY_SEG_LEAD   = "disp_seg_lead";
+constexpr const char* KEY_DISP_MODE  = "disp_mode";
+constexpr const char* KEY_SLOT_US    = "disp_slot_us";
+constexpr const char* KEY_SP_BANK    = "disp_sp_bank";
+constexpr const char* KEY_DECIMALS   = "disp_decimals";
 constexpr const char* KEY_HOME_MARG  = "home_margin";
 constexpr const char* KEY_SEND_MS    = "send_ms";
 constexpr const char* KEY_HOLD_EN    = "hold_en";
@@ -38,6 +42,7 @@ constexpr const char* KEY_HOLD_SETTLE = "hold_settle";
 constexpr const char* KEY_HOLD_STALL = "hold_stall";
 constexpr const char* KEY_MODE_HOLD  = "mode_hold_ms";
 constexpr const char* KEY_GUARD_MS   = "guard_ms";
+constexpr const char* KEY_GUARD_CHECK = "guard_check";
 
 constexpr const char* KEY_SP_SHADOW  = "sp_shadow";
 constexpr const char* KEY_SP_KNOWN   = "sp_known";
@@ -67,6 +72,10 @@ void loadNvsConfig() {
   g_cfg.dispSegLow   = g_prefs.getUChar(KEY_SEG_LOW, g_cfg.dispSegLow);
   g_cfg.dispDigLow   = g_prefs.getUChar(KEY_DIG_LOW, g_cfg.dispDigLow);
   g_cfg.dispSegLead  = g_prefs.getUChar(KEY_SEG_LEAD, g_cfg.dispSegLead);
+  g_cfg.dispMode     = g_prefs.getUChar(KEY_DISP_MODE, g_cfg.dispMode);
+  g_cfg.dispSlotUs   = g_prefs.getUShort(KEY_SLOT_US, g_cfg.dispSlotUs);
+  g_cfg.dispSpBank   = g_prefs.getUChar(KEY_SP_BANK, g_cfg.dispSpBank);
+  g_cfg.dispDecimals = g_prefs.getUChar(KEY_DECIMALS, g_cfg.dispDecimals);
   g_cfg.homeMargin   = g_prefs.getUShort(KEY_HOME_MARG, g_cfg.homeMargin);
   g_cfg.sendPeriodMs = g_prefs.getULong(KEY_SEND_MS, g_cfg.sendPeriodMs);
   g_cfg.holdEnabled   = g_prefs.getUChar(KEY_HOLD_EN, g_cfg.holdEnabled);
@@ -77,6 +86,7 @@ void loadNvsConfig() {
   g_cfg.holdStallMs   = g_prefs.getUShort(KEY_HOLD_STALL, g_cfg.holdStallMs);
   g_cfg.modeHoldMs    = g_prefs.getUShort(KEY_MODE_HOLD, g_cfg.modeHoldMs);
   g_cfg.guardDelayMs  = g_prefs.getUShort(KEY_GUARD_MS, g_cfg.guardDelayMs);
+  g_cfg.guardCheckMs  = g_prefs.getUShort(KEY_GUARD_CHECK, g_cfg.guardCheckMs);
   g_prefs.end();
   Serial.printf("[NVS] Config: press=%ums gap=%ums step=%.2f faixa=[%.1f,%.1f] enter=%u confirm=%u fonte=%u hold=%u\n",
                 g_cfg.pressMs, g_cfg.gapMs, g_cfg.stepC, g_cfg.spMin, g_cfg.spMax,
@@ -104,6 +114,10 @@ void saveNvsConfig() {
   g_prefs.putUChar(KEY_SEG_LOW, g_cfg.dispSegLow);
   g_prefs.putUChar(KEY_DIG_LOW, g_cfg.dispDigLow);
   g_prefs.putUChar(KEY_SEG_LEAD, g_cfg.dispSegLead);
+  g_prefs.putUChar(KEY_DISP_MODE, g_cfg.dispMode);
+  g_prefs.putUShort(KEY_SLOT_US, g_cfg.dispSlotUs);
+  g_prefs.putUChar(KEY_SP_BANK, g_cfg.dispSpBank);
+  g_prefs.putUChar(KEY_DECIMALS, g_cfg.dispDecimals);
   g_prefs.putUShort(KEY_HOME_MARG, g_cfg.homeMargin);
   g_prefs.putULong(KEY_SEND_MS, g_cfg.sendPeriodMs);
   g_prefs.putUChar(KEY_HOLD_EN, g_cfg.holdEnabled);
@@ -114,6 +128,7 @@ void saveNvsConfig() {
   g_prefs.putUShort(KEY_HOLD_STALL, g_cfg.holdStallMs);
   g_prefs.putUShort(KEY_MODE_HOLD, g_cfg.modeHoldMs);
   g_prefs.putUShort(KEY_GUARD_MS, g_cfg.guardDelayMs);
+  g_prefs.putUShort(KEY_GUARD_CHECK, g_cfg.guardCheckMs);
   g_prefs.end();
   Serial.println("[NVS] Configuracao persistida.");
 }

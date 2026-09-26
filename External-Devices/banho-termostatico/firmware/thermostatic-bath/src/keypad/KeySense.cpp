@@ -1,5 +1,7 @@
 #include "KeySense.h"
 
+#include "../core/EventLog.h"
+
 #include "../config/BoardConfig.h"
 #include "../storage/NvsConfig.h"
 #include "KeyPresser.h"
@@ -16,12 +18,13 @@ unsigned long g_arrowsSinceMs = 0;
 }  // namespace
 
 void keySenseInit() {
-  // INPUT sem pull-up: o divisor 100k/150k e quem define o nivel. Linhas nao
-  // ligadas (fora de sense_mask) ficam com pull-up so para nao flutuar; nunca
-  // sao lidas.
+  // INPUT sem pull: o divisor 100k/150k e quem define o nivel. Linhas nao ligadas
+  // (fora de sense_mask) ficam puxadas para o nivel de "solta" so para nao
+  // flutuar; nunca sao lidas.
+  const uint8_t idleMode = BoardConfig::SenseActiveHigh ? INPUT_PULLDOWN : INPUT_PULLUP;
   for (int i = 0; i < KEY_COUNT; ++i) {
     const bool wired = (g_cfg.senseMask >> i) & 1;
-    pinMode(BoardConfig::SensePins[i], wired ? INPUT : INPUT_PULLUP);
+    pinMode(BoardConfig::SensePins[i], wired ? INPUT : idleMode);
   }
 }
 
@@ -30,7 +33,8 @@ bool keySenseWired(Key key) {
 }
 
 bool keySenseRawActive(Key key) {
-  return keySenseWired(key) && digitalRead(BoardConfig::SensePins[key]) == LOW;
+  const int pressedLevel = BoardConfig::SenseActiveHigh ? HIGH : LOW;
+  return keySenseWired(key) && digitalRead(BoardConfig::SensePins[key]) == pressedLevel;
 }
 
 bool keySensePressed(Key key) {
@@ -62,13 +66,13 @@ void keySenseService(unsigned long now) {
       if (g_manualPress[i]) {
         ++g_manualPressCount;
         g_manualActivityMs = now;
-        Serial.printf("[SENSE] Toque manual em %s\n", keyName(key));
+        logPrintf("[SENSE] Toque manual em %s\n", keyName(key));
         // * e as setas mudam o SP ou o contexto de tela; ENTER sozinho nao altera o
         // valor. So o modo sombra depende da contagem.
         if (g_cfg.spSource == SP_SOURCE_SHADOW && key != KEY_ENTER && g_spKnown) {
           g_spKnown = false;
           saveNvsState(false);
-          Serial.println("[SENSE] Setpoint-sombra marcado como desconhecido.");
+          logPrintln("[SENSE] Setpoint-sombra marcado como desconhecido.");
         }
       }
     } else if (g_pressed[i] && g_activeRun[i] == 0) {

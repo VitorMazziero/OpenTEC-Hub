@@ -22,12 +22,17 @@ void main() {
     await tester.tap(find.text('Controle'));
     await tester.pumpAndSettle();
 
-    // Expand the temperature card: route selector and setpoint field.
+    // Control routes of temperature and agitation are visible with the cards collapsed.
+    expect(find.text('Placa'), findsNWidgets(2));
+    expect(find.text('Banho externo'), findsOneWidget);
+    expect(find.text('Servo'), findsOneWidget);
+
+    // Expand the temperature card: setpoint field.
     await tester.tap(find.text('Temperatura'));
     await tester.pumpAndSettle();
     expect(find.text('Setpoint'), findsOneWidget);
 
-    for (final title in ['Agitação (servo)', 'pH', 'Oxigênio dissolvido', 'Pressão',
+    for (final title in ['Agitação', 'pH', 'Oxigênio dissolvido', 'Pressão',
         'Bomba de nutriente', 'Bomba de antiespumante', 'Espuma automática']) {
       final card = find.text(title);
       await tester.ensureVisible(card.first);

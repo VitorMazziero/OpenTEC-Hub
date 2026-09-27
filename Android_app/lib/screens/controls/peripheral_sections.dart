@@ -306,23 +306,37 @@ class _FlaskAgitatorSectionState extends State<FlaskAgitatorSection> {
       if (context.mounted) showCommandFeedback(context, ok, what);
     }
 
+    Future<void> start() async {
+      final pct = parseInt(_pct.text);
+      if (pct == null || pct <= 0 || pct > 100) {
+        showCommandFeedback(context, false, "Velocidade inválida (1 a 100 %)");
+        return;
+      }
+      await run(() => control.setAgitatorState(on: true, speedPercent: pct, direction: _dir), "Agitador $pct %");
+    }
+
+    // Unlike the other nodes, the Hub has no link switch for the flask agitator (no
+    // agitatorComm command): it is online whenever the node pushes data. The switch
+    // therefore starts/stops the stirrer itself, and only while the node is online.
     return ControlSectionCard(
       title: "Frasco agitador",
-      status: s.statusLabel,
+      status: s.isConnectedAndActive ? "${s.statusLabel} · ${s.directionLabel}" : s.statusLabel,
       icon: Icons.rotate_right,
       accentColor: AppColors.flask,
-      isEnabled: s.isOnline,
+      isEnabled: s.isSpinning,
+      onToggle: s.isOnline
+          ? (v) => v ? start() : run(() => control.stopAgitator(), "Agitador desligado")
+          : null,
       isBusy: busy,
-      applyButtonLabel: "Ligar agitador",
-      onApply: () async {
-        final pct = parseInt(_pct.text);
-        if (pct == null || pct < 0 || pct > 100) {
-          showCommandFeedback(context, false, "Velocidade inválida (0 a 100 %)");
-          return;
-        }
-        await run(() => control.setAgitatorState(on: true, speedPercent: pct, direction: _dir), "Agitador $pct %");
-      },
+      applyButtonLabel: "Aplicar velocidade",
+      onApply: s.isOnline ? start : null,
       children: [
+        if (!s.isOnline)
+          const HelpText(
+            "O nó do frasco agitador não envia dados ao Hub há mais de 3 s. Verifique se ele "
+            "está ligado e conectado à rede Wi-Fi do Hub; não há chave de comunicação a ativar.",
+            warning: true,
+          ),
         StatusStrip(
           label: s.statusLabel,
           value: s.isConnectedAndActive ? s.formattedPercent : null,
@@ -375,7 +389,7 @@ class _FlaskAgitatorSectionState extends State<FlaskAgitatorSection> {
         OutlinedButton.icon(
           style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
           icon: const Icon(Icons.stop_circle_outlined),
-          label: const Text("Parar agitador"),
+          label: const Text("Parar e travar o potenciômetro"),
           onPressed: busy ? null : () => run(control.safeStopAgitator, "Agitador parado"),
         ),
       ],

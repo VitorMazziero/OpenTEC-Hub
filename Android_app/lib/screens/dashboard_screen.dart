@@ -25,17 +25,22 @@ class DashboardScreen extends StatelessWidget {
         ? "SP ${t.tempSetpoint!.toStringAsFixed(1)} °C${bath.viaBath ? ' · banho' : ''}"
         : "Controle desligado${bath.viaBath ? ' · banho' : ''}";
 
+    final viaServo = servo.viaModbus;
     final String servoValue;
     final String servoSub;
-    if (!servo.commEnabled) {
+    if (viaServo && !servo.commEnabled) {
       servoValue = "--";
-      servoSub = "Comunicação desligada";
-    } else if (!servo.online) {
+      servoSub = "Servo · comunicação desligada";
+    } else if (viaServo && !servo.online) {
       servoValue = "--";
       servoSub = "Servo offline";
     } else {
-      servoValue = servo.hasTelemetry ? servo.rpm.toStringAsFixed(0) : "${servo.appliedRpm}";
-      servoSub = servo.isFaulted ? servo.stateDescription : "Alvo ${servo.requestedRpm} rpm";
+      servoValue = servo.online && servo.hasTelemetry ? servo.rpm.toStringAsFixed(0) : "--";
+      servoSub = servo.online && servo.isFaulted
+          ? servo.stateDescription
+          : viaServo
+              ? "Servo · alvo ${servo.requestedRpm} rpm"
+              : "Via placa controladora";
     }
 
     final peripherals = <Widget>[
@@ -125,7 +130,7 @@ class DashboardScreen extends StatelessWidget {
             subtext: servoSub,
             icon: Icons.cyclone,
             accentColor: AppColors.agitation,
-            isActive: servo.online && servo.commEnabled,
+            isActive: servo.online && servo.hasTelemetry,
           ),
           MetricTile(
             title: "pH",

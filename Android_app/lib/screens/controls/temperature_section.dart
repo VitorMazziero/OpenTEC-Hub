@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/control_section_card.dart';
 import '../../widgets/external_bath_card.dart';
 import '../../widgets/hub_sync.dart';
+import '../../widgets/route_selector.dart';
 import '../../widgets/status_strip.dart';
 
 /// Reactor temperature: route (original module or external C404 bath), bath link and
@@ -49,27 +50,18 @@ class _TemperatureSectionState extends State<TemperatureSection> with HubSync {
   }
 
   Future<void> _changeRoute(DeviceControlProvider control, bool toBath) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.alt_route),
-        title: Text(toBath ? "Usar o banho externo?" : "Usar o módulo interno?"),
-        content: Text(
-          "O Hub desliga o controle de temperatura ao trocar a via e libera o aquecedor "
-          "do módulo original.${toBath ? "" : " O banho externo é parado e o C404 fica em manual no último SP."}"
+    final confirmed = await confirmRouteChange(
+      context,
+      title: toBath ? "Usar o banho externo?" : "Usar a placa controladora?",
+      message: "O Hub desliga o controle de temperatura ao trocar a via e libera o aquecedor "
+          "da placa original.${toBath ? "" : " O banho externo é parado e o C404 fica em manual no último SP."}"
           "\n\nDepois da troca, envie um novo setpoint.",
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancelar")),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Trocar via")),
-        ],
-      ),
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     final ok = await control.setTemperatureRoute(externalBath: toBath);
     if (!mounted) return;
     if (ok) setState(() => _on = false);
-    showCommandFeedback(context, ok, toBath ? "Via: banho externo" : "Via: módulo interno");
+    showCommandFeedback(context, ok, toBath ? "Temperatura pelo banho externo" : "Temperatura pela placa");
   }
 
   Future<void> _toggleBathComm(DeviceControlProvider control, ExternalBathState bath, bool on) async {
@@ -127,29 +119,24 @@ class _TemperatureSectionState extends State<TemperatureSection> with HubSync {
           }),
           isBusy: control.isBusy,
           onApply: () => _apply(control, viaBath),
+          // Always shown; usable once the Hub reports the route (Hub 10.5+ and connected).
+          header: RouteSelector(
+            alternative: viaBath,
+            boardLabel: "Placa",
+            alternativeLabel: "Banho externo",
+            alternativeIcon: Icons.hot_tub_outlined,
+            onChanged: control.isBusy || !bath.hasTelemetry ? null : (toBath) => _changeRoute(control, toBath),
+          ),
           children: [
-            if (bath.hasTelemetry) ...[
-              Text("Via de controle", style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 6),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: false, icon: Icon(Icons.memory, size: 18), label: Text("Módulo interno")),
-                  ButtonSegment(value: true, icon: Icon(Icons.hot_tub_outlined, size: 18), label: Text("Banho externo")),
-                ],
-                selected: {viaBath},
-                showSelectedIcon: false,
-                onSelectionChanged: control.isBusy ? null : (s) => _changeRoute(control, s.first),
+            if (viaBath) ...[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text("Comunicação com o banho"),
+                subtitle: Text(bath.online ? "C404 online" : "C404 offline"),
+                value: bath.commEnabled,
+                onChanged: control.isBusy ? null : (v) => _toggleBathComm(control, bath, v),
               ),
-              const SizedBox(height: 8),
-              if (viaBath)
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text("Comunicação com o banho"),
-                  subtitle: Text(bath.online ? "C404 online" : "C404 offline"),
-                  value: bath.commEnabled,
-                  onChanged: control.isBusy ? null : (v) => _toggleBathComm(control, bath, v),
-                ),
               const SizedBox(height: 4),
             ],
             if (viaBath)

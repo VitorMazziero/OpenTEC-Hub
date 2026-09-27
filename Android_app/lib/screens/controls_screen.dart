@@ -49,7 +49,7 @@ class _ControlsScreenState extends State<ControlsScreen> {
                 children: const [
                   TemperatureSection(),
                   _gap,
-                  ServoSection(),
+                  AgitationSection(),
                   _gap,
                   PhSection(),
                   _gap,

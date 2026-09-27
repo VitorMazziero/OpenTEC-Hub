@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 /// One control per card: the header always shows what is running (title, a one-line
 /// [status] and the on/off switch); tapping it opens the setpoint form and its
 /// Apply button. Collapsed by default so the Controls tab reads as a short list.
+/// [header] stays visible when collapsed, for choices that must always be in view
+/// (the control route of temperature and agitation).
 class ControlSectionCard extends StatefulWidget {
   final String title;
   final String? status;
@@ -15,6 +17,7 @@ class ControlSectionCard extends StatefulWidget {
   final String applyButtonLabel;
   final bool isBusy;
   final bool initiallyExpanded;
+  final Widget? header;
 
   const ControlSectionCard({
     super.key,
@@ -29,6 +32,7 @@ class ControlSectionCard extends StatefulWidget {
     this.applyButtonLabel = "Aplicar",
     this.isBusy = false,
     this.initiallyExpanded = false,
+    this.header,
   });
 
   @override
@@ -88,7 +92,7 @@ class _ControlSectionCardState extends State<ControlSectionCard> {
                       ],
                     ),
                   ),
-                  if (widget.isEnabled != null && widget.onToggle != null)
+                  if (widget.isEnabled != null)
                     Switch(
                       value: widget.isEnabled!,
                       onChanged: widget.isBusy ? null : widget.onToggle,
@@ -103,6 +107,11 @@ class _ControlSectionCardState extends State<ControlSectionCard> {
               ),
             ),
           ),
+          if (widget.header != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: widget.header,
+            ),
           AnimatedCrossFade(
             firstChild: const SizedBox(width: double.infinity),
             secondChild: Padding(

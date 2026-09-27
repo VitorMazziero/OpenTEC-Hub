@@ -5,18 +5,20 @@ import '../../providers/telemetry_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/control_section_card.dart';
 import '../../widgets/hub_sync.dart';
+import '../../widgets/route_selector.dart';
 import '../../widgets/status_strip.dart';
 
-/// Main agitation: the Delta ASDA-B2 servo commanded by the Hub. The command route
-/// (Modbus or legacy UART) and diagnostics stay on the Windows app.
-class ServoSection extends StatefulWidget {
-  const ServoSection({super.key});
+/// Main agitation. The Hub drives the same Delta ASDA-B2 through one of two routes
+/// (`motorControlMode`): the original controller board (UART/CN1) or the ESP32 servo
+/// node (Modbus). The route is stored in the Hub; switching it stops the motor.
+class AgitationSection extends StatefulWidget {
+  const AgitationSection({super.key});
 
   @override
-  State<ServoSection> createState() => _ServoSectionState();
+  State<AgitationSection> createState() => _AgitationSectionState();
 }
 
-class _ServoSectionState extends State<ServoSection> with HubSync {
+class _AgitationSectionState extends State<AgitationSection> with HubSync {
   final _rpm = TextEditingController(text: "0");
   int _rpmValue = 0;
   bool _editing = false;
@@ -35,45 +37,85 @@ class _ServoSectionState extends State<ServoSection> with HubSync {
     });
   }
 
+  Future<void> _changeRoute(DeviceControlProvider control, bool toServo) async {
+    final confirmed = await confirmRouteChange(
+      context,
+      title: toServo ? "Agitar pelo servo?" : "Agitar pela placa?",
+      message: "O Hub para o motor ao trocar a via "
+          "(${toServo ? 'Hub → ESP32 servo → ASDA-B2, Modbus' : 'Hub → placa controladora → ASDA-B2, UART/CN1'})."
+          "\n\nDepois da troca, envie uma nova velocidade.",
+    );
+    if (!confirmed || !mounted) return;
+    final ok = await control.setMotorControlMode(toServo ? 1 : 0);
+    if (!mounted) return;
+    if (ok) {
+      setState(() {
+        _rpmValue = 0;
+        _rpm.text = "0";
+        _editing = false;
+      });
+    }
+    showCommandFeedback(context, ok, toServo ? "Agitação pelo servo" : "Agitação pela placa");
+  }
+
   @override
   Widget build(BuildContext context) {
     final control = context.watch<DeviceControlProvider>();
     final servo = context.watch<TelemetryProvider>().servoState;
+    final viaServo = servo.viaModbus;
 
-    syncFromHub("rpm", servo.requestedRpm, editing: _editing, apply: () {
-      _rpmValue = servo.requestedRpm.clamp(0, 1000);
-      _rpm.text = "$_rpmValue";
-    });
+    // Only the servo route echoes the commanded speed; the board route does not publish it.
+    if (viaServo) {
+      syncFromHub("rpm", servo.requestedRpm, editing: _editing, apply: () {
+        _rpmValue = servo.requestedRpm.clamp(0, 1000);
+        _rpm.text = "$_rpmValue";
+      });
+    }
 
+    final measured = servo.online && servo.hasTelemetry ? "${servo.rpm.toStringAsFixed(0)} rpm medidos" : null;
     final String status;
     final StatusTone tone;
-    if (!servo.commEnabled) {
-      status = "Comunicação desligada";
+    if (viaServo && !servo.commEnabled) {
+      status = "Comunicação com o servo desligada";
       tone = StatusTone.off;
-    } else if (!servo.online) {
+    } else if (viaServo && !servo.online) {
       status = "Servo offline";
       tone = StatusTone.warning;
-    } else if (servo.isFaulted) {
+    } else if (servo.online && servo.isFaulted) {
       status = "Falha: ${servo.stateDescription}";
       tone = StatusTone.warning;
-    } else {
-      status = servo.hasTelemetry
-          ? "${servo.rpm.toStringAsFixed(0)} rpm · alvo ${servo.requestedRpm} rpm"
-          : "Alvo ${servo.requestedRpm} rpm";
+    } else if (viaServo) {
+      status = "${measured ?? 'Sem leitura'} · alvo ${servo.requestedRpm} rpm";
       tone = servo.isRunning ? StatusTone.active : StatusTone.ok;
+    } else {
+      status = measured ?? "Via placa controladora";
+      tone = StatusTone.ok;
     }
 
     return ControlSectionCard(
-      title: "Agitação (servo)",
+      title: "Agitação",
       status: status,
       icon: Icons.cyclone,
       accentColor: AppColors.agitation,
-      isEnabled: servo.commEnabled,
-      onToggle: (v) async {
-        final ok = await control.setServoComm(v);
-        if (context.mounted) showCommandFeedback(context, ok, "Comunicação do servo ${v ? 'ligada' : 'desligada'}");
-      },
+      // The switch is the Hub <-> servo node link, meaningful on the servo route only.
+      isEnabled: viaServo ? servo.commEnabled : null,
+      onToggle: viaServo
+          ? (v) async {
+              final ok = await control.setServoComm(v);
+              if (context.mounted) showCommandFeedback(context, ok, "Comunicação do servo ${v ? 'ligada' : 'desligada'}");
+            }
+          : null,
       isBusy: control.isBusy,
+      header: RouteSelector(
+        alternative: viaServo,
+        boardLabel: "Placa",
+        alternativeLabel: "Servo",
+        alternativeIcon: Icons.settings_input_component,
+        onChanged: control.isBusy ? null : (toServo) => _changeRoute(control, toServo),
+        note: servo.online && servo.routeAck != (viaServo ? 1 : 0)
+            ? "Aguardando o servo confirmar a via"
+            : null,
+      ),
       applyButtonLabel: "Aplicar velocidade",
       onApply: () async {
         final rpm = parseInt(_rpm.text) ?? _rpmValue;
@@ -83,7 +125,7 @@ class _ServoSectionState extends State<ServoSection> with HubSync {
         showCommandFeedback(context, ok, rpm > 0 ? "Agitação $rpm rpm" : "Agitação parada");
       },
       children: [
-        StatusStrip(label: status, tone: tone, pending: servo.commandPending),
+        StatusStrip(label: status, tone: tone, pending: viaServo && servo.commandPending),
         Row(
           children: [
             Expanded(

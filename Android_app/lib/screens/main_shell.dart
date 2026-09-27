@@ -32,18 +32,18 @@ class _MainShellState extends State<MainShell> {
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.red),
             SizedBox(width: 8),
-            Text("Emergency All-Stop"),
+            Text("Parada geral"),
           ],
         ),
         content: const Text(
-          "This will send 'resetVariables: 1' to the Hub.\n\n"
-          "All motor setpoints, dosing pumps, and heaters will be immediately shut down and set to safe states.\n\n"
+          "Desliga agitação, bombas, aquecimento e demais controles do Hub, levando tudo "
+          "ao estado seguro.\n\n"
           "Banho externo: a cascata para e o C404 fica em manual no último SP (não é desligado por software).",
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("Cancel"),
+            child: const Text("Cancelar"),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
@@ -54,14 +54,14 @@ class _MainShellState extends State<MainShell> {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(ok ? "ALL STOP EXECUTED" : "Emergency stop failed"),
+                    content: Text(ok ? "Parada geral enviada" : "Falha na parada geral"),
                     backgroundColor: Colors.red.shade900,
                     duration: const Duration(seconds: 4),
                   ),
                 );
               }
             },
-            child: const Text("SHUT DOWN ALL"),
+            child: const Text("Parar tudo"),
           ),
         ],
       ),
@@ -75,7 +75,7 @@ class _MainShellState extends State<MainShell> {
 
     Color statusDotColor;
     if (conn.isConnected) {
-      statusDotColor = Colors.greenAccent.shade700;
+      statusDotColor = Colors.green.shade600;
     } else if (conn.isConnecting) {
       statusDotColor = Colors.orange;
     } else {
@@ -115,11 +115,11 @@ class _MainShellState extends State<MainShell> {
           // Clear Graphs
           IconButton(
             icon: const Icon(Icons.delete_sweep_outlined),
-            tooltip: "Clear Chart History",
+            tooltip: "Limpar gráficos",
             onPressed: () {
               Provider.of<TelemetryProvider>(context, listen: false).clearHistory();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Graph history cleared"), duration: Duration(seconds: 1)),
+                const SnackBar(content: Text("Gráficos limpos"), duration: Duration(seconds: 1)),
               );
             },
           ),
@@ -129,7 +129,7 @@ class _MainShellState extends State<MainShell> {
               conn.isConnected ? Icons.wifi : Icons.wifi_off,
               color: conn.isConnected ? Colors.green.shade700 : null,
             ),
-            tooltip: "Connection Settings",
+            tooltip: "Conexão",
             onPressed: () => showDialog(
               context: context,
               builder: (_) => const ConnectionDialog(),
@@ -140,7 +140,7 @@ class _MainShellState extends State<MainShell> {
             padding: const EdgeInsets.only(right: 8.0),
             child: IconButton.filled(
               icon: const Icon(Icons.dangerous, size: 22),
-              tooltip: "Emergency All-Stop",
+              tooltip: "Parada geral",
               style: IconButton.styleFrom(
                 backgroundColor: Colors.red.shade700,
                 foregroundColor: Colors.white,
@@ -161,17 +161,17 @@ class _MainShellState extends State<MainShell> {
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
-            label: "Dashboard",
+            label: "Painel",
           ),
           NavigationDestination(
             icon: Icon(Icons.tune_outlined),
             selectedIcon: Icon(Icons.tune),
-            label: "Controls",
+            label: "Controle",
           ),
           NavigationDestination(
             icon: Icon(Icons.show_chart_outlined),
             selectedIcon: Icon(Icons.show_chart),
-            label: "Graphs",
+            label: "Gráficos",
           ),
         ],
       ),

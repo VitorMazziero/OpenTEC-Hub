@@ -32,7 +32,7 @@ void main() {
       expect(state.isConnectedAndActive, isTrue);
       expect(state.isDisconnected, isFalse);
       expect(state.isDisabled, isFalse);
-      expect(state.statusLabel, "Connected & Active");
+      expect(state.statusLabel, "Conectado e medindo");
       expect(state.formattedDistance, "145.5 mm");
       expect(state.formattedDistanceCm, "14.6 cm");
     });
@@ -53,7 +53,7 @@ void main() {
       expect(state.isConnectedAndActive, isFalse);
       expect(state.isDisconnected, isTrue);
       expect(state.isDisabled, isFalse);
-      expect(state.statusLabel, "Sensor Disconnected");
+      expect(state.statusLabel, "Sensor desconectado");
       expect(state.formattedDistance, "-- mm");
     });
 
@@ -70,7 +70,7 @@ void main() {
       expect(state.isConnectedAndActive, isFalse);
       expect(state.isDisconnected, isFalse);
       expect(state.isDisabled, isTrue);
-      expect(state.statusLabel, "Disabled on Hub");
+      expect(state.statusLabel, "Desligado no Hub");
     });
   });
 

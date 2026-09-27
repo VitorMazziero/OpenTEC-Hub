@@ -43,29 +43,29 @@ class _GraphsScreenState extends State<GraphsScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFilterChip("Temp (°C)", GraphMetric.temperature, Colors.redAccent),
+                  _buildFilterChip("Temperatura", GraphMetric.temperature, Colors.redAccent),
                   const SizedBox(width: 6),
                   _buildFilterChip("pH", GraphMetric.ph, Colors.blueAccent),
                   const SizedBox(width: 6),
-                  _buildFilterChip("DO (mg/L)", GraphMetric.oxygen, Colors.teal),
+                  _buildFilterChip("OD", GraphMetric.oxygen, Colors.teal),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Pressure", GraphMetric.pressure, Colors.orangeAccent),
+                  _buildFilterChip("Pressão", GraphMetric.pressure, Colors.orangeAccent),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Servo RPM", GraphMetric.servoRpm, Colors.green),
+                  _buildFilterChip("Agitação", GraphMetric.servoRpm, Colors.green),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Torque & Power", GraphMetric.servoTorquePower, Colors.purple),
+                  _buildFilterChip("Torque e potência", GraphMetric.servoTorquePower, Colors.purple),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Distance (mm)", GraphMetric.distance, Colors.indigo),
+                  _buildFilterChip("Distância", GraphMetric.distance, Colors.indigo),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Biomass (AU)", GraphMetric.biomass, Colors.teal),
+                  _buildFilterChip("Biomassa", GraphMetric.biomass, Colors.teal),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Gas Flow (L/min)", GraphMetric.flowRate, Colors.cyan),
+                  _buildFilterChip("Vazão de gás", GraphMetric.flowRate, Colors.cyan),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Agitator (%)", GraphMetric.agitatorSpeed, Colors.deepPurple),
+                  _buildFilterChip("Frasco agitador", GraphMetric.agitatorSpeed, Colors.deepPurple),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Pump Flow (mL/min)", GraphMetric.pumpFlow, Colors.orange.shade800),
+                  _buildFilterChip("Vazão da bomba", GraphMetric.pumpFlow, Colors.orange.shade800),
                   const SizedBox(width: 6),
-                  _buildFilterChip("Pump Vol (mL)", GraphMetric.pumpVolume, Colors.amber.shade900),
+                  _buildFilterChip("Volume dosado", GraphMetric.pumpVolume, Colors.amber.shade900),
                 ],
               ),
             ),
@@ -107,14 +107,14 @@ class _GraphsScreenState extends State<GraphsScreen> {
     switch (_selectedMetric) {
       case GraphMetric.temperature:
         return _buildSingleLineChart(
-          title: "Temperature (°C)",
+          title: "Temperatura (°C)",
           points: prov.tempHistory,
           color: Colors.redAccent,
           unit: "°C",
         );
       case GraphMetric.ph:
         return _buildSingleLineChart(
-          title: "Calibrated pH",
+          title: "pH",
           points: prov.phHistory,
           color: Colors.blueAccent,
           unit: "pH",
@@ -123,7 +123,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
         );
       case GraphMetric.oxygen:
         return _buildSingleLineChart(
-          title: "Dissolved Oxygen (mg/L)",
+          title: "Oxigênio dissolvido (mg/L)",
           points: prov.oxygenHistory,
           color: Colors.teal,
           unit: "mg/L",
@@ -131,7 +131,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
         );
       case GraphMetric.pressure:
         return _buildSingleLineChart(
-          title: "Pressure (mmHg)",
+          title: "Pressão (mmHg)",
           points: prov.pressureHistory,
           color: Colors.orangeAccent,
           unit: "mmHg",
@@ -142,7 +142,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
         return _buildServoTorquePowerChart(prov);
       case GraphMetric.distance:
         return _buildSingleLineChart(
-          title: "Distance & Level (mm) [External]",
+          title: "Distância (mm)",
           points: prov.distanceHistory,
           color: Colors.indigo,
           unit: "mm",
@@ -150,7 +150,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
         );
       case GraphMetric.biomass:
         return _buildSingleLineChart(
-          title: "Biomass Optical Density (AU) [External]",
+          title: "Biomassa (AU)",
           points: prov.biomassHistory,
           color: Colors.teal,
           unit: "AU",
@@ -158,7 +158,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
         );
       case GraphMetric.flowRate:
         return _buildSingleLineChart(
-          title: "Gas Flow Rate (L/min) [External]",
+          title: "Vazão de gás (L/min)",
           points: prov.flowRateHistory,
           color: Colors.cyan.shade700,
           unit: "L/min",
@@ -166,7 +166,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
         );
       case GraphMetric.agitatorSpeed:
         return _buildSingleLineChart(
-          title: "Flask Agitator Speed (%) [External]",
+          title: "Frasco agitador (%)",
           points: prov.agitatorSpeedHistory,
           color: Colors.deepPurple,
           unit: "%",
@@ -175,7 +175,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
         );
       case GraphMetric.pumpFlow:
         return _buildSingleLineChart(
-          title: "Peristaltic Pump Flow (mL/min) [External]",
+          title: "Vazão da bomba (mL/min)",
           points: prov.pumpFlowHistory,
           color: Colors.orange.shade800,
           unit: "mL/min",
@@ -183,7 +183,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
         );
       case GraphMetric.pumpVolume:
         return _buildSingleLineChart(
-          title: "Accumulated Dosed Volume (mL) [External]",
+          title: "Volume dosado (mL)",
           points: prov.pumpVolumeHistory,
           color: Colors.amber.shade900,
           unit: "mL",
@@ -203,7 +203,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
     if (points.isEmpty) {
       return Center(
         child: Text(
-          "Waiting for telemetry data...",
+          "Aguardando dados do Hub...",
           style: TextStyle(color: Colors.grey.shade600),
         ),
       );
@@ -283,7 +283,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
     if (actualPoints.isEmpty && appliedPoints.isEmpty) {
       return Center(
         child: Text(
-          "Waiting for Servo telemetry...",
+          "Aguardando dados do servo...",
           style: TextStyle(color: Colors.grey.shade600),
         ),
       );
@@ -298,12 +298,12 @@ class _GraphsScreenState extends State<GraphsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("Servo RPM (Actual vs Applied)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text("Agitação (medida × comandada, rpm)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             Row(
               children: [
-                _buildLegendItem("Actual", Colors.green),
+                _buildLegendItem("Medida", Colors.green),
                 const SizedBox(width: 8),
-                _buildLegendItem("Applied", Colors.blue),
+                _buildLegendItem("Comandada", Colors.blue),
               ],
             ),
           ],
@@ -369,7 +369,7 @@ class _GraphsScreenState extends State<GraphsScreen> {
     if (torquePoints.isEmpty && powerPoints.isEmpty) {
       return Center(
         child: Text(
-          "Waiting for Servo drive feedback...",
+          "Aguardando leitura do servo...",
           style: TextStyle(color: Colors.grey.shade600),
         ),
       );
@@ -384,12 +384,12 @@ class _GraphsScreenState extends State<GraphsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("Torque (%) & Electrical Power (W)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text("Torque (%) e potência (W)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             Row(
               children: [
                 _buildLegendItem("Torque %", Colors.orange),
                 const SizedBox(width: 8),
-                _buildLegendItem("Power W", Colors.purple),
+                _buildLegendItem("Potência W", Colors.purple),
               ],
             ),
           ],

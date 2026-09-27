@@ -1,11 +1,11 @@
 /// Profile modes supported by the external peristaltic pump firmware
 enum PeristalticPumpMode {
-  stop(0, "Stopped / Idle"),
-  constant(1, "Constant Flow"),
-  linear(2, "Linear Profile"),
-  exponential(3, "Exponential Profile"),
-  polynomial(4, "Polynomial Profile"),
-  piecewise(5, "Piecewise Segments");
+  stop(0, "Parada"),
+  constant(1, "Vazão constante"),
+  linear(2, "Perfil linear"),
+  exponential(3, "Perfil exponencial"),
+  polynomial(4, "Perfil polinomial"),
+  piecewise(5, "Segmentos (t, Q)");
 
   final int code;
   final String label;
@@ -140,11 +140,11 @@ class PeristalticPumpState {
 
   /// Status badge summary
   String get statusLabel {
-    if (isDisabled) return "Disabled on Hub";
-    if (isDisconnected) return "Pump Disconnected";
-    if (isDosing) return "Dosing ($formattedFlow)";
-    if (isWaitingWindow) return "Waiting for Window";
-    if (isConnectedAndActive) return "Standby (Idle)";
+    if (isDisabled) return "Desligado no Hub";
+    if (isDisconnected) return "Bomba desconectada";
+    if (isDosing) return "Dosando ($formattedFlow)";
+    if (isWaitingWindow) return "Aguardando início";
+    if (isConnectedAndActive) return "Parada";
     return "Offline";
   }
 

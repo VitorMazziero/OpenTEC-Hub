@@ -8,7 +8,7 @@ enum ConnectionStatus { disconnected, connecting, connected, error }
 class ConnectionProvider with ChangeNotifier {
   String _ip = ApiConstants.defaultIp;
   ConnectionStatus _status = ConnectionStatus.disconnected;
-  String _statusMessage = "Disconnected";
+  String _statusMessage = "Desconectado";
   int _rttMs = 0;
   int _failedPollCount = 0;
   String? _lastEtag;
@@ -47,21 +47,21 @@ class ConnectionProvider with ChangeNotifier {
     if (isConnected || isConnecting) return;
 
     _status = ConnectionStatus.connecting;
-    _statusMessage = "Connecting to $_ip...";
+    _statusMessage = "Conectando a $_ip...";
     notifyListeners();
 
     // Verify reachability via /ping
     final pingResult = await _apiService.ping();
     if (!pingResult.success) {
       _status = ConnectionStatus.error;
-      _statusMessage = "Ping failed: ${pingResult.error}";
+      _statusMessage = "Sem resposta do Hub: ${pingResult.error}";
       notifyListeners();
       return;
     }
 
     _rttMs = pingResult.rttMs;
     _status = ConnectionStatus.connected;
-    _statusMessage = "Connected to $_ip (${_rttMs}ms)";
+    _statusMessage = "Conectado a $_ip ($_rttMs ms)";
     _failedPollCount = 0;
     _lastEtag = null;
     notifyListeners();
@@ -89,7 +89,7 @@ class ConnectionProvider with ChangeNotifier {
         _failedPollCount++;
         if (_failedPollCount >= 3) {
           _status = ConnectionStatus.error;
-          _statusMessage = "Link lost (${result.error})";
+          _statusMessage = "Conexão perdida (${result.error})";
           _pollTimer?.cancel();
           notifyListeners();
         }
@@ -101,9 +101,9 @@ class ConnectionProvider with ChangeNotifier {
     final result = await _apiService.ping();
     _rttMs = result.rttMs;
     if (result.success) {
-      _statusMessage = "Connected (${_rttMs}ms)";
+      _statusMessage = "Conectado ($_rttMs ms)";
     } else {
-      _statusMessage = "Ping error: ${result.error}";
+      _statusMessage = "Erro de conexão: ${result.error}";
     }
     notifyListeners();
   }
@@ -113,7 +113,7 @@ class ConnectionProvider with ChangeNotifier {
     _pollTimer = null;
     _lastEtag = null;
     _status = ConnectionStatus.disconnected;
-    _statusMessage = "Disconnected";
+    _statusMessage = "Desconectado";
     notifyListeners();
   }
 

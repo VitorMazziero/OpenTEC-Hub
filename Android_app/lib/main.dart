@@ -4,6 +4,7 @@ import 'providers/connection_provider.dart';
 import 'providers/telemetry_provider.dart';
 import 'providers/device_control_provider.dart';
 import 'screens/main_shell.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,22 +43,9 @@ class OpenTECHubApp extends StatelessWidget {
           return MaterialApp(
             title: 'OpenTEC-Hub',
             debugShowCheckedModeBanner: false,
-            theme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blueAccent,
-                brightness: Brightness.light,
-              ),
-              cardTheme: const CardThemeData(
-                elevation: 1.5,
-                margin: EdgeInsets.zero,
-              ),
-              inputDecorationTheme: InputDecorationTheme(
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
+            theme: AppTheme.light(),
+            darkTheme: AppTheme.dark(),
+            themeMode: ThemeMode.system,
             home: const MainShell(),
           );
         },

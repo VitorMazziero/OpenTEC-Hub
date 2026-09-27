@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// Large reading for the overview: title, value with unit and a one-line context.
 class MetricTile extends StatelessWidget {
   final String title;
   final String value;
@@ -23,79 +24,57 @@ class MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final faded = theme.colorScheme.onSurface.withValues(alpha: 0.4);
 
     return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isActive ? accentColor.withValues(alpha: 0.35) : theme.dividerColor.withValues(alpha: 0.2),
-          width: 1.2,
-        ),
-      ),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: accentColor.withValues(alpha: 0.12),
-                  child: Icon(icon, size: 16, color: accentColor),
-                ),
-                const SizedBox(width: 8),
+                Icon(icon, size: 18, color: isActive ? accentColor : faded),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     title,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      height: 1.15,
-                    ),
-                    maxLines: 2,
+                    style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  value,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isActive ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                  ),
-                ),
-                if (unit != null) ...[
-                  const SizedBox(width: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
                   Text(
-                    unit!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
+                    value,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isActive ? theme.colorScheme.onSurface : faded,
                     ),
                   ),
+                  if (unit != null) ...[
+                    const SizedBox(width: 4),
+                    Text(unit!, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  ],
                 ],
-              ],
-            ),
-            if (subtext != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                subtext!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-            ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtext ?? " ",
+              style: theme.textTheme.bodySmall?.copyWith(color: isActive ? accentColor : theme.colorScheme.outline),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),

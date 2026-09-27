@@ -88,15 +88,15 @@ class BiomassSensorState {
   bool get canZeroBlank => online && commEnabled && !commandPending;
 
   String get statusLabel {
-    if (isDisabled) return "Disabled on Hub";
-    if (isDisconnected) return "Sensor Disconnected";
-    if (isAcquiring) return "Acquiring (Active)";
-    if (isIdle) return "Connected (Idle)";
-    return "Standby";
+    if (isDisabled) return "Desligado no Hub";
+    if (isDisconnected) return "Sensor desconectado";
+    if (isAcquiring) return "Medindo";
+    if (isIdle) return "Conectado (parado)";
+    return "Em espera";
   }
 
   String get formattedAbs => isAcquiring ? "${absorbance.toStringAsFixed(3)} AU" : "--";
-  String get formattedAbsorbance => isAcquiring ? "${absorbance.toStringAsFixed(3)} AU" : (isIdle ? "Idle" : "-- AU");
+  String get formattedAbsorbance => isAcquiring ? "${absorbance.toStringAsFixed(3)} AU" : (isIdle ? "Parado" : "-- AU");
   String get formattedRaw => isAcquiring ? "$rawCounts" : "--";
   String get formattedIT => isAcquiring ? "$integrationTimeUs µs" : "--";
   String get formattedPWM => isAcquiring ? "$pwmDuty/255" : "--";

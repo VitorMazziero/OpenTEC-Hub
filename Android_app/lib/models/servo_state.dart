@@ -132,17 +132,17 @@ class ServoState {
 
   String get stateDescription {
     if (!online) return "Offline";
-    if (alarm != 0) return "Alarm: AL${alarm.toString().padLeft(3, '0')}";
-    if (controlFault != 0) return "Fault ($controlFault)";
+    if (alarm != 0) return "Alarme: AL${alarm.toString().padLeft(3, '0')}";
+    if (controlFault != 0) return "Falha ($controlFault)";
     switch (state) {
       case 1:
-        return "Ready";
+        return "Pronto";
       case 2:
-        return isRunning ? "Running" : "Enabled";
+        return isRunning ? "Girando" : "Habilitado";
       case 3:
-        return "Drive Fault";
+        return "Falha do drive";
       default:
-        return "Idle / Standby";
+        return "Parado";
     }
   }
 

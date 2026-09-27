@@ -44,10 +44,10 @@ void main() {
       expect(state.isSpinning, isTrue);
       expect(state.isClockwise, isTrue);
 
-      expect(state.statusLabel, "Agitating (75%)");
+      expect(state.statusLabel, "Agitando (75%)");
       expect(state.formattedPercent, "75%");
-      expect(state.directionLabel, "CW (Normal)");
-      expect(state.potActiveLabel, "Potentiometer Active");
+      expect(state.directionLabel, "Horário");
+      expect(state.potActiveLabel, "Potenciômetro ativo");
     });
 
     test('State 2: Active idle (0% rotation speed)', () {
@@ -66,8 +66,8 @@ void main() {
       expect(state.isConnectedAndActive, isTrue);
       expect(state.isSpinning, isFalse);
       expect(state.formattedPercent, "0%");
-      expect(state.statusLabel, "Connected (Idle)");
-      expect(state.potActiveLabel, "Remote Hub Control");
+      expect(state.statusLabel, "Conectado (parado)");
+      expect(state.potActiveLabel, "Controle pelo Hub");
     });
 
     test('State 3: Disconnected when AgitatorOnline is false', () {
@@ -81,7 +81,7 @@ void main() {
       expect(state.online, isFalse);
       expect(state.isConnectedAndActive, isFalse);
       expect(state.isDisconnected, isTrue);
-      expect(state.statusLabel, "Agitator Disconnected");
+      expect(state.statusLabel, "Agitador desconectado");
       expect(state.formattedPercent, "--%");
       expect(state.directionLabel, "--");
       expect(state.potActiveLabel, "--");
@@ -98,7 +98,7 @@ void main() {
 
       expect(state.direction, 0);
       expect(state.isClockwise, isFalse);
-      expect(state.directionLabel, "CCW (Reverse)");
+      expect(state.directionLabel, "Anti-horário");
     });
 
     test('Command pending flag indicates queued command awaiting ACK', () {

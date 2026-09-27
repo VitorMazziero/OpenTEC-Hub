@@ -82,14 +82,14 @@ class FlaskAgitatorState {
   bool get isDisabled => !online;
 
   String get statusLabel {
-    if (isDisconnected) return "Agitator Disconnected";
-    if (isSpinning) return "Agitating (${speedPercent.toStringAsFixed(0)}%)";
-    return "Connected (Idle)";
+    if (isDisconnected) return "Agitador desconectado";
+    if (isSpinning) return "Agitando (${speedPercent.toStringAsFixed(0)}%)";
+    return "Conectado (parado)";
   }
 
   String get formattedSpeed => isConnectedAndActive ? "${speedPercent.toStringAsFixed(0)}%" : "--%";
   String get formattedPercent => formattedSpeed;
-  String get directionLabel => isConnectedAndActive ? (isClockwise ? "CW (Normal)" : "CCW (Reverse)") : "--";
-  String get potLabel => isConnectedAndActive ? (potActive ? "POT OVERRIDE" : "SW CONTROL") : "--";
-  String get potActiveLabel => isConnectedAndActive ? (potActive ? "Potentiometer Active" : "Remote Hub Control") : "--";
+  String get directionLabel => isConnectedAndActive ? (isClockwise ? "Horário" : "Anti-horário") : "--";
+  String get potLabel => isConnectedAndActive ? (potActive ? "POTENCIÔMETRO" : "HUB") : "--";
+  String get potActiveLabel => isConnectedAndActive ? (potActive ? "Potenciômetro ativo" : "Controle pelo Hub") : "--";
 }

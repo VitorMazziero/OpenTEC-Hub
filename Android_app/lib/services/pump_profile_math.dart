@@ -194,47 +194,47 @@ class PumpProfileMath {
   /// Validates profile parameters and returns an error message if invalid.
   static String? validateSpec(PumpProfileSpec spec) {
     if (spec.initMinutes < 0) {
-      return "Initial time cannot be negative.";
+      return "O início não pode ser negativo.";
     }
     if (spec.finalMinutes <= spec.initMinutes) {
-      return "Final time must be greater than initial time.";
+      return "O fim deve ser maior que o início.";
     }
 
     switch (spec.mode) {
       case PeristalticPumpMode.constant:
-        if (spec.lambda < 0) return "Constant flow rate cannot be negative.";
+        if (spec.lambda < 0) return "A vazão não pode ser negativa.";
         break;
       case PeristalticPumpMode.linear:
-        if (spec.lambda < 0) return "Initial flow rate cannot be negative.";
+        if (spec.lambda < 0) return "A vazão inicial não pode ser negativa.";
         break;
       case PeristalticPumpMode.exponential:
-        if (spec.lambda < 0) return "Initial flow rate cannot be negative.";
+        if (spec.lambda < 0) return "A vazão inicial não pode ser negativa.";
         break;
       case PeristalticPumpMode.polynomial:
         if (spec.polynomialCoefficients.isEmpty) {
-          return "Please enter at least one polynomial coefficient.";
+          return "Informe ao menos um coeficiente.";
         }
         if (spec.polynomialCoefficients.length > 21) {
-          return "Maximum 21 polynomial coefficients supported (p0 to p20).";
+          return "No máximo 21 coeficientes (p0 a p20).";
         }
         break;
       case PeristalticPumpMode.piecewise:
         if (spec.piecewiseTimes.length < 2) {
-          return "Piecewise profile requires at least 2 time-flow points.";
+          return "Informe ao menos 2 pontos (t, Q).";
         }
         if (spec.piecewiseTimes.length != spec.piecewiseFlows.length) {
-          return "Times and flows list lengths must match.";
+          return "Tempos e vazões precisam ter o mesmo número de pontos.";
         }
         if (spec.piecewiseTimes[0] != 0.0) {
-          return "First time point (t0) must start at 0.0.";
+          return "O primeiro tempo (t0) deve ser 0.";
         }
         for (int i = 1; i < spec.piecewiseTimes.length; i++) {
           if (spec.piecewiseTimes[i] <= spec.piecewiseTimes[i - 1]) {
-            return "Time points must be strictly increasing.";
+            return "Os tempos devem ser crescentes.";
           }
         }
         for (final flow in spec.piecewiseFlows) {
-          if (flow < 0) return "Flow values cannot be negative.";
+          if (flow < 0) return "As vazões não podem ser negativas.";
         }
         break;
       case PeristalticPumpMode.stop:

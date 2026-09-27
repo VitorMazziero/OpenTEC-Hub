@@ -12,6 +12,10 @@ class InternalTelemetry {
   final bool sensorCommOk; // OpenTEC UART link status
   final String hubFirmwareVersion;
   final int hubProtocolVersion;
+  /// Reactor temperature reference in force (null when none is commanded).
+  final double? tempSetpoint;
+  /// The Hub holds an active temperature command (route-independent).
+  final bool tempSetpointCommanded;
 
   InternalTelemetry({
     required this.time,
@@ -24,6 +28,8 @@ class InternalTelemetry {
     required this.sensorCommOk,
     required this.hubFirmwareVersion,
     required this.hubProtocolVersion,
+    this.tempSetpoint,
+    this.tempSetpointCommanded = false,
   });
 
   factory InternalTelemetry.empty() {
@@ -56,6 +62,10 @@ class InternalTelemetry {
       hubProtocolVersion: (json['HubProtocolVersion'] is int)
           ? json['HubProtocolVersion'] as int
           : int.tryParse(json['HubProtocolVersion']?.toString() ?? "0") ?? 0,
+      tempSetpoint: (json['TempSetpoint'] is num && (json['TempSetpoint'] as num) > 0)
+          ? (json['TempSetpoint'] as num).toDouble()
+          : null,
+      tempSetpointCommanded: json['TempSetpointCommanded'] == true,
     );
   }
 

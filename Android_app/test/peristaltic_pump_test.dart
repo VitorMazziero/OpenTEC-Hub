@@ -42,7 +42,7 @@ void main() {
       expect(state.commEnabled, isTrue);
       expect(state.commandPending, isFalse);
       expect(state.mode, PeristalticPumpMode.constant);
-      expect(state.modeLabel, "Constant Flow");
+      expect(state.modeLabel, "Vazão constante");
       expect(state.pwm, 180);
       expect(state.speed, 45.2);
       expect(state.flow, 2.50);
@@ -58,7 +58,7 @@ void main() {
       expect(state.isWaitingWindow, isFalse);
       expect(state.isIdle, isFalse);
 
-      expect(state.statusLabel, "Dosing (2.50 mL/min)");
+      expect(state.statusLabel, "Dosando (2.50 mL/min)");
       expect(state.formattedFlow, "2.50 mL/min");
       expect(state.formattedVolume, "15.0 mL");
       expect(state.formattedTargetVolume, "50.0 mL");
@@ -87,7 +87,7 @@ void main() {
       expect(state.isConnectedAndActive, isTrue);
       expect(state.isDosing, isFalse);
       expect(state.isWaitingWindow, isTrue);
-      expect(state.statusLabel, "Waiting for Window");
+      expect(state.statusLabel, "Aguardando início");
       expect(state.mode, PeristalticPumpMode.exponential);
     });
 
@@ -105,7 +105,7 @@ void main() {
       expect(state.isConnectedAndActive, isFalse);
       expect(state.isDisconnected, isTrue);
       expect(state.isDisabled, isFalse);
-      expect(state.statusLabel, "Pump Disconnected");
+      expect(state.statusLabel, "Bomba desconectada");
       expect(state.formattedFlow, "-- mL/min");
       expect(state.formattedVolume, "-- mL");
       expect(state.formattedSpeed, "-- RPM");
@@ -125,7 +125,7 @@ void main() {
       expect(state.isConnectedAndActive, isFalse);
       expect(state.isDisconnected, isFalse);
       expect(state.isDisabled, isTrue);
-      expect(state.statusLabel, "Disabled on Hub");
+      expect(state.statusLabel, "Desligado no Hub");
     });
 
     test('Command pending flag indicates queued command awaiting ACK', () {

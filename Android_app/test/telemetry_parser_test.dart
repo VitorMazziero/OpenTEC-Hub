@@ -86,7 +86,7 @@ void main() {
       expect(servo.powerW, 45.3);
       expect(servo.isRunning, isTrue);
       expect(servo.isFaulted, isFalse);
-      expect(servo.stateDescription, "Running");
+      expect(servo.stateDescription, "Girando");
     });
 
     test('Identifies drive alarm / fault state', () {
@@ -105,7 +105,7 @@ void main() {
 
       final servo = ServoState.fromJson(sampleJson);
       expect(servo.isFaulted, isTrue);
-      expect(servo.stateDescription, "Alarm: AL009");
+      expect(servo.stateDescription, "Alarme: AL009");
     });
   });
 

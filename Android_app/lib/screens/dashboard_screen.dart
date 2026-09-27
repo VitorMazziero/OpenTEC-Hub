@@ -1,359 +1,265 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/external_bath_state.dart';
+import '../providers/connection_provider.dart';
 import '../providers/telemetry_provider.dart';
-import '../providers/device_control_provider.dart';
-import '../widgets/servo_monitor_card.dart';
+import '../theme/app_theme.dart';
 import '../widgets/metric_tile.dart';
-import '../widgets/distance_sensor_card.dart';
-import '../widgets/biomass_sensor_card.dart';
-import '../widgets/flowmeter_card.dart';
-import '../widgets/flask_agitator_card.dart';
-import '../widgets/peristaltic_pump_card.dart';
 
-enum DeviceCategory { internal, external }
-
-class DashboardScreen extends StatefulWidget {
+/// Read-only overview: every process variable with its setpoint, then the external
+/// nodes that are switched on. Setpoints are changed on the Controls tab.
+class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
-  @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
-}
-
-class _DashboardScreenState extends State<DashboardScreen> {
-  DeviceCategory _selectedCategory = DeviceCategory.internal;
+  static const int expectedProtocol = 10;
 
   @override
   Widget build(BuildContext context) {
-    final telemetryProv = context.watch<TelemetryProvider>();
-    final controlProv = context.read<DeviceControlProvider>();
-    final telemetry = telemetryProv.telemetry;
-    final servo = telemetryProv.servoState;
+    final conn = context.watch<ConnectionProvider>();
+    final p = context.watch<TelemetryProvider>();
+    final t = p.telemetry;
+    final servo = p.servoState;
+    final bath = p.bathState;
 
-    final tempVal = telemetry.hasValidTemperature
-        ? telemetry.temperature.toStringAsFixed(1)
-        : "--";
-    final phVal = telemetryProv.calibratedPh >= 0.0
-        ? telemetryProv.calibratedPh.toStringAsFixed(2)
-        : "--";
-    final oxyVal = telemetryProv.calibratedOxygen >= 0.0
-        ? telemetryProv.calibratedOxygen.toStringAsFixed(2)
-        : "--";
-    final pressureVal = telemetry.pressure.toStringAsFixed(1);
-    final antifoamVal = telemetry.antifoam > 0.5 ? "DETECTED" : "CLEAR";
+    final tempSub = t.tempSetpointCommanded && t.tempSetpoint != null
+        ? "SP ${t.tempSetpoint!.toStringAsFixed(1)} °C${bath.viaBath ? ' · banho' : ''}"
+        : "Controle desligado${bath.viaBath ? ' · banho' : ''}";
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        // Telemetry updates automatically via background polling
-        await Future.delayed(const Duration(milliseconds: 300));
-      },
-      child: ListView(
-        padding: const EdgeInsets.all(12.0),
+    final String servoValue;
+    final String servoSub;
+    if (!servo.commEnabled) {
+      servoValue = "--";
+      servoSub = "Comunicação desligada";
+    } else if (!servo.online) {
+      servoValue = "--";
+      servoSub = "Servo offline";
+    } else {
+      servoValue = servo.hasTelemetry ? servo.rpm.toStringAsFixed(0) : "${servo.appliedRpm}";
+      servoSub = servo.isFaulted ? servo.stateDescription : "Alvo ${servo.requestedRpm} rpm";
+    }
+
+    final peripherals = <Widget>[
+      if (p.pumpState.commEnabled)
+        MetricTile(
+          title: "Bomba peristáltica",
+          value: p.pumpState.isConnectedAndActive ? p.pumpState.flow.toStringAsFixed(2) : "--",
+          unit: "mL/min",
+          subtext: p.pumpState.isConnectedAndActive
+              ? "${p.pumpState.statusLabel.split(' (').first} · ${p.pumpState.formattedVolume}"
+              : p.pumpState.statusLabel,
+          icon: Icons.water_drop,
+          accentColor: AppColors.pump,
+          isActive: p.pumpState.isConnectedAndActive,
+        ),
+      if (p.flowmeterState.commEnabled)
+        MetricTile(
+          title: "Vazão de gás",
+          value: p.flowmeterState.isConnectedAndActive ? p.flowmeterState.flowRate.toStringAsFixed(2) : "--",
+          unit: "L/min",
+          subtext: p.flowmeterState.isConnectedAndActive
+              ? "Alvo ${p.flowmeterState.flowSetpoint.toStringAsFixed(2)} L/min"
+              : p.flowmeterState.statusLabel,
+          icon: Icons.air,
+          accentColor: AppColors.flow,
+          isActive: p.flowmeterState.isConnectedAndActive,
+        ),
+      if (p.agitatorState.isOnline)
+        MetricTile(
+          title: "Frasco agitador",
+          value: p.agitatorState.isConnectedAndActive ? p.agitatorState.speedPercent.toStringAsFixed(0) : "--",
+          unit: "%",
+          subtext: p.agitatorState.statusLabel,
+          icon: Icons.rotate_right,
+          accentColor: AppColors.flask,
+          isActive: p.agitatorState.isSpinning,
+        ),
+      if (p.biomassState.commEnabled)
+        MetricTile(
+          title: "Biomassa",
+          value: p.biomassState.isAcquiring ? p.biomassState.absorbance.toStringAsFixed(3) : "--",
+          unit: "AU",
+          subtext: p.biomassState.statusLabel,
+          icon: Icons.grain,
+          accentColor: AppColors.biomass,
+          isActive: p.biomassState.isAcquiring,
+        ),
+      if (p.distanceState.commEnabled)
+        MetricTile(
+          title: "Distância",
+          value: p.distanceState.isConnectedAndActive ? p.distanceState.distanceMm.toStringAsFixed(0) : "--",
+          unit: "mm",
+          subtext: p.distanceState.statusLabel,
+          icon: Icons.radar,
+          accentColor: AppColors.distance,
+          isActive: p.distanceState.isConnectedAndActive,
+        ),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        if (!conn.isConnected)
+          const _Banner(
+            icon: Icons.wifi_off,
+            text: "Sem conexão com o Hub. Conecte o celular à rede Wi-Fi do Hub e toque no ícone de Wi-Fi.",
+          )
+        else if (t.hubProtocolVersion != 0 && t.hubProtocolVersion != expectedProtocol)
+          _Banner(
+            icon: Icons.warning_amber_rounded,
+            text: "Hub com protocolo ${t.hubProtocolVersion}; este app espera o protocolo $expectedProtocol.",
+          ),
+        _TileGrid([
+          MetricTile(
+            title: "Temperatura",
+            value: t.hasValidTemperature ? t.temperature.toStringAsFixed(1) : "--",
+            unit: "°C",
+            subtext: tempSub,
+            icon: Icons.thermostat,
+            accentColor: AppColors.temperature,
+            isActive: t.hasValidTemperature,
+          ),
+          MetricTile(
+            title: "Agitação",
+            value: servoValue,
+            unit: "rpm",
+            subtext: servoSub,
+            icon: Icons.cyclone,
+            accentColor: AppColors.agitation,
+            isActive: servo.online && servo.commEnabled,
+          ),
+          MetricTile(
+            title: "pH",
+            value: p.calibratedPh >= 0 ? p.calibratedPh.toStringAsFixed(2) : "--",
+            subtext: t.hasValidPh ? "Sonda ok" : "Sonda ausente",
+            icon: Icons.science_outlined,
+            accentColor: AppColors.ph,
+            isActive: p.calibratedPh >= 0,
+          ),
+          MetricTile(
+            title: "Oxigênio dissolvido",
+            value: p.calibratedOxygen >= 0 ? p.calibratedOxygen.toStringAsFixed(2) : "--",
+            unit: "mg/L",
+            subtext: t.hasValidOxygen ? "Sonda ok" : "Sonda ausente",
+            icon: Icons.bubble_chart_outlined,
+            accentColor: AppColors.oxygen,
+            isActive: p.calibratedOxygen >= 0,
+          ),
+          MetricTile(
+            title: "Pressão",
+            value: t.pressure.toStringAsFixed(0),
+            unit: "mmHg",
+            icon: Icons.speed,
+            accentColor: AppColors.pressure,
+            isActive: conn.isConnected,
+          ),
+          MetricTile(
+            title: "Espuma",
+            value: t.antifoam > 0.5 ? "Espuma" : "Livre",
+            subtext: "Sensor da placa",
+            icon: Icons.waves,
+            accentColor: AppColors.antifoam,
+            isActive: t.antifoam > 0.5,
+          ),
+        ]),
+        if (bath.hasTelemetry && bath.viaBath) ...[
+          const SizedBox(height: 10),
+          _BathSummary(),
+        ],
+        if (peripherals.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          Text("Periféricos", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          _TileGrid(peripherals),
+        ],
+        const SizedBox(height: 18),
+        Center(
+          child: Text(
+            [
+              if (t.hubFirmwareVersion.isNotEmpty) "Hub ${t.hubFirmwareVersion}",
+              if (t.hubProtocolVersion != 0) "protocolo ${t.hubProtocolVersion}",
+              "placa de sensores ${t.sensorCommOk ? 'ok' : 'sem resposta'}",
+            ].join(" · "),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TileGrid extends StatelessWidget {
+  final List<Widget> tiles;
+  const _TileGrid(this.tiles);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final columns = c.maxWidth > 700 ? 3 : 2;
+      final width = (c.maxWidth - 10 * (columns - 1)) / columns;
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [for (final t in tiles) SizedBox(width: width, child: t)],
+      );
+    });
+  }
+}
+
+class _Banner extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _Banner({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: scheme.errorContainer, borderRadius: BorderRadius.circular(12)),
+      child: Row(
         children: [
-          // Navigation Submenu: Internal vs External
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12.0),
-            child: SegmentedButton<DeviceCategory>(
-              segments: const [
-                ButtonSegment<DeviceCategory>(
-                  value: DeviceCategory.internal,
-                  icon: Icon(Icons.biotech),
-                  label: Text("Biorreator"),
-                ),
-                ButtonSegment<DeviceCategory>(
-                  value: DeviceCategory.external,
-                  icon: Icon(Icons.devices_other),
-                  label: Text("Periféricos"),
-                ),
-              ],
-              selected: {_selectedCategory},
-              onSelectionChanged: (newSelection) {
-                setState(() {
-                  _selectedCategory = newSelection.first;
-                });
-              },
-            ),
-          ),
-          if (_selectedCategory == DeviceCategory.internal) ...[
-            // 1. Servo Monitor Card (Primary Actuator)
-            ServoMonitorCard(
-            servoState: servo,
-            onStopPressed: () async {
-              final ok = await controlProv.stopMotor();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Motor stopped" : "Failed to stop motor"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 12),
+          Icon(icon, color: scheme.onErrorContainer),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: TextStyle(color: scheme.onErrorContainer))),
+        ],
+      ),
+    );
+  }
+}
 
-          // 2. Internal Sensors Grid
-          Row(
-            children: [
-              Expanded(
-                child: MetricTile(
-                  title: "Temperatura",
-                  value: tempVal,
-                  unit: "°C",
-                  subtext: "Faixa: 0-100°C",
-                  icon: Icons.thermostat,
-                  accentColor: Colors.redAccent,
-                  isActive: telemetry.hasValidTemperature,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: MetricTile(
-                  title: "pH (Calibrado)",
-                  value: phVal,
-                  unit: "pH",
-                  subtext: telemetry.hasValidPh
-                      ? "Raw: ${telemetry.rawPh.toInt()} ADC"
-                      : "Sensor ausente",
-                  icon: Icons.science_outlined,
-                  accentColor: Colors.blueAccent,
-                  isActive: telemetryProv.calibratedPh >= 0.0,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          Row(
-            children: [
-              Expanded(
-                child: MetricTile(
-                  title: "Oxigênio Dissolvido (O₂)",
-                  value: oxyVal,
-                  unit: "mg/L",
-                  subtext: telemetry.hasValidOxygen
-                      ? "Raw: ${telemetry.rawOxygen.toInt()} ADC"
-                      : "Sensor ausente",
-                  icon: Icons.bubble_chart_outlined,
-                  accentColor: Colors.teal,
-                  isActive: telemetryProv.calibratedOxygen >= 0.0,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: MetricTile(
-                  title: "Pressão",
-                  value: pressureVal,
-                  unit: "mmHg",
-                  subtext: "Pressão do vaso",
-                  icon: Icons.speed,
-                  accentColor: Colors.orangeAccent,
-                  isActive: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          Row(
-            children: [
-              Expanded(
-                child: MetricTile(
-                  title: "Sensor Espuma",
-                  value: antifoamVal,
-                  subtext: "Nível: ${telemetry.antifoam.toStringAsFixed(0)}",
-                  icon: Icons.waves,
-                  accentColor: Colors.deepOrangeAccent,
-                  isActive: telemetry.antifoam > 0.5,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: MetricTile(
-                  title: "Placa Sensores",
-                  value: telemetry.sensorCommOk ? "ACTIVE" : "OFFLINE",
-                  subtext: "Link OpenTEC UART",
-                  icon: Icons.memory,
-                  accentColor: telemetry.sensorCommOk ? Colors.green : Colors.red,
-                  isActive: telemetry.sensorCommOk,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // 3. Hub System Diagnostics
-          Card(
-            elevation: 1,
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+class _BathSummary extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final bath = context.watch<TelemetryProvider>().bathState;
+    final theme = Theme.of(context);
+    final color = bath.isFault ? AppColors.danger : AppColors.temperature;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(Icons.hot_tub_outlined, color: color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.info_outline, size: 16, color: Colors.grey),
-                      const SizedBox(width: 6),
-                      Text(
-                        "Hub ${telemetry.hubFirmwareVersion.isNotEmpty ? telemetry.hubFirmwareVersion : 'v10'} (Proto: ${telemetry.hubProtocolVersion})",
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                  Text(
-                    "Stations: ${telemetry.hubStations} • Time: ${telemetry.time.toStringAsFixed(0)}s",
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  Text("Banho externo C404", style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                  Text(bath.summary, style: theme.textTheme.bodySmall?.copyWith(color: color)),
                 ],
               ),
             ),
-          ),
-        ] else ...[
-          // ==========================================
-          // PERIFÉRICOS EXTERNOS (ESP32 Wi-Fi NODES)
-          // ==========================================
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
-            ),
-            child: Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Icon(Icons.wifi_tethering, size: 20, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "Módulos Periféricos Sem Fio (ESP32 Wi-Fi Nodes)",
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                  ),
-                ),
-                Text(
-                  "5 nós integrados",
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                ),
+                Text("PV ${ExternalBathState.fmt(bath.bathPv)}", style: theme.textTheme.bodySmall),
+                Text("SP ${ExternalBathState.fmt(bath.bathSp)}", style: theme.textTheme.bodySmall),
               ],
             ),
-          ),
-
-          // 1. External Peristaltic Pump Card (Em destaque no topo dos periféricos!)
-          PeristalticPumpCard(
-            state: telemetryProv.pumpState,
-            onStop: () async {
-              final ok = await controlProv.stopPump();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Pump dosing stopped" : "Failed to stop pump"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // 2. External Flowmeter & Gas Sparging Card
-          FlowmeterCard(
-            state: telemetryProv.flowmeterState,
-            onStopFlow: () async {
-              final ok = await controlProv.stopFlow();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Gas flow stopped" : "Failed to stop gas flow"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // 3. External Flask Agitator Card
-          FlaskAgitatorCard(
-            state: telemetryProv.agitatorState,
-            onStart: () async {
-              final ok = await controlProv.setAgitatorState(on: true);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Flask agitator started" : "Failed to start agitator"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-            onStop: () async {
-              final ok = await controlProv.safeStopAgitator();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Flask agitator stopped" : "Failed to stop agitator"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // 4. External Biomass Sensor Card
-          BiomassSensorCard(
-            state: telemetryProv.biomassState,
-            onStartAcquisition: () async {
-              final ok = await controlProv.startBiomassAcquisition();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Biomass acquisition started" : "Failed to start biomass acquisition"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-            onStopAcquisition: () async {
-              final ok = await controlProv.stopBiomassAcquisition();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Biomass acquisition stopped" : "Failed to stop biomass acquisition"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-            onZeroBlank: () async {
-              final ok = await controlProv.zeroBiomassBlank();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? "Biomass zero blank command sent" : "Failed to zero blank"),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // 5. External Distance Sensor Card
-          DistanceSensorCard(
-            state: telemetryProv.distanceState,
-          ),
-          const SizedBox(height: 12),
-        ],
-      ],
-    ),
-  );
-}
+          ],
+        ),
+      ),
+    );
+  }
 }

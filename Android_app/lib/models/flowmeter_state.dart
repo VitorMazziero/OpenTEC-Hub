@@ -118,10 +118,10 @@ class FlowmeterState {
   bool get isMainFlowOpen => valveFlow == 0;
 
   String get statusLabel {
-    if (isDisabled) return "Disabled on Hub";
-    if (isDisconnected) return "Sensor Disconnected";
-    if (isConnectedAndActive) return "Connected & Active";
-    return "Standby";
+    if (isDisabled) return "Desligado no Hub";
+    if (isDisconnected) return "Sensor desconectado";
+    if (isConnectedAndActive) return "Conectado e medindo";
+    return "Em espera";
   }
 
   String get formattedFlowRate => isConnectedAndActive ? "${flowRate.toStringAsFixed(2)} L/min" : "-- L/min";

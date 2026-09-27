@@ -37,7 +37,7 @@ class _ConnectionDialogState extends State<ConnectionDialog> {
         children: [
           Icon(Icons.wifi, color: theme.colorScheme.primary),
           const SizedBox(width: 8),
-          const Text("Hub Connection"),
+          const Text("Conexão com o Hub"),
         ],
       ),
       content: SingleChildScrollView(
@@ -48,7 +48,7 @@ class _ConnectionDialogState extends State<ConnectionDialog> {
             TextField(
               controller: _ipController,
               decoration: const InputDecoration(
-                labelText: "ESP32-S3 IP Address",
+                labelText: "Endereço IP do Hub",
                 hintText: "192.168.4.1",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.router_outlined),
@@ -100,11 +100,11 @@ class _ConnectionDialogState extends State<ConnectionDialog> {
                       style: theme.textTheme.bodySmall,
                     ),
                     Text(
-                      "Protocol: ${telemetry.hubProtocolVersion} • Stations: ${telemetry.hubStations}",
+                      "Protocolo: ${telemetry.hubProtocolVersion} • Clientes: ${telemetry.hubStations}",
                       style: theme.textTheme.bodySmall,
                     ),
                     Text(
-                      "Internal Sensors UART: ${telemetry.sensorCommOk ? 'OK' : 'Error/Disconnected'}",
+                      "Placa de sensores: ${telemetry.sensorCommOk ? 'ok' : 'sem resposta'}",
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: telemetry.sensorCommOk ? Colors.green.shade700 : Colors.red.shade700,
                       ),
@@ -124,7 +124,7 @@ class _ConnectionDialogState extends State<ConnectionDialog> {
                       await conn.pingNow();
                     },
               icon: const Icon(Icons.speed, size: 16),
-              label: Text("Ping Test ${conn.rttMs > 0 ? '(${conn.rttMs} ms)' : ''}"),
+              label: Text("Testar conexão ${conn.rttMs > 0 ? '(${conn.rttMs} ms)' : ''}"),
             ),
           ],
         ),
@@ -132,7 +132,7 @@ class _ConnectionDialogState extends State<ConnectionDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text("Close"),
+          child: const Text("Fechar"),
         ),
         if (conn.isConnected)
           FilledButton.tonal(
@@ -143,7 +143,7 @@ class _ConnectionDialogState extends State<ConnectionDialog> {
               foregroundColor: Colors.red.shade700,
               backgroundColor: Colors.red.shade50,
             ),
-            child: const Text("Disconnect"),
+            child: const Text("Desconectar"),
           )
         else
           FilledButton(
@@ -163,7 +163,7 @@ class _ConnectionDialogState extends State<ConnectionDialog> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : const Text("Connect"),
+                : const Text("Conectar"),
           ),
       ],
     );

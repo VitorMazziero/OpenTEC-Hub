@@ -23,9 +23,9 @@ class DeviceControlProvider with ChangeNotifier {
     _isBusy = false;
 
     if (result.success) {
-      _lastCommandStatus = "Command accepted (${result.response})";
+      _lastCommandStatus = "Comando aceito (${result.response})";
     } else {
-      _lastCommandStatus = "Command failed: ${result.response}";
+      _lastCommandStatus = "Falha no comando: ${result.response}";
     }
     notifyListeners();
     return result.success;
@@ -80,9 +80,22 @@ class DeviceControlProvider with ChangeNotifier {
     return sendRawCommand({"tempSetpoint": sp});
   }
 
+  /// Temperature route: `false` = original module (UART), `true` = external bath.
+  /// The Hub switches temperature off on a route change (sends 100B to the module and,
+  /// when leaving the bath, stops it) and ignores a setpoint sent in the same frame,
+  /// so the route goes alone and a new setpoint must follow.
+  Future<bool> setTemperatureRoute({required bool externalBath}) async {
+    return sendRawCommand({"tempControlMode": externalBath ? 1 : 0});
+  }
+
   // ==========================================
   // EXTERNAL BATH (Hub 10.6)
   // ==========================================
+
+  /// Hub <-> bath node link. Switching it off while the cascade owns the bath stops it.
+  Future<bool> setBathComm(bool enabled) async {
+    return sendRawCommand({"bathComm": enabled ? 1 : 0});
+  }
 
   /// Bath stop: cascade off, C404 sequence aborted and guard left in manual. The route
   /// and bath communication are kept; the bath itself cannot be switched off remotely.
@@ -176,6 +189,36 @@ class DeviceControlProvider with ChangeNotifier {
       "antifoamOperation": opSeconds,
       "antifoamMix": mixSeconds,
       "antifoamIntensity": enabled ? speedPercent.clamp(0, 99) : 0,
+    });
+  }
+
+  // ==========================================
+  // AUTOMATIC FOAM RESPONSE (distance sensor + antifoam pump + flask agitator)
+  // ==========================================
+
+  /// Foam logic in the Hub: foam is detected when the distance falls below the
+  /// distance reference; after [startDelaySeconds] of accumulated foam the antifoam pump
+  /// is pulsed for [pulseSeconds] every [intervalSeconds]. A reference of 0 disables it.
+  Future<bool> setFoamResponse({
+    required double referenceMm,
+    required double startDelaySeconds,
+    required double pulseSeconds,
+    required double intervalSeconds,
+    required bool useAgitator,
+  }) async {
+    final valid = [referenceMm, startDelaySeconds, pulseSeconds, intervalSeconds]
+        .every((v) => v.isFinite && v >= 0.0);
+    if (!valid || pulseSeconds <= 0.0 || intervalSeconds <= 0.0) {
+      _lastCommandStatus = "Parâmetros de espuma inválidos";
+      notifyListeners();
+      return false;
+    }
+    return sendRawCommand({
+      "distanceSensorReference": referenceMm,
+      "foamStartDelay_s": startDelaySeconds,
+      "foamPulse_s": pulseSeconds,
+      "foamInterval_s": intervalSeconds,
+      "agitatorAuto": useAgitator ? 1 : 0,
     });
   }
 

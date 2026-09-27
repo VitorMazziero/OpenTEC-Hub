@@ -47,7 +47,7 @@ void main() {
       expect(state.isDisconnected, isFalse);
       expect(state.isDisabled, isFalse);
 
-      expect(state.statusLabel, "Acquiring (Active)");
+      expect(state.statusLabel, "Medindo");
       expect(state.formattedAbs, "0.742 AU");
       expect(state.formattedRaw, "42100");
       expect(state.formattedIT, "50000 µs");
@@ -76,7 +76,7 @@ void main() {
       expect(state.isDisconnected, isFalse);
       expect(state.isDisabled, isFalse);
 
-      expect(state.statusLabel, "Connected (Idle)");
+      expect(state.statusLabel, "Conectado (parado)");
       expect(state.formattedAbs, "--");
 
       expect(state.canStartAcquisition, isTrue);
@@ -99,7 +99,7 @@ void main() {
       expect(state.isDisconnected, isTrue);
       expect(state.isDisabled, isFalse);
 
-      expect(state.statusLabel, "Sensor Disconnected");
+      expect(state.statusLabel, "Sensor desconectado");
       expect(state.canStartAcquisition, isFalse);
       expect(state.canStopAcquisition, isFalse);
       expect(state.canZeroBlank, isFalse);
@@ -120,7 +120,7 @@ void main() {
       expect(state.isDisconnected, isFalse);
       expect(state.isDisabled, isTrue);
 
-      expect(state.statusLabel, "Disabled on Hub");
+      expect(state.statusLabel, "Desligado no Hub");
       expect(state.canStartAcquisition, isFalse);
       expect(state.canStopAcquisition, isFalse);
       expect(state.canZeroBlank, isFalse);

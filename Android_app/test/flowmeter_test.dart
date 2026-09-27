@@ -58,7 +58,7 @@ void main() {
       expect(state.isDisconnected, isFalse);
       expect(state.isDisabled, isFalse);
 
-      expect(state.statusLabel, "Connected & Active");
+      expect(state.statusLabel, "Conectado e medindo");
       expect(state.formattedFlowRate, "2.50 L/min");
       expect(state.formattedSetpoint, "2.50 L/min");
       expect(state.formattedVoltage, "1.234 V");
@@ -83,7 +83,7 @@ void main() {
       expect(state.isConnectedAndActive, isFalse);
       expect(state.isDisconnected, isTrue);
       expect(state.isDisabled, isFalse);
-      expect(state.statusLabel, "Sensor Disconnected");
+      expect(state.statusLabel, "Sensor desconectado");
       expect(state.formattedFlowRate, "-- L/min");
       expect(state.formattedVoltage, "-- V");
     });
@@ -101,7 +101,7 @@ void main() {
       expect(state.isConnectedAndActive, isFalse);
       expect(state.isDisconnected, isFalse);
       expect(state.isDisabled, isTrue);
-      expect(state.statusLabel, "Disabled on Hub");
+      expect(state.statusLabel, "Desligado no Hub");
     });
 
     test('Command pending flag indicates queued mailbox command awaiting ACK', () {

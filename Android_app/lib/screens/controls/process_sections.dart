@@ -22,12 +22,26 @@ class AgitationSection extends StatefulWidget {
 class _AgitationSectionState extends State<AgitationSection> with HubSync {
   final _rpm = TextEditingController(text: "0");
   int _rpmValue = 0;
+  bool _on = false;
   bool _editing = false;
 
   @override
   void dispose() {
     _rpm.dispose();
     super.dispose();
+  }
+
+  /// Switch off stops the motor at once; switch on only opens the speed for Apply.
+  Future<void> _toggle(DeviceControlProvider control, bool on) async {
+    setState(() {
+      _on = on;
+      _editing = true;
+    });
+    if (on) return;
+    final ok = await control.stopMotor();
+    if (!mounted) return;
+    if (ok) setState(() => _editing = false);
+    showCommandFeedback(context, ok, "Agitação desligada");
   }
 
   void _setRpm(int v, {bool fromText = false}) {
@@ -51,8 +65,7 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
     if (!mounted) return;
     if (ok) {
       setState(() {
-        _rpmValue = 0;
-        _rpm.text = "0";
+        _on = false;
         _editing = false;
       });
     }
@@ -70,8 +83,11 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
     // Only the servo route echoes the commanded speed; the board route does not publish it.
     if (viaServo) {
       syncFromHub("rpm", servo.requestedRpm, editing: _editing, apply: () {
-        _rpmValue = servo.requestedRpm.clamp(0, 1000);
-        _rpm.text = "$_rpmValue";
+        _on = servo.requestedRpm > 0;
+        if (_on) {
+          _rpmValue = servo.requestedRpm.clamp(0, 1000);
+          _rpm.text = "$_rpmValue";
+        }
       });
     }
 
@@ -100,20 +116,15 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
       status: status,
       icon: Icons.cyclone,
       accentColor: AppColors.agitation,
-      // The switch is the Hub <-> servo node link, meaningful on the servo route only.
-      isEnabled: viaServo ? servo.commEnabled : null,
-      onToggle: viaServo
-          ? (v) async {
-              final ok = await control.setServoComm(v);
-              if (context.mounted) showCommandFeedback(context, ok, "Comunicação do servo ${v ? 'ligada' : 'desligada'}");
-            }
-          : null,
+      isEnabled: _on,
+      onToggle: (v) => _toggle(control, v),
       isBusy: control.isBusy,
       header: RouteSelector(
         alternative: viaServo,
         boardLabel: "Placa",
         alternativeLabel: "Servo",
         alternativeIcon: Icons.settings_input_component,
+        alternativeFirst: true,
         onChanged: control.isBusy || !connected ? null : (toServo) => _changeRoute(control, toServo),
         note: servo.online && servo.routeAck != (viaServo ? 1 : 0)
             ? "Aguardando o servo confirmar a via"
@@ -121,7 +132,11 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
       ),
       applyButtonLabel: "Aplicar velocidade",
       onApply: () async {
-        final rpm = parseInt(_rpm.text) ?? _rpmValue;
+        final rpm = _on ? (parseInt(_rpm.text) ?? _rpmValue) : 0;
+        if (_on && rpm <= 0) {
+          showCommandFeedback(context, false, "Velocidade inválida (use 15 a 1000 rpm)");
+          return;
+        }
         final ok = await control.setMotorRpm(rpm);
         if (!context.mounted) return;
         if (ok) setState(() => _editing = false);
@@ -129,6 +144,25 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
       },
       children: [
         StatusStrip(label: status, tone: tone, pending: viaServo && servo.commandPending),
+        if (viaServo) ...[
+          // Hub <-> servo node link, meaningful on the servo route only.
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text("Comunicação com o servo"),
+            subtitle: Text(servo.online ? "Servo online" : "Servo offline"),
+            value: servo.commEnabled,
+            onChanged: control.isBusy
+                ? null
+                : (v) async {
+                    final ok = await control.setServoComm(v);
+                    if (context.mounted) {
+                      showCommandFeedback(context, ok, "Comunicação do servo ${v ? 'ligada' : 'desligada'}");
+                    }
+                  },
+          ),
+          const SizedBox(height: 4),
+        ],
         Row(
           children: [
             Expanded(
@@ -138,7 +172,7 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
                 max: 1000,
                 divisions: 100,
                 label: "$_rpmValue rpm",
-                onChanged: (v) => _setRpm(v.round()),
+                onChanged: _on ? (v) => _setRpm(v.round()) : null,
               ),
             ),
             SizedBox(
@@ -148,6 +182,7 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
                 label: "Velocidade",
                 unit: "rpm",
                 decimal: false,
+                enabled: _on,
                 onChanged: (txt) {
                   final v = parseInt(txt);
                   if (v != null) _setRpm(v, fromText: true);
@@ -156,21 +191,7 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
             ),
           ],
         ),
-        const HelpText("Valores de 1 a 14 rpm são enviados como 15 rpm; 0 para o motor."),
-        OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-          onPressed: control.isBusy
-              ? null
-              : () async {
-                  _setRpm(0);
-                  final ok = await control.stopMotor();
-                  if (!context.mounted) return;
-                  if (ok) setState(() => _editing = false);
-                  showCommandFeedback(context, ok, "Agitação parada");
-                },
-          icon: const Icon(Icons.stop_circle_outlined),
-          label: const Text("Parar agitação"),
-        ),
+        const HelpText("Valores de 1 a 14 rpm são enviados como 15 rpm. Desligar a chave para o motor na hora."),
       ],
     );
   }

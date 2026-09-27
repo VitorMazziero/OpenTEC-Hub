@@ -9,6 +9,8 @@ class RouteSelector extends StatelessWidget {
   final IconData alternativeIcon;
   final ValueChanged<bool>? onChanged;
   final String? note;
+  /// Lists the alternative first when it is the Hub default (agitation: servo).
+  final bool alternativeFirst;
 
   const RouteSelector({
     super.key,
@@ -18,19 +20,19 @@ class RouteSelector extends StatelessWidget {
     required this.alternativeIcon,
     required this.onChanged,
     this.note,
+    this.alternativeFirst = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final board = ButtonSegment(value: false, icon: const Icon(Icons.memory, size: 18), label: Text(boardLabel));
+    final alt = ButtonSegment(value: true, icon: Icon(alternativeIcon, size: 18), label: Text(alternativeLabel));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SegmentedButton<bool>(
-          segments: [
-            ButtonSegment(value: false, icon: const Icon(Icons.memory, size: 18), label: Text(boardLabel)),
-            ButtonSegment(value: true, icon: Icon(alternativeIcon, size: 18), label: Text(alternativeLabel)),
-          ],
+          segments: alternativeFirst ? [alt, board] : [board, alt],
           selected: {alternative},
           showSelectedIcon: false,
           onSelectionChanged: onChanged == null ? null : (s) => onChanged!(s.first),

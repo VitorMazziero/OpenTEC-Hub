@@ -68,7 +68,7 @@ class ServoState {
       online: false,
       commEnabled: false,
       controlCapable: false,
-      viaModbus: false,
+      viaModbus: true, // Hub default route: servo node (Modbus)
       commandId: 0,
       commandAck: 0,
       routeAck: 0,
@@ -100,7 +100,7 @@ class ServoState {
       online: json['ServoOnline'] == true,
       commEnabled: json['ServoCommEnabled'] == true,
       controlCapable: json['ServoControlCapable'] == true,
-      viaModbus: json['MotorControlViaModbus'] == true,
+      viaModbus: json['MotorControlViaModbus'] != false, // absent: Hub default (servo)
       commandId: (json['ServoMotorCommandId'] is num) ? (json['ServoMotorCommandId'] as num).toInt() : 0,
       commandAck: (json['ServoMotorCommandAck'] is num) ? (json['ServoMotorCommandAck'] as num).toInt() : 0,
       routeAck: (json['ServoMotorRouteAck'] is num) ? (json['ServoMotorRouteAck'] as num).toInt() : 0,

@@ -9,7 +9,7 @@ está em uso. Conecta-se ao TECNAL-Hub (ESP32-S3, firmware 10.6, protocolo 10) p
 | Aba | Conteúdo |
 |---|---|
 | **Painel** | Leituras com o setpoint em uso: temperatura, agitação, pH, OD, pressão, espuma; resumo do banho C404; periféricos ligados |
-| **Controle** | Um cartão recolhível por variável, com liga/desliga, setpoint e **Aplicar**. *Biorreator*: temperatura (via placa ou banho externo, comunicação com o banho, cartão do C404), agitação (via placa ou servo), pH, OD, pressão, nutriente, antiespumante e espuma automática. *Periféricos*: bomba peristáltica, fluxômetro, frasco agitador, biomassa e distância |
+| **Controle** | Um cartão recolhível por variável, com liga/desliga, setpoint e **Aplicar**. *Biorreator*: temperatura (via placa ou banho externo, comunicação com o banho, cartão do C404), agitação (via servo, o padrão, ou placa; a chave liga/desliga e desligar para o motor na hora), pH, OD, pressão, nutriente, antiespumante e espuma automática. *Periféricos*: bomba peristáltica, fluxômetro, frasco agitador, biomassa e distância |
 | **Gráficos** | Histórico recente das leituras |
 
 O botão vermelho no topo é a parada geral (`resetVariables`). Com o banho externo, parar a

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tecnal_app/models/internal_telemetry.dart';
+import 'package:tecnal_app/models/servo_state.dart';
 import 'package:tecnal_app/providers/device_control_provider.dart';
 import 'package:tecnal_app/services/hub_api_service.dart';
 
@@ -95,6 +96,23 @@ void main() {
       );
       expect(ok, isFalse);
       expect(api.sent, isEmpty);
+    });
+  });
+
+  group('Agitation route', () {
+    test('servo (Modbus) is the default when the Hub has not reported the route', () {
+      expect(ServoState.empty().viaModbus, isTrue);
+      expect(ServoState.fromJson({}).viaModbus, isTrue);
+      expect(ServoState.fromJson({"MotorControlViaModbus": false}).viaModbus, isFalse);
+    });
+
+    test('route switch goes alone and off is a zero setpoint', () async {
+      await provider.setMotorControlMode(0);
+      await provider.stopMotor();
+      expect(api.sent, [
+        {"motorControlMode": 0},
+        {"motorSetpoint": 0},
+      ]);
     });
   });
 }

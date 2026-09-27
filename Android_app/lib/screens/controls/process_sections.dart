@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../providers/connection_provider.dart';
 import '../../providers/device_control_provider.dart';
 import '../../providers/telemetry_provider.dart';
 import '../../theme/app_theme.dart';
@@ -63,6 +64,8 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
     final control = context.watch<DeviceControlProvider>();
     final servo = context.watch<TelemetryProvider>().servoState;
     final viaServo = servo.viaModbus;
+    // Without telemetry the route is unknown: the selector stays disabled.
+    final connected = context.watch<ConnectionProvider>().isConnected;
 
     // Only the servo route echoes the commanded speed; the board route does not publish it.
     if (viaServo) {
@@ -111,7 +114,7 @@ class _AgitationSectionState extends State<AgitationSection> with HubSync {
         boardLabel: "Placa",
         alternativeLabel: "Servo",
         alternativeIcon: Icons.settings_input_component,
-        onChanged: control.isBusy ? null : (toServo) => _changeRoute(control, toServo),
+        onChanged: control.isBusy || !connected ? null : (toServo) => _changeRoute(control, toServo),
         note: servo.online && servo.routeAck != (viaServo ? 1 : 0)
             ? "Aguardando o servo confirmar a via"
             : null,

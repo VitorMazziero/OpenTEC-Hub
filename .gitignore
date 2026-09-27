@@ -125,3 +125,8 @@ Desktop.ini
 
 # Arquivos de download gerados por tools/Build-ReleaseAssets.ps1
 release-assets/
+
+# Gerados pelo Flutter a cada pub get/build
+**/GeneratedPluginRegistrant.*
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh

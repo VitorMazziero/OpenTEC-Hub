@@ -122,3 +122,6 @@ Desktop.ini
 *.[Cc][Tt][Bb]
 *.[Gg][Cc][Oo][Dd][Ee]
 .agents/
+
+# Arquivos de download gerados por tools/Build-ReleaseAssets.ps1
+release-assets/

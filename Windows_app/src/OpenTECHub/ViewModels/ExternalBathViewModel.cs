@@ -455,7 +455,8 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
         CascadeOutputText = Format(snapshot.BathCommandSetpoint);
         CascadeConfirmationText = Format(snapshot.BathCommandConfirmed);
         CascadePIText = snapshot.BathCascadeP is { } p && snapshot.BathCascadeI is { } i
-            ? $"P {p:F2} / I {i:F2}" : "—";
+            ? snapshot.BathCascadeFine == false ? $"PI parado / I {i:F2}" : $"P {p:F2} / I {i:F2}"
+            : "—";
         CascadePauseText = EmptyDash(snapshot.BathCascadePausedReason);
         CascadeFaultText = string.Equals(snapshot.BathCascadeState, "fault", StringComparison.OrdinalIgnoreCase)
             ? $"Falha da cascata: {DescribeReason(FirstNonEmpty(snapshot.BathCascadeFaultReason, snapshot.BathCascadePausedReason))}. " +
@@ -474,6 +475,8 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
             "paused" => $"Cascata pausada: {DescribeReason(snapshot.BathCascadePausedReason)}.",
             "fault" => "Cascata em falha.",
             "controlling" => "Cascata controlando o reator.",
+            "approaching" => "Cascata em aproximação: banho em referência + bias; o PI entra perto da " +
+                             $"referência com o reator estável{DescribeSlope(snapshot.BathCascadeSlopeCMin)}.",
             "actuator_busy" => "Cascata aguardando o C404 concluir o comando.",
             "off" when snapshot.TempControlViaBath == true => "Cascata desligada (sem referência do reator).",
             _ => Status.StatusText,
@@ -533,6 +536,11 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
 
     /// <summary>pt-BR text for the Hub's reason codes; see <see cref="BathReasons"/>.</summary>
     public static string DescribeReason(string? code) => BathReasons.Describe(code);
+
+    private static string DescribeSlope(double? slopeCMin)
+        => slopeCMin is { } slope && double.IsFinite(slope)
+            ? string.Create(CultureInfo.InvariantCulture, $" (reator variando {slope:+0.00;-0.00} °C/min)")
+            : "";
 
     private void OnDeviceStateChanged(ConnectionStateChange change)
     {

@@ -659,7 +659,7 @@ public sealed class AlarmService : IAlarmService
             connected && BathRouted() && _lastSnapshot is { } s &&
             (s.BathCascadeFaultReason.StartsWith("node_rejected", StringComparison.Ordinal) ||
              s.BathCascadeFaultReason == "target_override" ||
-             (CascadeIsControlling(s) && !s.BathCommandCompletionPending &&
+             (CascadeIsCommanding(s) && !s.BathCommandCompletionPending &&
               s.BathState.Equals("done", StringComparison.OrdinalIgnoreCase) &&
               s.BathTarget is { } target && double.IsFinite(target) &&
               s.BathDisplaySp is { } display && double.IsFinite(display) &&
@@ -788,9 +788,15 @@ public sealed class AlarmService : IAlarmService
     private bool BathCascadeActive()
         => BathRouted() && _lastSnapshot is { BathCascadeActive: not false };
 
+    /// <summary>The PI is acting (Hub 10.7: only inside the fine-tuning gate).</summary>
     private static bool CascadeIsControlling(SensorSnapshot snapshot)
         => snapshot.BathCascadeState.Equals("controlling", StringComparison.OrdinalIgnoreCase) ||
            snapshot.BathCascadeState.Equals("actuator_busy", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The Hub is commanding the bath: fine control or the approach (Hub 10.7).</summary>
+    private static bool CascadeIsCommanding(SensorSnapshot snapshot)
+        => CascadeIsControlling(snapshot) ||
+           snapshot.BathCascadeState.Equals("approaching", StringComparison.OrdinalIgnoreCase);
 
     private static AuditSeverity ToAudit(AlarmSeverity severity)
         => severity == AlarmSeverity.Critical ? AuditSeverity.Error : AuditSeverity.Warning;

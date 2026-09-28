@@ -1285,12 +1285,14 @@ public static class ServoSessionLogFormat
 public static class BathSessionLogFormat
 {
     public const string FileSuffix = "-bath-cascade.tsv";
-    public const int ContractVersion = 1;
+    // v2 (Hub 10.7): cascade_fine and cascade_slope_c_min appended.
+    public const int ContractVersion = 2;
 
     public const string Header =
         "time_min\ttempval\ttemp_filtered\tcascade_error\tcascade_p\tcascade_i\t" +
         "command_setpoint\tcommand_confirmed\tbath_pv\tbath_sp\tbath_target\t" +
-        "bath_mode\tguard\tcascade_saturated\tcascade_state\tpaused_reason\troute";
+        "bath_mode\tguard\tcascade_saturated\tcascade_state\tpaused_reason\troute\t" +
+        "cascade_fine\tcascade_slope_c_min";
 
     public static string BuildPreamble(
         string? hubFirmware,
@@ -1322,6 +1324,8 @@ public static class BathSessionLogFormat
             bath ? Cell(s.BathGuard) : "", bath ? (s.BathCascadeSaturated ? "1" : "0") : "",
             bath ? Cell(s.BathCascadeState) : "", bath ? Cell(s.BathCascadePausedReason) : "",
             bath && s.TempControlViaBath is { } routed ? (routed ? "external" : "uart") : "",
+            bath && s.BathCascadeFine is { } fine ? (fine ? "1" : "0") : "",
+            bath ? Number(s.BathCascadeSlopeCMin, 3) : "",
         };
         return string.Join('\t', fields);
     }

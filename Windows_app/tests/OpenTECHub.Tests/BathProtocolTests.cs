@@ -38,6 +38,24 @@ public sealed class BathProtocolTests
     }
 
     [Fact]
+    public void Bath_fine_gate_telemetry_is_parsed_and_absent_on_older_hubs()
+    {
+        var parser = new TelemetryParser();
+        parser.Parse("""{"BathOnline":true,"BathCascadeState":"approaching","BathCascadeFine":false,"BathCascadeSlopeCMin":0.412}""");
+        Assert.Equal("approaching", parser.Readings.BathCascadeState);
+        Assert.False(parser.Readings.BathCascadeFine);
+        Assert.Equal(0.412, parser.Readings.BathCascadeSlopeCMin);
+
+        parser.Parse("""{"BathOnline":true,"BathCascadeFine":true,"BathCascadeSlopeCMin":null}""");
+        Assert.True(parser.Readings.BathCascadeFine);
+        Assert.Null(parser.Readings.BathCascadeSlopeCMin);
+
+        var older = new TelemetryParser();
+        older.Parse("""{"BathOnline":true,"BathCascadeState":"controlling"}""");
+        Assert.Null(older.Readings.BathCascadeFine);
+    }
+
+    [Fact]
     public void Bath_keys_are_owned_by_the_temperature_actuator()
     {
         var command = CommandBuilders.BathCascadeTuning(kp: 0.5, periodMs: 10000);

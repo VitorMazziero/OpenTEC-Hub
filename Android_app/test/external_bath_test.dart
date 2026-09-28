@@ -46,6 +46,26 @@ void main() {
       expect(s.summary, "Cascata controlando o reator");
     });
 
+    test('Approach state (Hub 10.7) shows the reactor slope', () {
+      final s = ExternalBathState.fromJson({
+        "TempControlViaBath": true,
+        "BathOnline": true,
+        "BathCommEnabled": true,
+        "BathCascadeState": "approaching",
+        "BathCascadeSlopeCMin": 0.35,
+      });
+      expect(s.slopeCMin, 0.35);
+      expect(s.summary, "Cascata em aproximação: reator +0.35 °C/min");
+      final noSlope = ExternalBathState.fromJson({
+        "TempControlViaBath": true,
+        "BathOnline": true,
+        "BathCommEnabled": true,
+        "BathCascadeState": "approaching",
+        "BathCascadeSlopeCMin": null,
+      });
+      expect(noSlope.summary, contains("aproximação"));
+    });
+
     test('Null values stay null and a fault explains its reason', () {
       final s = ExternalBathState.fromJson({
         "TempControlViaBath": true,

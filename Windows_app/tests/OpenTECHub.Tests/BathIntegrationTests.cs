@@ -52,12 +52,17 @@ public sealed class BathIntegrationTests
             BathCascadeState = "controlling",
             BathCascadePausedReason = "",
             TempControlViaBath = true,
+            BathCascadeFine = true,
+            BathCascadeSlopeCMin = 0.042,
         });
 
         var fields = row.Split('\t');
-        Assert.Equal(17, fields.Length);
+        Assert.Equal(19, fields.Length);
+        Assert.Equal(BathSessionLogFormat.Header.Split('\t').Length, fields.Length);
         Assert.Equal("36.70", fields[1]);
         Assert.Equal("external", fields[16]);
+        Assert.Equal("1", fields[17]);
+        Assert.Equal("0.042", fields[18]);
     }
 
     [Fact]

@@ -1158,6 +1158,34 @@ public sealed class AlarmServiceTests
     }
 
     [Fact]
+    public void Reactor_deviation_during_the_approach_is_not_an_alarm()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Routing.ExternalBath, true);
+        SensorSnapshot Frame(string state) => new()
+        {
+            HasBathTelemetry = true,
+            BathCommEnabled = true,
+            BathOnline = true,
+            TempControlViaBath = true,
+            Temperature = 22,
+            BathPv = 30,
+            BathState = "done",
+            BathCascadeState = state,
+            BathCascadeError = 15,
+        };
+        // Hub 10.7: far from the reference the PI is off on purpose; a large error is the
+        // normal start-up, not a deviation.
+        h.Device.PushTelemetry(Frame("approaching"));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(30));
+        Assert.False(h.Latched(AlarmId.ExternalBathReactorDeviation));
+
+        h.Device.PushTelemetry(Frame("controlling"));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(11));
+        Assert.True(h.Latched(AlarmId.ExternalBathReactorDeviation));
+    }
+
+    [Fact]
     public void Bath_communication_enabled_without_external_route_is_not_a_routing_mismatch()
     {
         using var h = new Harness();

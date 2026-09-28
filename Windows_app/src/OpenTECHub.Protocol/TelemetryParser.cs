@@ -830,6 +830,8 @@ public sealed class TelemetryParser
         Readings.BathCascadePvFiltered = ReadNullableDouble(root, TelemetryKeys.BathCascadePvFiltered);
         Readings.BathCascadeP = ReadNullableDouble(root, TelemetryKeys.BathCascadeP);
         Readings.BathCascadeI = ReadNullableDouble(root, TelemetryKeys.BathCascadeI);
+        Readings.BathCascadeFine = TryGetBool(root, TelemetryKeys.BathCascadeFine, out var fine) ? fine : null;
+        Readings.BathCascadeSlopeCMin = ReadNullableDouble(root, TelemetryKeys.BathCascadeSlopeCMin);
         if (TryGetCounter(root, TelemetryKeys.BathCascadeLastUpdateMs, out var updateMs))
             Readings.BathCascadeLastUpdateMs = updateMs;
 

@@ -426,6 +426,8 @@ public static class TelemetryKeys
     public const string BathCascadePvFiltered = "BathCascadePvFiltered";
     public const string BathCascadeP = "BathCascadeP";
     public const string BathCascadeI = "BathCascadeI";
+    public const string BathCascadeFine = "BathCascadeFine";
+    public const string BathCascadeSlopeCMin = "BathCascadeSlopeCMin";
     public const string BathCascadeSaturated = "BathCascadeSaturated";
     public const string BathCascadePausedReason = "BathCascadePausedReason";
     public const string BathCascadeLastUpdateMs = "BathCascadeLastUpdateMs";

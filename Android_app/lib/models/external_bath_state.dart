@@ -23,6 +23,8 @@ class ExternalBathState {
   final int? mode; // 1 = auto (guard reverts the panel), 0 = manual
   final String guard;
   final String nodeState;
+  /// Hub 10.7+: reactor PV slope in °C/min used by the fine-tuning gate.
+  final double? slopeCMin;
 
   const ExternalBathState({
     required this.hasTelemetry,
@@ -41,6 +43,7 @@ class ExternalBathState {
     required this.mode,
     required this.guard,
     required this.nodeState,
+    this.slopeCMin,
   });
 
   factory ExternalBathState.empty() => const ExternalBathState(
@@ -92,6 +95,7 @@ class ExternalBathState {
       mode: json['BathMode'] is int ? json['BathMode'] as int : null,
       guard: text('BathGuard'),
       nodeState: text('BathState'),
+      slopeCMin: number('BathCascadeSlopeCMin'),
     );
   }
 
@@ -107,6 +111,12 @@ class ExternalBathState {
     switch (cascadeState) {
       case "controlling":
         return "Cascata controlando o reator";
+      case "approaching":
+        // Hub 10.7: far from the reference or reactor still moving; the PI is off.
+        final slope = slopeCMin;
+        return slope == null
+            ? "Cascata em aproximação (PI entra perto da referência)"
+            : "Cascata em aproximação: reator ${slope >= 0 ? '+' : ''}${slope.toStringAsFixed(2)} °C/min";
       case "actuator_busy":
         return "Cascata aguardando o C404 concluir";
       case "waiting_inputs":

@@ -141,6 +141,10 @@ public sealed class SensorReadings
     public double? BathCascadePvFiltered { get; set; }
     public double? BathCascadeP { get; set; }
     public double? BathCascadeI { get; set; }
+    /// <summary>Hub 10.7+: the PI is acting (fine-tuning gate open); null on older Hubs.</summary>
+    public bool? BathCascadeFine { get; set; }
+    /// <summary>Hub 10.7+: filtered reactor PV slope, °C/min; null until the window fills.</summary>
+    public double? BathCascadeSlopeCMin { get; set; }
     public bool BathCascadeSaturated { get; set; }
     public string BathCascadePausedReason { get; set; } = "";
     public long BathCascadeLastUpdateMs { get; set; }
@@ -425,6 +429,8 @@ public sealed class SensorReadings
         BathCascadePvFiltered = BathCascadePvFiltered,
         BathCascadeP = BathCascadeP,
         BathCascadeI = BathCascadeI,
+        BathCascadeFine = BathCascadeFine,
+        BathCascadeSlopeCMin = BathCascadeSlopeCMin,
         BathCascadeSaturated = BathCascadeSaturated,
         BathCascadePausedReason = BathCascadePausedReason,
         BathCascadeLastUpdateMs = BathCascadeLastUpdateMs,
@@ -620,6 +626,8 @@ public sealed record SensorSnapshot
     public double? BathCascadePvFiltered { get; init; }
     public double? BathCascadeP { get; init; }
     public double? BathCascadeI { get; init; }
+    public bool? BathCascadeFine { get; init; }
+    public double? BathCascadeSlopeCMin { get; init; }
     public bool BathCascadeSaturated { get; init; }
     public string BathCascadePausedReason { get; init; } = "";
     public long BathCascadeLastUpdateMs { get; init; }

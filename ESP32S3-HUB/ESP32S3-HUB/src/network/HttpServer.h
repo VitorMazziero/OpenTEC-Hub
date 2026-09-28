@@ -787,6 +787,9 @@ void startWiFi() {
       request->send(200, "application/json", servoDevice.takeCommand(millis()));
     });
 
+    // GET/POST /update: firmware do Hub por Wi-Fi (network/OtaUpdate.h).
+    registerOtaRoutes();
+
     server.begin();
   } else {
       ESP32_ERRO("Falha ao iniciar o SoftAP; reiniciando ESP32");

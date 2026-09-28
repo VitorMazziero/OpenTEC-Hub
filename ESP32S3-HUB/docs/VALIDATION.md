@@ -27,6 +27,17 @@ estado PI, ACK separado de `done` e orçamento do quadro agregado.
 5. Antes de mover, exigir capacidade, parada aplicada, ACK igual ao cmd_id e
    falha zero em `/readData`.
 
+### Gravação por Wi-Fi (10.7)
+
+A primeira gravação do 10.7 é por USB (versões anteriores não têm `/update`). Na bancada:
+
+1. `.\tools\ota_upload.ps1` com o Hub livre: resposta `200`, reinício e a nova versão em
+   `http://192.168.4.1/update`; nós reconectam sozinhos.
+2. Com setpoint do reator na via externa (ou motor girando): resposta `400` com o motivo, sem
+   reinício.
+3. Desligar o Wi-Fi do PC no meio do envio: o Hub segue na versão anterior e aceita novo envio.
+4. Enviar `ESP32S3-HUB.ino.merged.bin` ou a imagem de um nó: `400`, sem reinício.
+
 ## Matriz física obrigatória
 
 1. Confirmar P1-01=2 e conferir no log do driver a linha `Mapa de DIs`, que

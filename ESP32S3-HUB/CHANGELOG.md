@@ -16,6 +16,15 @@
   `BathCascadeSlopeWindowMs`. Os limiares são padrões do firmware (sem comando nem NVS ainda).
 - Testes: `host-bath-cascade` com partida longe, entrada por banda e derivada, histerese,
   integrador preservado e degrau de referência.
+- **Gravação por Wi-Fi:** `GET /update` (página) e `POST /update` (upload do
+  `ESP32S3-HUB.ino.bin`) em `network/OtaUpdate.h`. A imagem vai para a partição OTA inativa e
+  só troca depois de `Update.end(true)` verificar; o reinício roda no loop principal, depois de
+  salvar a NVS pendente. Recusado com cascata do banho ativa ou motor com rotação (verificado no
+  início e no fim do envio), com nome de arquivo que não seja a imagem do app do Hub e com outro
+  envio em andamento. `tools/ota_upload.ps1` compila e envia; `tools/compile.ps1 -OutputDir`
+  exporta os binários. Teste de contrato `test_hub_ota.py`.
+- Compilação esp32s3: 1 192 945 B de flash (91% de 1,25 MB; o `Update` soma ~32 KB),
+  52 864 B de RAM global (16%).
 
 ## 10.6.0-dev — correções da integração do banho (plano K00–K05)
 

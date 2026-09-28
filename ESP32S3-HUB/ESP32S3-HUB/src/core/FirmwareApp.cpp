@@ -7,6 +7,7 @@
 #include "../storage/Settings.h"
 #include "../protocol/Mailboxes.h"
 #include "../network/NodeDiagTask.h"
+#include "../network/OtaUpdate.h"
 #include "../network/HttpServer.h"
 #include "Runtime.h"
 #include "../protocol/Commands.h"

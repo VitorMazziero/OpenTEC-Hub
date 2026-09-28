@@ -543,6 +543,7 @@ void firmwareLoop() {
   }
 
   serviceExternalBathCascade(now);
+  serviceHubOtaReboot(now);
 
   // NVS FLASH SAVE (Debounced)
   // Só grava na memória física se houve alteração e já se passaram 5 segundos sem novos comandos

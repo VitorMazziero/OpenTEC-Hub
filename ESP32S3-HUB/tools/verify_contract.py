@@ -16,7 +16,7 @@ ENDPOINTS = {
     "/command", "/readData", "/ping", "/distance", "/flowData",
     "/biomassData", "/bathData", "/pumpData", "/agitatorData", "/servoData",
     "/flowCommand", "/biomassCommand", "/agitatorHello",
-    "/agitatorCommand", "/pumpCommand", "/bathCommand", "/servoCommand",
+    "/agitatorCommand", "/pumpCommand", "/bathCommand", "/servoCommand", "/update",
 }
 
 V8_KEYS = {

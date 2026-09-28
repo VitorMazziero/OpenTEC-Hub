@@ -1,6 +1,8 @@
 param(
     [string]$ArduinoCli = "",
-    [switch]$LegacySeed
+    [switch]$LegacySeed,
+    # Also export the binaries (ESP32S3-HUB.ino.bin for OTA) into this folder.
+    [string]$OutputDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,7 +28,11 @@ $sketch = if ($LegacySeed) {
     Join-Path $repoRoot "ESP32S3-HUB"
 }
 
-& $ArduinoCli compile --fqbn "esp32:esp32:esp32s3" --warnings all $sketch
+$extra = @()
+if (-not [string]::IsNullOrWhiteSpace($OutputDir)) {
+    $extra = @("--output-dir", $OutputDir)
+}
+& $ArduinoCli compile --fqbn "esp32:esp32:esp32s3" --warnings all @extra $sketch
 if ($LASTEXITCODE -ne 0) {
     throw "Compilação Arduino falhou com código $LASTEXITCODE."
 }

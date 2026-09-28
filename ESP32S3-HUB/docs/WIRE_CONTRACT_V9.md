@@ -402,6 +402,16 @@ Custo: 5 × ~520 B estáticos + pilha da tarefa; o Hub registra `heap antes/depo
 criar a tarefa (`ESP32_INFO`). Medição de bancada pendente (plano de exposição de
 config, §7.3.6).
 
+## Atualização por Wi-Fi: `/update` (10.7)
+
+`GET /update` devolve a página de envio (versão, SSID, partição em uso, tamanho máximo e,
+quando houver, o motivo de bloqueio). `POST /update` recebe `multipart/form-data` com um arquivo
+`ESP32S3-HUB*.bin` e responde `200` (gravado e verificado; o Hub reinicia ~1,5 s depois),
+`400` (recusado: processo em andamento, arquivo errado, imagem inválida ou nenhum arquivo),
+`409` (outro envio em andamento) ou `500` (envio incompleto). Em qualquer resposta diferente de
+`200` o firmware em execução continua o mesmo. Não altera o protocolo: os nós só veem o Hub
+sumir durante o reinício.
+
 ## Limite de responsabilidade
 
 O Hub confirma entrega somente quando `motor_ack == motor_cmd_id`. O driver é

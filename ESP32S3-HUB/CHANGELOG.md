@@ -11,6 +11,13 @@
   como enviado e depender do reenvio C4 após 30 s. Em simulação (banho τ = 5 min, reator
   τ = 15 min, 22 → 37 °C, 6 h): 50 → 19 comandos ao C404, sem os ~40 degraus de 0,2 °C da subida.
 - O reenvio C4 (alvo divergente) também vale em `approaching`.
+- **Degraus de 0,1 °C:** a banda de comando era comparada em `float` e `33.5f − 33.4f` dá
+  0,0999985 < 0,1: cerca de um terço dos degraus de 0,1 °C (72 de 200 entre 20 e 40 °C) só saía
+  quando a saída andava 0,2 °C. Os setpoints agora são comparados em décimos inteiros. Para a
+  saída parada na fronteira do arredondamento (x,x5) não trocar de décimo com o ruído do sensor,
+  o décimo só muda depois de a saída passar 0,08 °C do comando vigente (histerese de 0,03 °C);
+  dentro dela o comando publicado é o vigente. Na simulação 22 → 30 °C o regime passa de
+  33,4 ↔ 33,6 (reator ±0,1 °C) para 33,4 ↔ 33,5 a cada 30–65 min (reator 29,93–30,05 °C).
 - Telemetria (aditiva): `BathCascadeFine`, `BathCascadeSlopeCMin` e os limiares
   `BathCascadeFineEnterBandC`, `BathCascadeFineExitBandC`, `BathCascadeFineSlopeCMin`,
   `BathCascadeSlopeWindowMs`. Os limiares são padrões do firmware (sem comando nem NVS ainda).

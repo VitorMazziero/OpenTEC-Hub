@@ -1,11 +1,14 @@
 #include "ExternalBathCascade.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 namespace {
 constexpr float kEpsilon = 0.0001f;
+// Past the x.x5 rounding boundary: a 0.1 step needs the output 0.08 away.
+constexpr float kCommandHysteresisC = 0.03f;
 
 bool finitePositive(float value) {
   return isfinite(value) && value > 0.0f;
@@ -13,6 +16,13 @@ bool finitePositive(float value) {
 
 float quantizeTenth(float value) {
   return roundf(value * 10.0f) / 10.0f;
+}
+
+// Setpoints are whole tenths, so they are compared as integers. In float,
+// 33.5f - 33.4f = 0.0999985 < 0.1f: about a third of the 0.1 steps were taken
+// as smaller than the band and the output had to move 0.2 before a command.
+long toTenths(float value) {
+  return lroundf(value * 10.0f);
 }
 }
 
@@ -320,9 +330,21 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
              in.actuatorBusy ? "actuator_busy" : "");
   }
 
+  // The C404 resolves 0.1: a band below one tenth still means one tenth.
+  const long bandTenths = toTenths(config_.commandBandC) > 1 ? toTenths(config_.commandBandC) : 1;
+  const long stepTenths = labs(toTenths(snapshot_.commandSetpointC) - toTenths(lastCommandC_));
+  // Rounding alone would switch at x.x5; an output parked there (the steady state
+  // often is) plus sensor noise flipped the command every minute. The output must
+  // pass the rounding boundary by kCommandHysteresisC before the tenth changes;
+  // until then the command in force is what is published.
+  const bool moved = !snapshot_.hasCommand ||
+                     (stepTenths >= bandTenths &&
+                      fabsf(outputC_ - lastCommandC_) >=
+                          bandTenths * 0.1f - 0.05f + kCommandHysteresisC);
+  if (!moved) snapshot_.commandSetpointC = lastCommandC_;
+
   if (in.actuatorBusy) return false;
-  if (!snapshot_.hasCommand ||
-      fabsf(snapshot_.commandSetpointC - lastCommandC_) >= config_.commandBandC) {
+  if (moved) {
     const uint32_t sinceCommand = snapshot_.hasCommand ? in.nowMs - snapshot_.lastCommandMs : config_.commandMinMs;
     snapshot_.commandReady = sinceCommand >= config_.commandMinMs;
   }

@@ -253,6 +253,40 @@ int main() {
   }
 
   {
+    // Every 0.1 C step is a command. In float, 33.5f - 33.4f < 0.1f, so a
+    // float comparison with the band silently dropped about a third of them.
+    int dropped = 0;
+    for (int k = 200; k < 400; ++k) {
+      ExternalBathCascade c;
+      auto r = readyInputs(1000);
+      r.bathSpC = k / 10.0f;                       // bath shows k tenths
+      r.referenceC = (k + 1) / 10.0f - 0.6f;       // approach output: k + 1 tenths
+      r.reactorPvC = r.referenceC - 8.0f;          // far away: approach mode
+      if (!c.update(r)) ++dropped;
+    }
+    CHECK(dropped == 0, "a 0.1 C step must always produce a command");
+
+    ExternalBathCascade same;
+    auto r = readyInputs(1000);
+    r.bathSpC = 33.5f;
+    r.referenceC = 32.9f;
+    r.reactorPvC = 20.0f;
+    CHECK(!same.update(r), "no command when the bath already shows the output");
+
+    // Hysteresis: 33.47 rounds to 33.5 but is only 0.07 from the 33.4 in force.
+    ExternalBathCascade near;
+    r.bathSpC = 33.4f;
+    r.referenceC = 33.47f - 0.6f;
+    CHECK(!near.update(r), "an output just past the rounding boundary must not command");
+    CHECK(std::fabs(near.snapshot().commandSetpointC - 33.4f) < 0.001f,
+          "inside the hysteresis the command in force is published");
+    ExternalBathCascade past;
+    r.referenceC = 33.49f - 0.6f;
+    CHECK(past.update(r) && std::fabs(past.snapshot().commandSetpointC - 33.5f) < 0.001f,
+          "an output 0.09 away must command the next tenth");
+  }
+
+  {
     // Gate parameters are validated.
     ExternalBathCascadeConfig cfg = ExternalBathCascade::defaults();
     cfg.fineExitBandC = cfg.fineEnterBandC - 1.0f;

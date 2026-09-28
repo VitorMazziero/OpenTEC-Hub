@@ -2,6 +2,11 @@
 
 Versão ativa: **r3.2** (`BathClient r3.2`). Placa de compilação: **ESP32-S3** (`esp32:esp32:esp32s3`).
 
+**Estado (2026-09-28): funcionando na bancada.** O nó comanda o SP pelas teclas, lê PV e SP do
+display, e no modo automático reverte mudanças manuais sem reagir a leituras ruins. Resultados,
+configuração em uso e pendências (G4, G5, G10, teste de ruído longo) estão em
+`docs/CURRENT_STATUS.md`.
+
 - Firmware: `firmware/thermostatic-bath`
 - Aplicativos de bancada (falam HTTP direto com o nó, sem o Hub):
   - Desktop Python: `apps/desktop-python/bath_app.py` (Tkinter + urllib, sem dependências)
@@ -22,7 +27,8 @@ terminando a toques; ver `docs/PROTOCOL.md` §3.1.
 
 Como os relés ficam em paralelo com as teclas, o operador continua podendo mudar o SP no
 painel. Dois modos (`docs/PROTOCOL.md` §3.2): **manual** só reporta o desvio em relação ao
-último SP comandado; **automático** reverte a mudança assim que o painel fica parado. O modo
+último SP comandado; **automático** reverte a mudança depois que um toque físico é visto e o
+painel fica parado (10–20 s, com o valor confirmado em duas leituras). O modo
 troca pelo app, pelo Hub ou mantendo `▲`+`▼` por 1 s no painel (com o sensoriamento das setas,
 `docs/WIRING.md` §3b).
 

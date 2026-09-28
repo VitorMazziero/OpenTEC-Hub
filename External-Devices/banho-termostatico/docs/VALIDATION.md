@@ -3,6 +3,26 @@
 Build aprovado não prova relés, temporização, display nem persistência. Os gates abaixo
 são executados nesta ordem; cada um tem o ajuste de configuração que ele decide.
 
+## Situação (2026-09-28)
+
+A evidência de cada resultado está em `CURRENT_STATUS.md`, na Conclusão e no Histórico.
+
+| Gate | Situação | Resultado |
+|---|---|---|
+| G1 | aprovado (2026-09-24) | jumpers em `H`, `RelayActiveLow = false`; LEDs apagados em repouso |
+| G2 | aprovado (2026-09-25) | toque do relé = toque físico; `press_ms`/`gap_ms` padrão (150/150) |
+| G3 | aprovado (2026-09-25/26) | `enter_key = 0`, `confirm_key = 0`; `step_c = 0,1` |
+| G3b | aprovado (2026-09-28) | hold a 11,6–13,8 toques/s; perna final de 3–4 toques e nenhuma correção |
+| G4 | pendente | `sp_min = -20` aplicado sem medir o `in.L` |
+| G5 | pendente | — |
+| G6 | parcial | itens 1–3 pelo `MONTAGEM_ETAPAS.md` §2.5; 5–6 aprovados; falta o 4 (`ConF`) |
+| G7 | aprovado (2026-09-26/28) | `manual_presses` conta só toques físicos; `presses_unconfirmed = 0` |
+| G7b | aprovado (2026-09-28) | gesto troca o modo em ~1,0 s, uma vez por gesto, nos dois sentidos |
+| G8 | parcial | OTA por `/update` usado várias vezes; falta o OTA com sequência em curso |
+| G9 | parcial | itens 1–3 aprovados com o guarda armado por toque (reversão 12–16 s após soltar); faltam 4–5 |
+| G10 | pendente | `hub_enabled = 0` |
+| Ruído longo | pendente | horas em `auto` sem toque; `guard_ignored` deve ficar em 0 (em ~8 min: 0) |
+
 ## G1 — Relés fora do C404
 
 Com o HW-280 alimentado e sem nada ligado aos contatos: `{"key":"star"}`, `up`, `down`,
@@ -32,8 +52,10 @@ Decide-se:
 
 ## G3b — Auto-repetição das setas (dimensiona o hold)
 
-Parcial (2026-09-26, observado no painel): passo imediato, ~0,5 s de espera, ~10 passos/s
-(1 °C/s), sem aceleração relatada. Falta medir a cauda após soltar, com o display lido.
+Aprovado (2026-09-28). No painel: passo imediato, ~0,5 s de espera e ~10 passos/s, sem
+aceleração. Nas sequências com o display lido, a taxa foi de 11,6–13,8 toques/s. O nó soltou a
+seta 3–4 toques antes do alvo e terminou a toques sem nenhuma correção, então a cauda está
+coberta pelos padrões (`hold_stop_steps = 3`, `hold_lag_ms = 80`).
 
 Com o display já legível (G6) ou, antes disso, olhando o painel: `{"key":"up","hold_ms":2000}`
 e depois 5000 e 10000, anotando quanto o SP andou em cada um. Decide-se:
@@ -105,6 +127,12 @@ repetir alterna de volta. Um toque só em `▲` não pode trocar o modo.
 ## G9 — Modo automático
 
 Pré-requisitos: G6 (display), G7b. `{"setpoint":x}` pelo app, depois `{"mode":"auto"}`.
+
+Desde 2026-09-26 o guarda só age depois de um toque físico visto pelo sensoriamento (ou do
+gesto) e confirma o valor em duas avaliações de `guard_check_ms` (PROTOCOL.md §3.2). Por isso a
+reversão leva 10–20 s, não `guard_delay_ms`. Itens 1–3 aprovados em 2026-09-28: 6 toques em `▼`
+(35,0 → 32,0) e `▲` mantido (30,0 → 31,1) revertidos 12–16 s depois do último toque solto, o
+primeiro com hold. Faltam os itens 4–5.
 
 1. Mudar o SP no painel em +0,5 °C com toques curtos: `guard` vai a `pending`; ~`guard_delay_ms`
    depois de o último toque ser solto o nó reverte (`guard = correcting` → `watch`), o SP volta

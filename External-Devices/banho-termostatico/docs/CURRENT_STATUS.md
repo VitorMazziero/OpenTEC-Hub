@@ -1,8 +1,96 @@
 # Estado atual — Banho termostático
 
-**Atualizado:** 2026-09-24
+**Atualizado:** 2026-09-28
 
-## Bancada (2026-09-24)
+## Conclusão (2026-09-28)
+
+**O nó controla o setpoint do C404 pelas teclas e lê o painel.** O firmware r3.2 é de 26/09 e
+foi recompilado em 28/09 com o mesmo tamanho. Com ele, o modo automático reverte mudanças manuais
+e não reage a leituras ruins do display. Na bancada de 2026-09-28 funcionaram:
+
+- setpoint absoluto pelo `bath_app.py`;
+- setpoint pelo app Android próprio do nó (`apps/flutter`), direto no AP, com `hub_enabled = 0`;
+- gesto de modo e correção automática.
+
+Nenhum erro nem leitura ignorada apareceu (`guard_ignored = 0`) em ~8 min de registro contínuo
+com vários testes.
+
+### Evidência (`bath_app.py status` e `log`, 2026-09-28)
+
+| Teste | Registro (`millis`) | Resultado |
+|---|---|---|
+| 6 toques manuais em `▼`, o 1.º mantido: SP 35,0 → 32,0 | armado 51 662; último toque 54 687; `pending` 60 508; reversão 70 512 | hold de `▲` 3,1 s a 13,8 toques/s, solta em 34,6, 4 toques; `done` 76 975, correções 0 |
+| `sp 30` (de 35,0) | 96 117 → 104 456 | hold de `▼` 5,3 s a 11,6 toques/s, solta em 30,3, 3 toques; `done` em 8,3 s |
+| `▲` mantido ~1,5 s: SP 30,0 → 31,1 | armado 181 825; `pending` 184 451; reversão 194 455 | 11 toques de `▼` (abaixo de `hold_min_steps = 15`); `done` 199 309 |
+| Comando 30,0 → 28,0 | 414 786 → 420 538 | hold 2,7 s a 12,0 toques/s, 3 toques; `done` em 5,8 s |
+| Gesto `▲`+`▼` duas vezes | toque 454 412 → `manual` 455 481; toque 456 660 → `auto` 457 694 | troca em ~1,0 s, uma vez por gesto |
+| SP 28,0 → 28,3 (auto-repetição durante o gesto) | `pending` 464 455; reversão 474 461 | 3 toques; `done` 476 873 |
+
+Conclusões medidas:
+
+- **Reversão no automático:** 12–16 s depois do último toque solto. É o esperado com
+  `guard_delay_ms = 5000`, `guard_check_ms = 10000` e confirmação em duas avaliações.
+- **Hold:** taxa de 11,6–13,8 toques/s. A perna final ficou em 3–4 toques e nenhuma sequência
+  precisou de correção, então a cauda da auto-repetição está coberta por `hold_stop_steps = 3`
+  e `hold_lag_ms = 80` (G3b).
+- **Sensoriamento:** `manual_presses` conta só os toques físicos. As sequências dos relés, com
+  até 50 toques, não mudam o contador (G7).
+- **Guarda armado por toque:** o guarda só agiu depois de um toque físico ou do gesto. Não houve
+  desvio sem toque (`guard_ignored = 0`).
+
+### Configuração em uso (NVS do nó)
+
+Os valores diferentes dos padrões do firmware precisam ser reaplicados depois de um `reset_nvs`:
+
+| Chave | Valor | Por quê |
+|---|---|---|
+| `enter_key`, `confirm_key` | `0`, `0` | neste C404 as setas mudam o SP direto e o valor fica gravado (padrões do firmware: 1/2) |
+| `sp_source` | `1` | SP lido do display |
+| `sense_enabled`, `sense_mask` | `1`, `6` | sensoriamento de `▲`/`▼` |
+| `disp_mode`, `disp_seg_low`, `disp_slot_us`, `disp_sp_bank`, `disp_decimals` | `1`, `0`, `1023`, `0`, `1` | leitor por janelas de `2DISP` |
+| `sp_min`, `sp_max` | `-20`, `90` | faixa aceita na leitura e nos comandos; `-20` supõe o `in.L` observado (conferir no `ConF`, G4) |
+| `mode_hold_ms`, `guard_delay_ms`, `guard_check_ms` | `1000`, `5000`, `10000` | gesto de 1 s; guarda a cada 10 s |
+| `hold_*`, `press_ms`, `gap_ms` | padrões | validados pelas sequências acima |
+| `hub_enabled` | `0` | sem Hub até o G10 |
+
+### Montagem final
+
+| Função | Ligação | GPIO |
+|---|---|---|
+| Teclas `*`, `ENTER`, `▲`, `▼` | relé N (HW-280, jumpers em `H`) → `CHN` do CN2 | 4, 5, 6, 7 |
+| Sensoriamento `▲`, `▼` | `NO` dos relés 3/4 → 100 kΩ → GPIO, 150 kΩ ao GND | 2, 42 |
+| Segmentos `A…G`, `PD` | pad do CN2 → 20 kΩ → GPIO, sem resistor ao GND | 8–15 |
+| `2DISP` (banco do display) | pad → 3,3 kΩ → GPIO, 5,1 kΩ ao GND | 38 |
+| LED de modo | GPIO → 330 Ω → LED → GND | 40 |
+| GND | comum entre ESP32 e C404 | — |
+
+Chaves táteis novas só em `▲` e `▼`. `*` e `ENTER` são acionados apenas pelos relés.
+`1A…1D` e `1L` não são usados. Regras que continuam valendo:
+
+- nunca ligar o USB do ESP32 a um PC aterrado com o GND comum ao C404;
+- ligar o ESP32 antes do C404 e desligá-lo depois;
+- nunca alimentar o ESP32 pelo `+5V`/`5VA` do C404.
+
+### O que falta
+
+- **Teste de ruído longo:** horas em `auto` sem tocar no painel, conferindo `guard_ignored` e o
+  `/log`. Fazer antes de confiar no automático num cultivo.
+- G4: comportamento em `in.L`, que habilita o `home`, e conferência de `sp_min`/`sp_max` com o
+  `in.L`/`in.H` do `ConF`.
+- G5 (reboot no meio de uma sequência) e G8 (OTA com sequência em curso; o OTA simples já é
+  usado).
+- G6 item 4: `display_sp` nulo dentro do `ConF`.
+- G9 itens 4–5: SP mudado no modo manual; `abort` durante uma correção.
+- G10: enlace com o Hub (`hub_enabled = 1`) e cascata.
+- Linha `PD` (GPIO 15) intermitente no passado; não se repetiu na bancada de 28/09.
+- Risco aceito: picos de ~5 V dos pads chegam ao GPIO pelos diodos de proteção através de
+  20 kΩ (~70 µA), fora da especificação do ESP32.
+- Identificação térmica e sintonia com água antes de qualquer cultivo.
+
+## Histórico da bancada (2026-09-24 a 2026-09-26)
+
+O incidente do oscilador do PIC parado, descrito no fim desta lista, não se repetiu: o painel e a
+leitura funcionam normalmente desde então. A causa e o reparo não foram registrados aqui.
 
 - **`CH1…CH4` da placa do C404 são as teclas**, confirmado por continuidade:
   `CH1 = *`, `CH2 = ENTER`, `CH3 = ▲`, `CH4 = ▼`; o outro terminal das quatro é o +5 V do
@@ -128,41 +216,35 @@
   no pad, GPIO como entrada) não explica a parada. Pendente: inspeção, resistência das pernas do
   cristal para `0V`/`+5V`, limpeza, ressolda do cristal e dos capacitores, troca do cristal.
 
-Próximos passos: trocar as chaves danificadas → relés nos `CH` (G1–G3) → tabela de medição
-do display (`WIRING.md` §3.2) → CD74HC4050 → G6.
+## Implementado
 
-## Implementado e validado em software
-
-- Firmware ativo: `firmware/thermostatic-bath` r3.2 — `BathClient r3.2`.
-- Compilação com ESP32 core 3.3.11 e FQBN `esp32:esp32:esp32s3`: 1 085 689 B de flash
-  (82%) e 48 344 B de RAM global (14%) (r3.2).
-- Controle do C404: setpoint/hold/toques/correção/abort, display, modos e guarda.
-- Enlace r3.2 do Hub:
+- Firmware ativo: `firmware/thermostatic-bath` r3.2, com a tag `BathClient r3.2 (relays H, map
+  CH1-4=relay1-4, …)`.
+- Compilação com ESP32 core 3.3.11 e FQBN `esp32:esp32:esp32s3`: 1 108 105 B de flash (84%) e
+  67 312 B de RAM global (20%).
+- Controle do C404 validado na bancada: setpoint com hold e toques, leitura do display, modos,
+  guarda armado por toque, sensoriamento, gesto, `/log` e OTA.
+- Enlace r3.2 com o Hub (implementado e testado só em software):
   - tarefa FreeRTOS própria para hello/push/HTTP;
   - snapshot protegido e fila fixa de comandos;
   - `/bathData`, `ver=r3.2`, MAC real, fase/erro/display/mode/guard/ACK observáveis;
   - recusa de comando do Hub publicada (`rej_cmd_id`/`rej_err`) e faixa `sp_min`/`sp_max`;
-  - posse do Hub (`X-Hub-Owner`, 10 s): API local só aceita `abort`/`stop`; ação `stop`
-    (abort + manual) para a parada do Hub; re-hello imediato após 403/404;
+  - posse do Hub (`X-Hub-Owner`, 10 s): a API local só aceita `abort`/`stop`; a ação `stop`
+    (abort + manual) atende a parada do Hub; re-hello imediato após 403/404;
   - com `hub_enabled=1`, período efetivo limitado a 2 s para respeitar a janela do Hub;
   - push não é suspenso durante hold;
-  - `hub_enabled=0` por padrão até a integração.
-- `tests/host-sim`: 37 cenários passam com os fontes reais de setpoint, guarda, teclado,
-  parser e contexto. Inclui três reentregas do mesmo `cmd_id` causando uma única sequência e
-  comando recusado sem avanço do ACK, recusa publicada (W), posse do Hub (X) e `stop` (Y).
-- Aplicativo Android próprio do banho: `apps/flutter`, versão 1.1.0+2, quatro abas
-  (Operação, Modos, Bancada, Config), reentrega idempotente, traço de 10 min, diagnóstico e
-  aviso de firmware incompatível. `flutter analyze`, `flutter test` e build de APK passam.
-- Aplicativo desktop `bath_app.py` testado contra servidor HTTP simulado (CLI e janela).
+  - `hub_enabled=0` por padrão até o G10.
+- `tests/host-sim`: todos os cenários passam com os fontes reais de setpoint, guarda, teclado,
+  parser e contexto. Isso inclui reentrega idempotente, recusa publicada, posse do Hub, `stop`,
+  ruído ignorado (T10) e guarda a cada 10 s (T11).
+- Aplicativos: `apps/flutter` (Android, 1.1.0+2) e `apps/desktop-python/bath_app.py`, ambos
+  usados contra o nó real em 2026-09-28.
 
-## Não implementado
+## Integração com o Hub e os aplicativos gerais
 
-- O Hub 10.4 ainda não possui `DEV_BATH`, `/bathData`, `bathBox`, segunda via térmica nem
-  controlador de cascata.
-- O Windows App 0.26.4 ainda não possui protocolo, simulador, interface, alarmes, receitas ou
-  registros do banho.
-- A integração do banho no aplicativo geral `Android_app/` do Hub não faz parte do app Android
-  próprio citado acima e não foi implementada aqui.
+O lado do Hub está no `ESP32S3-HUB` 10.6.0-dev (`DEV_BATH`, `/bathData`, cascata; veja o
+changelog do Hub). O Windows App e o `Android_app/` do Hub têm os próprios planos. Nenhum deles
+foi validado com este nó real: a validação é o G10.
 
 Planos:
 
@@ -171,31 +253,27 @@ Planos:
 - Windows App: `../../docs/Planos/IMPLEMENTATION_PLAN_BANHO_WINDOWS_APP.md`;
 - app Android próprio: `../../docs/Planos/IMPLEMENTATION_PLAN_BANHO_APP_ANDROID.md`.
 
-## Pendente de validação física
+## Gates de validação física
 
-- Gates G1–G9 de `VALIDATION.md`: nenhum fechado.
-- Relés, temporização real, display, sensoriamento, NVS, Wi-Fi/OTA e guarda contra o C404 real.
-- Enlace r3.2 durante hold de 60 s, stack watermark e reentrega por perda de Wi-Fi após o Hub
-  implementar o contrato.
-- App Android contra o dispositivo real, incluindo G3b/G7b.
-- Identificação térmica e sintonia com água antes de qualquer cultivo.
+Situação de cada gate em `VALIDATION.md`:
 
-## Estado da montagem conhecido
+- aprovados: G1, G2, G3, G3b, G7 e G7b;
+- parciais: G6 (falta o item 4) e G9 (faltam os itens 4–5);
+- pendentes: G4, G5, G8 com sequência em curso, G10, o teste de ruído longo e a
+  identificação térmica.
 
-- Relés, display e fonte ligados em 2026-09-19.
-- Sensoriamento de `▲`/`▼` ainda deve ser ligado nos bornes `NO` dos relés 2 e 3 para GPIO
-  2/42, com conferência de nível antes de conectar ao ESP32.
-- `sense_mask=6` é padrão; habilitar `sense_enabled=1` somente após a conferência.
-- Não usar o ponto `5VA` do C404; usar fonte 5 V dedicada.
+## Decisões tomadas na bancada
 
-## Decisões que a bancada ainda resolve
+- `enter_key = 0` e `confirm_key = 0`: neste C404 as setas mudam o SP direto.
+- `step_c = 0,1`, com 10 toques = 1,0 °C. O comportamento em `in.L` ainda não foi medido (G4).
+- Auto-repetição: passo imediato, ~0,5 s de espera e ~10–14 passos/s, sem aceleração. A cauda é
+  coberta pelos padrões de `hold_*`.
+- `▲`+`▼` juntas não levam o C404 a nenhum menu, então o gesto de modo é viável. O SP pode andar
+  alguns passos durante o gesto (28,0 → 28,3 no teste) e o guarda reverte depois.
+- Display: segmento aceso em HIGH, varredura da direita para a esquerda, banco do SP = `2DISP`
+  em 0 (`disp_sp_bank = 0`).
+- Pendente fora da bancada: confirmar que `Tempval` mede o reator e que `100B` desabilita a via
+  térmica original.
 
-- `enter_key` e `confirm_key` reais;
-- `step_c` e comportamento em `in.L`;
-- atraso, taxa, aceleração e cauda da auto-repetição (`hold_*`);
-- efeito de `▲+▼` juntas e viabilidade do gesto de modo;
-- polaridade, fase e ordem dos dígitos do display;
-- confirmação de que `Tempval` mede o reator e `100B` desabilita a via térmica original.
-
-Build e testes comprovam coerência de software, não segurança térmica, acionamento físico nem
-desempenho do processo.
+Build e testes comprovam coerência de software, não segurança térmica nem desempenho do
+processo.

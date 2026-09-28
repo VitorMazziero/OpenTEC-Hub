@@ -1,5 +1,18 @@
 # Changelog — Banho termostático
 
+## 2026-09-28 — validação na bancada (documentação)
+
+- Firmware de 2026-09-26 recompilado (sem mudança de código; mesmo tamanho) e enviado por OTA.
+- Aprovados:
+  - setpoint com hold e toques pelo `bath_app.py` e pelo app Android;
+  - leitura do display sem leitura ignorada;
+  - guarda armado por toque, com reversão 12–16 s após soltar;
+  - gesto `▲`+`▼` em 1 s.
+- Gates: G3b, G7 e G7b aprovados; G6, G8 e G9 parciais. Tabela em `docs/VALIDATION.md`.
+- `docs/CURRENT_STATUS.md` reescrito com a conclusão, a configuração em uso, a montagem final e
+  o que falta. Histórico de 24–26/09 mantido. `docs/MONTAGEM_ETAPAS.md` com as etapas 2 e 3
+  aprovadas.
+
 ## 2026-09-26 — proteções da leitura do display
 
 - Incidente: com o ponto decimal não lido, o SP 23,4 foi lido como 234; `sp 25.0` planejou 2100

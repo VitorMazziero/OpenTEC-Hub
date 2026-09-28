@@ -5,9 +5,11 @@ Uma etapa só começa quando a anterior passou em todos os testes.
 
 | Etapa | Objetivo | Ligações ao C404 | Firmware |
 |---|---|---|---|
-| **1** | Controlar as teclas | 5 fios (relés); **sem GND comum** | padrões: `sp_source=0`, `sense_enabled=0`, `mode=manual`, `hub_enabled=0` |
-| 2 | Ler o display | + linhas do display via CD74HC4050 + GND | `sp_source=1` depois de G6 |
-| 3 | Estado das teclas | + divisores 100 k/150 k nos `CH` | `sense_enabled=1` |
+| **1** ✔ | Controlar as teclas | 5 fios (relés); **sem GND comum** | padrões: `sp_source=0`, `sense_enabled=0`, `mode=manual`, `hub_enabled=0` |
+| **2** ✔ | Ler o display | + `A…G`, `PD` por 20 kΩ série, `2DISP` por divisor + GND (§2.5) | `disp_mode=1`, `sp_source=1` |
+| **3** ✔ | Estado das teclas | + divisores 100 k/150 k nos `NO` dos relés 3/4 | `sense_enabled=1`, modo `auto` |
+
+**Todas as etapas foram aprovadas em 2026-09-28.** O resultado está no fim deste documento.
 
 ## Estado da placa do C404 no início
 
@@ -358,3 +360,27 @@ Feito em `A` e `B` (captura de 12:40 com leitura limpa). Passos para completar:
    lugar do SP, `config disp_sp_bank=1`.
 5. Mudar o SP (setas) com o PV parado: só os quatro dígitos do SP em `display` mudam.
 6. `config sp_source=1` e VALIDATION.md G6.
+
+---
+
+## Resultado das etapas 2 e 3 (2026-09-28)
+
+Montagem do §2.5 completa nos oito segmentos, com o sensoriamento de `▲`/`▼` (`WIRING.md` §4).
+Firmware de 2026-09-26 (recompilado em 28/09) por OTA, com a configuração reaplicada:
+
+```bash
+python bath_app.py config mode_hold_ms=1000 guard_check_ms=10000 disp_decimals=1 sense_enabled=1
+python bath_app.py config sp_min=-20 sp_max=90
+```
+
+Resultados:
+
+- `display_text` igual ao painel e `guard_ignored = 0`;
+- `sp 30` e `sp 28` terminaram em `done` com hold e 3 toques finais;
+- no modo `auto`, mudanças manuais (toques em `▼`, `▲` mantido) foram revertidas 12–16 s
+  depois de soltar;
+- o gesto `▲`+`▼` alternou o modo em 1 s;
+- o app Android (`apps/flutter`) também comandou o banho corretamente.
+
+**Etapas 2 e 3 aprovadas.** O registro completo e o que falta estão em `CURRENT_STATUS.md`
+("Conclusão").

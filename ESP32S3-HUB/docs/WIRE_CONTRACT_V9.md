@@ -180,6 +180,13 @@ ligada). Sintonia vigente: `BathCascadeKp`, `BathCascadeTiS`, `BathCascadeBiasC`
 `BathCascadeOffsetLowC`, `BathCascadeOutputMinC`, `BathCascadeOutputMaxC`, e
 `BathCascadeConfigError` (`same_frame`, `out_of_range` ou vazio após sucesso).
 
+Ajuste fino (10.7, aditivo): `BathCascadeState` ganha `approaching` (longe da referência ou
+reator ainda mudando: banho em `ref + bias + I`, PI parado). `BathCascadeFine` é `true` enquanto
+o PI atua (`controlling`/`actuator_busy`), `BathCascadeSlopeCMin` é a inclinação do PV filtrado
+em °C/min (`null` até a janela encher) e `BathCascadeFineEnterBandC`,
+`BathCascadeFineExitBandC`, `BathCascadeFineSlopeCMin` e `BathCascadeSlopeWindowMs` ecoam os
+limiares vigentes (padrões do firmware; ainda não configuráveis por comando).
+
 ## Serial USB: comandos em linhas
 
 O aplicativo termina cada quadro com `\n`; o Hub só processa um comando quando o seu fim

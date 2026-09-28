@@ -10,6 +10,9 @@ enum class ExternalBathCascadeState : uint8_t {
   ActuatorBusy,
   Paused,
   Fault,
+  // Far from the reference (or not yet settled): the bath holds ref + bias + the
+  // learned integral and the PI does not act.
+  Approaching,
 };
 
 struct ExternalBathCascadeConfig {
@@ -25,6 +28,14 @@ struct ExternalBathCascadeConfig {
   float offsetLowC = 5.0f;
   float outputMinC = 5.0f;
   float outputMaxC = 90.0f;
+  // Fine-tuning gate. The PI only acts close to the reference with the reactor
+  // settled: it engages when |error| < fineEnterBandC and |dPV/dt| < fineSlopeCMin,
+  // and releases only when |error| > fineExitBandC (the slope never releases it:
+  // the PI itself moves the reactor).
+  float fineEnterBandC = 5.0f;
+  float fineExitBandC = 6.0f;
+  float fineSlopeCMin = 0.1f;
+  uint32_t slopeWindowMs = 120000;
 };
 
 struct ExternalBathCascadeInputs {
@@ -64,6 +75,9 @@ struct ExternalBathCascadeSnapshot {
   float rawOutputC = 0.0f;
   float commandSetpointC = 0.0f;
   bool saturated = false;
+  bool fineActive = false;
+  bool slopeValid = false;
+  float slopeCMin = 0.0f;
   bool commandReady = false;
   bool hasCommand = false;
   uint32_t lastUpdateMs = 0;
@@ -103,11 +117,20 @@ class ExternalBathCascade {
   bool actuatorRangeValid_ = false;
   float actuatorMinC_ = 0.0f;
   float actuatorMaxC_ = 100.0f;
+  // Filtered-PV history for the slope: kSlopeSlots samples spaced by
+  // slopeWindowMs / (kSlopeSlots - 1), so a full ring spans the window.
+  static constexpr uint8_t kSlopeSlots = 13;
+  uint32_t slopeTimeMs_[kSlopeSlots] = {};
+  float slopePvC_[kSlopeSlots] = {};
+  uint8_t slopeHead_ = 0;
+  uint8_t slopeCount_ = 0;
 
   float lowerLimit(float referenceC) const;
   float upperLimit(float referenceC) const;
   float clampOutput(float valueC, float referenceC) const;
   void rebaseIntegral(float referenceC);
+  void clearSlope();
+  void pushSlope(uint32_t nowMs, float pvC);
   void setReason(const char* reason);
   void setState(ExternalBathCascadeState state, const char* reason = "");
 };

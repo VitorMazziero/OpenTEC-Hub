@@ -344,7 +344,9 @@ void serviceExternalBathCascade(unsigned long now) {
   const ExternalBathCascadeSnapshot previous = bathCascade.snapshot();
   const bool actuatorBusy = link.anyPending || completionPending || nodeSequenceRunning;
   if (active && nodeFresh && previous.hasCommand && !actuatorBusy &&
-      previous.state == ExternalBathCascadeState::Controlling && isfinite(bathTargetSnapshot)) {
+      (previous.state == ExternalBathCascadeState::Controlling ||
+       previous.state == ExternalBathCascadeState::Approaching) &&
+      isfinite(bathTargetSnapshot)) {
     const float expected = bathCascade.lastCommandC();
     if (fabsf(bathTargetSnapshot - expected) >= 0.05f) {
       if (bathTargetMismatchSinceMs == 0) {

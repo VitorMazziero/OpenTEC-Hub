@@ -14,7 +14,7 @@ class BathCascadeTests(unittest.TestCase):
 
     def test_states_and_pure_boundary_are_defined(self):
         for state in ("Off", "WaitingInputs", "Initializing", "Controlling",
-                      "ActuatorBusy", "Paused", "Fault"):
+                      "ActuatorBusy", "Paused", "Fault", "Approaching"):
             self.assertIn(state, self.header)
         self.assertNotIn("HTTP", self.header + self.source)
         self.assertNotIn("Preferences", self.header + self.source)
@@ -24,7 +24,9 @@ class BathCascadeTests(unittest.TestCase):
         for token in ("kp = 0.5f", "tiS = 600.0f", "biasC = 0.6f",
                       "periodMs = 10000", "filterS = 20.0f", "commandMinMs = 30000",
                       "commandBandC = 0.1f", "slewCMin = 0.5f",
-                      "offsetHighC = 5.0f", "offsetLowC = 5.0f"):
+                      "offsetHighC = 5.0f", "offsetLowC = 5.0f",
+                      "fineEnterBandC = 5.0f", "fineExitBandC = 6.0f",
+                      "fineSlopeCMin = 0.1f", "slopeWindowMs = 120000"):
             self.assertIn(token, self.header)
 
     def test_controller_contains_required_safety_terms(self):
@@ -32,6 +34,16 @@ class BathCascadeTests(unittest.TestCase):
                       "offsetLowC", "offsetHighC", "commandBandC", "maxStep",
                       "commandMinMs", "in.nowMs - lastInputMs_", "faultLatched_"):
             self.assertIn(token, self.source)
+
+    def test_pi_acts_only_inside_the_fine_gate(self):
+        gate = self.source.index("if (!snapshot_.fineActive) {")
+        integrate = self.source.index("integralC_ = candidateIntegral;")
+        self.assertLess(gate, integrate)
+        self.assertIn("absError < config_.fineEnterBandC && snapshot_.slopeValid", self.source)
+        self.assertIn("absError > config_.fineExitBandC", self.source)
+        self.assertIn('return "approaching"', self.source)
+        # The startup error must never be folded into the integral again.
+        self.assertNotIn("integralC_ = seed", self.source)
 
     def test_fault_is_latched_until_explicit_reset(self):
         fault_latch = self.source.index("faultLatched_ = true")

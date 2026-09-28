@@ -11,7 +11,8 @@
 // 10.2.0: caixa confiavel da distancia por carona no push e ecos de config dos nos.
 // 10.3.0: transicao editavel do fluxometro v12; 10.4.0: calibracao polinomial da bomba v3.12.
 // 10.5.0: telemetria completa e diagnostico da cascata termica externa.
-#define HUB_FIRMWARE_VERSION "10.6.0-dev"
+// 10.7.0: PI do banho restrito ao ajuste fino (estado `approaching`); chaves aditivas.
+#define HUB_FIRMWARE_VERSION "10.7.0-dev"
 #define HUB_PROTOCOL_VERSION 10
 
 // ===================================================================

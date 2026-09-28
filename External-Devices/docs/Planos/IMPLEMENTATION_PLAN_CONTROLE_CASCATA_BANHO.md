@@ -186,8 +186,9 @@ contraditórias:
 |---|---|---|
 | `off` | via original ou `tempSetpoint = 0` | não calcula nem envia; integrador zerado |
 | `waiting_inputs` | aguarda primeira PV válida, nó online e SP conhecido | não envia |
-| `initializing` | condições válidas; prepara filtro e transferência sem degrau | calcula `I` a partir do alvo atual do C404 |
-| `controlling` | todas as condições válidas | atualiza PI e agenda comandos conforme bandas/tempos |
+| `initializing` | condições válidas; prepara filtro e parte do SP do display do C404 | `I` começa em zero (Hub 10.7: não é mais semeado com o erro da partida) |
+| `approaching` | (Hub 10.7) \|erro\| fora da banda fina ou reator ainda mudando | banho em `ref + bias + I` num comando direto; PI parado, `I` congelado |
+| `controlling` | ajuste fino: \|erro\| < 5 °C e \|dPV/dt\| < 0,1 °C/min na entrada; sai com \|erro\| > 6 °C | atualiza PI e agenda comandos conforme bandas/tempos |
 | `actuator_busy` | caixa pendente ou sequência do nó em andamento | calcula para diagnóstico, mas não envia nova revisão |
 | `paused` | falha temporária de PV/comunicação | congela `I`; C404 mantém o último alvo |
 | `fault` | falha persistente, saturação longa ou erros repetidos do nó | bloqueia novos ajustes até reconhecimento ou novo comando válido |

@@ -48,6 +48,15 @@ conclusão vinculada ao `cmd_id` do setpoint (ACK e depois `done`/`idle`) e cool
 conclusão. Reboot, PV stale ou retorno à UART limpam a atuação transitória e não fazem
 fallback automático para a placa original.
 
+**Ajuste fino (10.7):** o PI só atua perto da referência com o reator assentado. Ele entra
+quando |erro| < `fineEnterBandC` (5 °C) **e** |dPV/dt| < `fineSlopeCMin` (0,1 °C/min, medida
+no PV filtrado numa janela de `slopeWindowMs` = 120 s) e sai só quando |erro| > `fineExitBandC`
+(6 °C); a derivada não o desliga, porque o próprio PI move o reator. Fora disso a cascata fica
+em `approaching`: o banho recebe `ref + bias + I` num comando direto, sem slew e sem integrar.
+O integrador começa em zero (nunca é semeado com o erro da partida) e guarda o que aprendeu
+entre os dois modos. A partida parte do SP do display e envia o primeiro comando sem esperar
+`commandMinMs`.
+
 **Parada do banho:** `bathAbort`, `tempSetpoint=0` na via externa e `resetVariables` entregam
 `stop` (abort + modo manual no nó), desligam a cascata e liberam a posse; via e `bathComm` não
 mudam e o C404 fica no último SP. Um novo `tempSetpoint` religa a cascata e pede `mode=auto`.

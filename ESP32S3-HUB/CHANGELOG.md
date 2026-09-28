@@ -1,5 +1,22 @@
 # Changelog do Hub
 
+## 10.7.0-dev — PI do banho só no ajuste fino
+
+- **Portão do PI:** a cascata só atua perto da referência com o reator assentado. Entra com
+  |erro| < 5 °C **e** |dPV/dt| < 0,1 °C/min (PV filtrado, janela de 120 s); sai só com
+  |erro| > 6 °C. Fora disso fica no novo estado `approaching`: banho em `ref + bias + I`, um
+  comando direto, sem slew e sem integrar.
+- **Partida:** o integrador não é mais semeado com o erro da partida (com reator a 20 °C e
+  referência 37 °C começava em −14 °C) e o primeiro comando sai logo, em vez de só ser marcado
+  como enviado e depender do reenvio C4 após 30 s. Em simulação (banho τ = 5 min, reator
+  τ = 15 min, 22 → 37 °C, 6 h): 50 → 19 comandos ao C404, sem os ~40 degraus de 0,2 °C da subida.
+- O reenvio C4 (alvo divergente) também vale em `approaching`.
+- Telemetria (aditiva): `BathCascadeFine`, `BathCascadeSlopeCMin` e os limiares
+  `BathCascadeFineEnterBandC`, `BathCascadeFineExitBandC`, `BathCascadeFineSlopeCMin`,
+  `BathCascadeSlopeWindowMs`. Os limiares são padrões do firmware (sem comando nem NVS ainda).
+- Testes: `host-bath-cascade` com partida longe, entrada por banda e derivada, histerese,
+  integrador preservado e degrau de referência.
+
 ## 10.6.0-dev — correções da integração do banho (plano K00–K05)
 
 - **Caminho de comando do banho:** `bathBox` substituída por `BathCommandCoordinator`

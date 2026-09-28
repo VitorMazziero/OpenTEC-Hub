@@ -541,6 +541,10 @@ void readAndBroadcastSensorData() {
   jsonResponse += ",\"BathCascadeOffsetLowC\":" + String(snapBathConfig.offsetLowC, 2);
   jsonResponse += ",\"BathCascadeOutputMinC\":" + String(snapBathConfig.outputMinC, 2);
   jsonResponse += ",\"BathCascadeOutputMaxC\":" + String(snapBathConfig.outputMaxC, 2);
+  jsonResponse += ",\"BathCascadeFineEnterBandC\":" + String(snapBathConfig.fineEnterBandC, 2);
+  jsonResponse += ",\"BathCascadeFineExitBandC\":" + String(snapBathConfig.fineExitBandC, 2);
+  jsonResponse += ",\"BathCascadeFineSlopeCMin\":" + String(snapBathConfig.fineSlopeCMin, 3);
+  jsonResponse += ",\"BathCascadeSlopeWindowMs\":" + String(snapBathConfig.slopeWindowMs);
   jsonResponse += ",\"BathCascadeConfigError\":\"" + String(snapBathConfigError) + "\"";
   if (isfinite(snapBathCommandSetpoint)) {
     jsonResponse += ",\"BathCommandSetpoint\":" + String(snapBathCommandSetpoint, 1);
@@ -576,6 +580,12 @@ void readAndBroadcastSensorData() {
   appendBathNullable("BathCascadePvFiltered", snapBathCascade.filteredPvC, cascadeTermsValid, 3);
   appendBathNullable("BathCascadeP", snapBathCascade.pC, cascadeTermsValid, 3);
   appendBathNullable("BathCascadeI", snapBathCascade.iC, cascadeTermsValid, 3);
+  // Fine-tuning gate: the PI acts only while BathCascadeFine is true (state
+  // controlling/actuator_busy); approaching holds ref + bias + I.
+  jsonResponse += ",\"BathCascadeFine\":" +
+                  String(cascadeTermsValid && snapBathCascade.fineActive ? "true" : "false");
+  appendBathNullable("BathCascadeSlopeCMin", snapBathCascade.slopeCMin,
+                     cascadeTermsValid && snapBathCascade.slopeValid, 3);
   jsonResponse += ",\"BathDisplaySp\":";
   if (snapBathOnline && snapBathDisplaySpValid && isfinite(snapBathDisplaySp)) {
     jsonResponse += String(snapBathDisplaySp, 2);

@@ -35,7 +35,13 @@ bool ExternalBathCascade::validateConfig(const ExternalBathCascadeConfig& candid
       !isfinite(candidate.offsetLowC) || candidate.offsetLowC < 0.0f || candidate.offsetLowC > 100.0f ||
       !isfinite(candidate.outputMinC) || !isfinite(candidate.outputMaxC) ||
       candidate.outputMinC < 0.0f || candidate.outputMaxC > 100.0f ||
-      candidate.outputMinC >= candidate.outputMaxC) {
+      candidate.outputMinC >= candidate.outputMaxC ||
+      !isfinite(candidate.fineEnterBandC) || candidate.fineEnterBandC <= 0.0f ||
+      candidate.fineEnterBandC > 50.0f || !isfinite(candidate.fineExitBandC) ||
+      candidate.fineExitBandC < candidate.fineEnterBandC || candidate.fineExitBandC > 50.0f ||
+      !isfinite(candidate.fineSlopeCMin) || candidate.fineSlopeCMin <= 0.0f ||
+      candidate.fineSlopeCMin > 10.0f || candidate.slopeWindowMs < 10000UL ||
+      candidate.slopeWindowMs > 3600000UL) {
     return false;
   }
   return true;
@@ -61,6 +67,33 @@ void ExternalBathCascade::rebaseIntegral(float referenceC) {
   integralC_ = outputC_ - referenceC - config_.biasC - config_.kp * snapshot_.errorC;
 }
 
+void ExternalBathCascade::clearSlope() {
+  slopeHead_ = 0;
+  slopeCount_ = 0;
+  snapshot_.slopeValid = false;
+  snapshot_.slopeCMin = 0.0f;
+}
+
+void ExternalBathCascade::pushSlope(uint32_t nowMs, float pvC) {
+  const uint32_t spacingMs = config_.slopeWindowMs / (kSlopeSlots - 1);
+  if (slopeCount_ > 0) {
+    const uint8_t newest = (slopeHead_ + kSlopeSlots - 1) % kSlopeSlots;
+    // 3/4 of the spacing tolerates loop jitter without halving the sample rate.
+    if (nowMs - slopeTimeMs_[newest] < spacingMs - spacingMs / 4) return;
+  }
+  slopeTimeMs_[slopeHead_] = nowMs;
+  slopePvC_[slopeHead_] = pvC;
+  slopeHead_ = (slopeHead_ + 1) % kSlopeSlots;
+  if (slopeCount_ < kSlopeSlots) slopeCount_++;
+  if (slopeCount_ < kSlopeSlots) return;
+  // Full ring: slopeHead_ now points at the oldest sample.
+  const uint8_t newest = (slopeHead_ + kSlopeSlots - 1) % kSlopeSlots;
+  const uint32_t spanMs = slopeTimeMs_[newest] - slopeTimeMs_[slopeHead_];
+  if (spanMs == 0) return;
+  snapshot_.slopeCMin = (slopePvC_[newest] - slopePvC_[slopeHead_]) * 60000.0f / spanMs;
+  snapshot_.slopeValid = true;
+}
+
 void ExternalBathCascade::reset() {
   snapshot_ = ExternalBathCascadeSnapshot{};
   filterInitialized_ = false;
@@ -71,6 +104,7 @@ void ExternalBathCascade::reset() {
   faultLatched_ = false;
   rebasePending_ = false;
   lastReferenceC_ = 0.0f;
+  clearSlope();
 }
 
 void ExternalBathCascade::markCommandSent(float setpointC, uint32_t nowMs) {
@@ -137,6 +171,8 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
     snapshot_.commandSetpointC = 0.0f;
     snapshot_.saturated = false;
     snapshot_.hasCommand = false;
+    snapshot_.fineActive = false;
+    clearSlope();
     setState(ExternalBathCascadeState::Off);
     lastInputMs_ = in.nowMs;
     return false;
@@ -183,7 +219,8 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
   uint32_t dtMs = 0;
   if (lastInputMs_ != 0 &&
       (snapshot_.state == ExternalBathCascadeState::Controlling ||
-       snapshot_.state == ExternalBathCascadeState::ActuatorBusy) &&
+       snapshot_.state == ExternalBathCascadeState::ActuatorBusy ||
+       snapshot_.state == ExternalBathCascadeState::Approaching) &&
       in.nowMs - lastInputMs_ < config_.periodMs) {
     snapshot_.lastUpdateMs = in.nowMs;
     return false;
@@ -198,68 +235,90 @@ bool ExternalBathCascade::update(const ExternalBathCascadeInputs& in) {
   if (!filterInitialized_ || rebasePending_) {
     snapshot_.filteredPvC = in.reactorPvC;
     filterInitialized_ = true;
+    // A re-seeded filter jumps; a slope across that jump would be fiction.
+    clearSlope();
   } else {
     const float alpha = dtS / (config_.filterS + dtS);
     snapshot_.filteredPvC += alpha * (in.reactorPvC - snapshot_.filteredPvC);
   }
   snapshot_.errorC = in.referenceC - snapshot_.filteredPvC;
+  pushSlope(in.nowMs, snapshot_.filteredPvC);
 
   if (snapshot_.state == ExternalBathCascadeState::WaitingInputs ||
       snapshot_.state == ExternalBathCascadeState::Off || !snapshot_.hasCommand) {
-    const float seed = in.bathSpValid ? clampOutput(in.bathSpC, in.referenceC)
-                                      : clampOutput(in.referenceC + config_.biasC, in.referenceC);
-    integralC_ = seed - in.referenceC - config_.biasC - config_.kp * snapshot_.errorC;
-    outputC_ = seed;
+    setState(ExternalBathCascadeState::Initializing);
+    // The display SP is where the bath really is: it is the slew origin and what the
+    // next command is compared with. The integral is never seeded from the startup
+    // error (a large error would load it with a value unrelated to the heat loss);
+    // it starts at zero after Off and keeps what it learned after a wait.
+    outputC_ = in.bathSpC;
+    lastCommandC_ = quantizeTenth(in.bathSpC);
+    snapshot_.hasCommand = true;
+    // Nothing was sent yet, so the first real command does not wait commandMinMs.
+    snapshot_.lastCommandMs = in.nowMs - config_.commandMinMs;
+  }
+
+  const float absError = fabsf(snapshot_.errorC);
+  if (snapshot_.fineActive) {
+    if (absError > config_.fineExitBandC) snapshot_.fineActive = false;
+  } else if (absError < config_.fineEnterBandC && snapshot_.slopeValid &&
+             fabsf(snapshot_.slopeCMin) < config_.fineSlopeCMin) {
+    snapshot_.fineActive = true;
+  }
+
+  if (!snapshot_.fineActive) {
+    // Approach: the bath holds ref + bias + the learned integral. One direct command
+    // (no slew: each step would be a relay sequence on the panel), no integration.
+    rebasePending_ = false;
+    const float target = in.referenceC + config_.biasC + integralC_;
+    outputC_ = clampOutput(target, in.referenceC);
+    snapshot_.pC = 0.0f;
+    snapshot_.iC = integralC_;
+    snapshot_.rawOutputC = target;
+    snapshot_.commandSetpointC = quantizeTenth(outputC_);
+    snapshot_.saturated = fabsf(outputC_ - target) > kEpsilon;
+    setState(ExternalBathCascadeState::Approaching, in.actuatorBusy ? "actuator_busy" : "");
+  } else {
+    if (rebasePending_) {
+      rebaseIntegral(in.referenceC);
+      rebasePending_ = false;
+    }
+
+    const float ki = config_.kp / config_.tiS;
+    const float candidateIntegral = integralC_ + ki * snapshot_.errorC * dtS;
+    const float candidateRaw = in.referenceC + config_.biasC +
+                               config_.kp * snapshot_.errorC + candidateIntegral;
+    const float limited = clampOutput(candidateRaw, in.referenceC);
+    const float maxStep = config_.slewCMin * dtS / 60.0f;
+    float nextOutput = limited;
+    bool saturated = fabsf(limited - candidateRaw) > kEpsilon;
+    if (maxStep > 0.0f && fabsf(limited - outputC_) > maxStep) {
+      nextOutput = outputC_ + (limited > outputC_ ? maxStep : -maxStep);
+      saturated = true;
+    }
+
+    // Conditional anti-windup: do not integrate further into an active limit.
+    if (saturated && (candidateRaw - nextOutput) * snapshot_.errorC > 0.0f) {
+      const float noWindupRaw = in.referenceC + config_.biasC +
+                                config_.kp * snapshot_.errorC + integralC_;
+      nextOutput = clampOutput(noWindupRaw, in.referenceC);
+      if (maxStep > 0.0f && fabsf(nextOutput - outputC_) > maxStep) {
+        nextOutput = outputC_ + (nextOutput > outputC_ ? maxStep : -maxStep);
+      }
+    } else {
+      integralC_ = candidateIntegral;
+    }
+
+    outputC_ = nextOutput;
     snapshot_.pC = config_.kp * snapshot_.errorC;
     snapshot_.iC = integralC_;
-    snapshot_.rawOutputC = seed;
-    snapshot_.commandSetpointC = quantizeTenth(seed);
-    snapshot_.saturated = false;
-    setState(ExternalBathCascadeState::Initializing);
-    if (in.bathSpValid) markCommandSent(snapshot_.commandSetpointC, in.nowMs);
-    setState(ExternalBathCascadeState::Controlling);
-    return !in.bathSpValid;
+    snapshot_.rawOutputC = candidateRaw;
+    snapshot_.commandSetpointC = quantizeTenth(outputC_);
+    snapshot_.saturated = saturated;
+    setState(in.actuatorBusy ? ExternalBathCascadeState::ActuatorBusy
+                             : ExternalBathCascadeState::Controlling,
+             in.actuatorBusy ? "actuator_busy" : "");
   }
-
-  if (rebasePending_) {
-    rebaseIntegral(in.referenceC);
-    rebasePending_ = false;
-  }
-
-  const float ki = config_.kp / config_.tiS;
-  const float candidateIntegral = integralC_ + ki * snapshot_.errorC * dtS;
-  const float candidateRaw = in.referenceC + config_.biasC +
-                             config_.kp * snapshot_.errorC + candidateIntegral;
-  const float limited = clampOutput(candidateRaw, in.referenceC);
-  const float maxStep = config_.slewCMin * dtS / 60.0f;
-  float nextOutput = limited;
-  bool saturated = fabsf(limited - candidateRaw) > kEpsilon;
-  if (maxStep > 0.0f && fabsf(limited - outputC_) > maxStep) {
-    nextOutput = outputC_ + (limited > outputC_ ? maxStep : -maxStep);
-    saturated = true;
-  }
-
-  // Conditional anti-windup: do not integrate further into an active limit.
-  if (saturated && (candidateRaw - nextOutput) * snapshot_.errorC > 0.0f) {
-    const float noWindupRaw = in.referenceC + config_.biasC +
-                              config_.kp * snapshot_.errorC + integralC_;
-    nextOutput = clampOutput(noWindupRaw, in.referenceC);
-    if (maxStep > 0.0f && fabsf(nextOutput - outputC_) > maxStep) {
-      nextOutput = outputC_ + (nextOutput > outputC_ ? maxStep : -maxStep);
-    }
-  } else {
-    integralC_ = candidateIntegral;
-  }
-
-  outputC_ = nextOutput;
-  snapshot_.pC = config_.kp * snapshot_.errorC;
-  snapshot_.iC = integralC_;
-  snapshot_.rawOutputC = candidateRaw;
-  snapshot_.commandSetpointC = quantizeTenth(outputC_);
-  snapshot_.saturated = saturated;
-  setState(in.actuatorBusy ? ExternalBathCascadeState::ActuatorBusy
-                           : ExternalBathCascadeState::Controlling,
-           in.actuatorBusy ? "actuator_busy" : "");
 
   if (in.actuatorBusy) return false;
   if (!snapshot_.hasCommand ||
@@ -279,6 +338,7 @@ const char* externalBathCascadeStateName(ExternalBathCascadeState state) {
     case ExternalBathCascadeState::ActuatorBusy: return "actuator_busy";
     case ExternalBathCascadeState::Paused: return "paused";
     case ExternalBathCascadeState::Fault: return "fault";
+    case ExternalBathCascadeState::Approaching: return "approaching";
   }
   return "fault";
 }

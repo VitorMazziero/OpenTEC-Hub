@@ -248,4 +248,11 @@ instalado, o mesmo passo é:
 gh release create v2026.09.29 (Get-ChildItem .\release-assets\*).FullName --title "v2026.09.29" --notes "Resumo das mudanças"
 ```
 
+Após publicar a release no GitHub, limpe com segurança os arquivos de build e caches locais
+para liberar espaço e evitar sincronização desnecessária no OneDrive:
+
+```powershell
+.\tools\Clean-BuildArtifacts.ps1
+```
+
 [← Página inicial do repositório](README.md)

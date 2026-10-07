@@ -318,6 +318,30 @@ public sealed class RecipeExecutionContractTests
         Assert.Throws<RecipeFormatException>(() => RecipeSerializer.Deserialize(json));
     }
 
+    [Fact]
+    public void Aggregate_verifies_each_recaptured_pulse_without_allowing_matrix_policy_changes()
+    {
+        var request = Request();
+        request = request with { Definition = request.Definition with { Settings = request.Definition.Settings with
+            { MaxDegassingTimeMinutes = .5, MaxPrestageSeconds = 5 } } };
+        var snapshot = request.Restoration.BeforeAssay with { SnapshotId = Guid.NewGuid(),
+            CapturedUtc = request.Restoration.BeforeAssay.CapturedUtc.AddSeconds(1) };
+        var invocation = request with { Restoration = request.Restoration with { BeforeAssay = snapshot },
+            AcquisitionDeadlineUtc = request.AcquisitionDeadlineUtc.AddSeconds(-1) };
+        var pulse = KlaRecipePulseMapper.Create(invocation, "test", request.Definition.Conditions[0].ConditionId,
+            1, 1, snapshot.CapturedUtc.AddSeconds(1));
+        var attempt = Attempt(request) with { AttemptId = pulse.RequestId, ReturnSnapshotId = snapshot.SnapshotId };
+        var result = Result(request, attempt) with { Pulses = [pulse] };
+        result.ValidateAgainst(request);
+        RecipeContractSerializer.ReadKlaResult(RecipeContractSerializer.Serialize(result)).ValidateAgainst(request);
+        Assert.Throws<ArgumentException>(() => (result with { Attempts = [attempt with
+            { ReturnSnapshotId = request.Restoration.BeforeAssay.SnapshotId }] }).ValidateAgainst(request));
+        var changed = KlaRecipePulseMapper.Create(invocation with { Quality = invocation.Quality with { Version = "other" } },
+            "test", request.Definition.Conditions[0].ConditionId, 1, 1, snapshot.CapturedUtc.AddSeconds(1));
+        Assert.Throws<ArgumentException>(() => (result with { Pulses = [changed] }).ValidateAgainst(request));
+        Assert.Throws<ArgumentNullException>(() => (result with { Pulses = [null!] }).Validate());
+    }
+
     internal static KlaRecipeRequest Request(KlaAssayProtocol protocol = KlaAssayProtocol.Abiotic,
         KlaCaptureMode mode = KlaCaptureMode.Single)
     {

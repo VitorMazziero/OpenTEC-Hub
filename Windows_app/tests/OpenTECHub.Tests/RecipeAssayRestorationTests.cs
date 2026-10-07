@@ -143,13 +143,17 @@ public sealed class RecipeAssayRestorationTests
 
     internal sealed class Fixture : IDisposable
     {
-        public readonly TestClock Clock = new(DateTimeOffset.Parse("2026-10-07T12:00:00Z"));
+        public readonly TestClock Clock;
         public readonly RecordingDeviceService Device = new();
         public readonly CommandArbiter Arbiter;
         public RecipeAssayResourceLease Lease = null!;
         public KlaReturnSnapshot Snapshot = null!;
         public GasRigConfiguration Rig = new(GasInput.Input1);
-        public Fixture() { Arbiter = new(Device, Clock); }
+        public Fixture(bool virtualTimers = false)
+        {
+            Clock = new(DateTimeOffset.Parse("2026-10-07T12:00:00Z"), virtualTimers: virtualTimers);
+            Arbiter = new(Device, Clock);
+        }
         internal static async Task ReturnWithStore(RecipeAssayResourceLease lease, KlaRecipeRestorationContract contract, TestClock clock, KlaAssayApiResult result)
         {
             var directory = Path.Combine(Path.GetTempPath(), "return-receipt-" + Guid.NewGuid().ToString("N"));

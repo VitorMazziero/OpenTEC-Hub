@@ -50,7 +50,10 @@ public sealed partial class KlaTestRunner
         {
             throw new InvalidOperationException("Sem evidência de agitação medida para confirmar a retomada.");
         }
-        var history = _initialOxygenHistory.Where(x => GetMonotonicSeconds() - x.Time <= p.InitialStabilitySeconds).ToList();
+        // Stability belongs to the latest observed window. Wall time advancing while the
+        // preparation checkpoint is flushed must not remove its first sample. Freshness
+        // is checked independently before both preflight validations.
+        var history = _initialOxygenHistory.Where(x => _lastOxygenMonotonic - x.Time <= p.InitialStabilitySeconds + 1e-6).ToList();
         var slope = TryCalculateSlope(history, p.InitialStabilitySeconds);
         if (slope is null || Math.Abs(slope.Value) > _currentTest.Settings.StabilityDerivativeThresholdPercentPerSecond ||
             _currentDO <= p.RemovalTargetDoPercent || _currentDO < p.OperatingRange.MinimumOperatingDoPercent ||

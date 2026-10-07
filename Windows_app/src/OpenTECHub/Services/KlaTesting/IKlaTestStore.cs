@@ -25,6 +25,9 @@ public interface IKlaTestStore
         CancellationToken ct = default)
         => Task.FromException<KlaRecipeSelectionReceipt>(new NotSupportedException("Armazenamento sem decisão automática durável."));
     KlaRecipeSelectionCheckpoint? ReadRecipeSelection(string testFolder, string runFolder, Guid requestId) => null;
+    Task PersistRecipeResultAsync(KlaRecipeRequest request, KlaRecipeResult result, CancellationToken ct = default)
+        => Task.FromException(new NotSupportedException("Armazenamento sem resultado de matriz durável."));
+    KlaRecipeResult? ReadRecipeResult(string testFolder, Guid invocationId) => null;
 
     /// <summary>A queued write failed: the path and the exception. The store keeps going; the runner decides what to tell the operator.</summary>
     event Action<string, Exception>? WriteFailed { add { } remove { } }

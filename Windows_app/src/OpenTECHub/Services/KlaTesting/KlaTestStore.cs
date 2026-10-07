@@ -612,8 +612,9 @@ public sealed partial class KlaTestStore : IKlaTestStore
             Directory.CreateDirectory(runPath);
             if (run.Definition is { } definition)
             {
-                run.AttemptNumber = attempt - 1;
-                run.Definition = definition = definition with { AttemptNumber = run.AttemptNumber };
+                // Folder collisions can belong to another planned condition with the same N/Q.
+                // The scientific attempt number comes from that condition/replicate's history.
+                run.AttemptNumber = definition.AttemptNumber;
                 WriteAllTextAtomic(Path.Combine(runPath, KlaTestFileContracts.RunDefinitionFileName),
                     KlaTestFileContracts.SerializeRunDefinition(definition));
             }

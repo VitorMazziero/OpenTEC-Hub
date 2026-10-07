@@ -1,0 +1,147 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+using OpenTECHub.Services.Recipes;
+
+namespace OpenTECHub.Services.KlaTesting;
+
+/// <summary>Unattended matrix over one E6 journal. Each pulse releases its scope before any retry wait.</summary>
+public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRouter router,
+    IKlaRecipePulsePreparer preparer, IKlaTestStore store, TimeProvider time, bool allowMapImport = false)
+{
+    private int _started;
+    private IKlaRecipePreparedPulse? _active;
+    public RunPhase? CurrentPhase => Volatile.Read(ref _active)?.Phase;
+    public KlaReturnSnapshot? CurrentReturnSnapshot => Volatile.Read(ref _active)?.Request.RecipePulse?.Invocation.Restoration.BeforeAssay;
+    public KlaQueueItem? CurrentItem { get; private set; }
+    public bool IsWaiting { get; private set; }
+
+    public async Task<KlaRecipeResult> ExecuteAsync(KlaRecipeRequest template, KlaTestDocument preparedDocument,
+        CancellationToken cancellation = default)
+    {
+        template = RecipeContractSerializer.Snapshot(template);
+        var document = JsonSerializer.Deserialize<KlaTestDocument>(JsonSerializer.Serialize(preparedDocument))!;
+        if (!router.IsValidated || document.Runs.Count != 0 || document.SequenceLimits is not null ||
+            JsonSerializer.Serialize(KlaAssayDefinition.FromDocument(document)) != JsonSerializer.Serialize(template.Definition))
+            throw new ArgumentException("Matriz exige sessão nova, perfil isolado e definição congelada correspondente.");
+        if (!allowMapImport && (document.LinkedMap is not null || template.Definition.Conditions.Any(c => c.Origin == ConditionOrigin.Map || c.SourceMapId is not null)))
+            throw new ArgumentException("Importação de mapa não está habilitada para esta receita.");
+        if (document.NitrogenSourceConfirmedUtc is null ||
+            template.Definition.Protocol == KlaAssayProtocol.Biotic && document.NitrogenIsolationConfirmedUtc is null)
+            throw new ArgumentException("Confirmações de montagem devem existir antes da execução autônoma.");
+        if (Interlocked.Exchange(ref _started, 1) != 0) throw new InvalidOperationException("Orquestrador de invocação já utilizado.");
+        var began = time.GetTimestamp();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(template.Retry.MaximumBlockSeconds), time);
+        using var acquisition = CancellationTokenSource.CreateLinkedTokenSource(cancellation, deadline.Token);
+        var attempts = new List<KlaRecipeAttemptResult>();
+        var pulses = new List<KlaAssayApiRequest>();
+        long? lastEnd = null;
+        bool restored = true, persisted = true;
+        double Elapsed() => time.GetElapsedTime(began).TotalSeconds;
+
+        async Task<KlaRecipeResult> Finish(KlaRecipeTerminalStatus status, string? reason = null)
+        {
+            CurrentItem = null; IsWaiting = false;
+            var result = new KlaRecipeResult { Context = template.Context, PeriodicInvocation = template.PeriodicInvocation,
+                SessionId = document.TestId, SessionFolder = document.FolderName, Status = status,
+                Attempts = attempts.ToImmutableArray(), Pulses = pulses.ToImmutableArray(),
+                PreAssayStateRestored = restored, PersistenceConfirmed = persisted, Reason = reason };
+            result.ValidateAgainst(template);
+            try { await store.PersistRecipeResultAsync(template, result).ConfigureAwait(false); }
+            catch (Exception error) { return result with { Status = KlaRecipeTerminalStatus.PersistenceFailure,
+                PersistenceConfirmed = false, Reason = $"Falha ao registrar matriz: {error.Message}" }; }
+            return result;
+        }
+
+        while (true)
+        {
+            if (acquisition.IsCancellationRequested || Elapsed() >= template.Retry.MaximumBlockSeconds || time.GetUtcNow() >= template.AcquisitionDeadlineUtc)
+                return await Finish(cancellation.IsCancellationRequested ? KlaRecipeTerminalStatus.Cancelled : KlaRecipeTerminalStatus.Inconclusive,
+                    "Execução interrompida ou orçamento de tempo esgotado.").ConfigureAwait(false);
+            var next = KlaRecipeSequence.Next(template, attempts);
+            if (next.TerminalStatus is { } status) return await Finish(status).ConfigureAwait(false);
+            var item = CurrentItem = next.Next!;
+            var candidate = KlaRecipePulseMapper.Create(template, router.Capabilities.InstallationId,
+                item.ConditionId, item.ReplicateNumber, item.AttemptNumber, time.GetUtcNow());
+            var budget = api.ReadCultivationBudget(candidate);
+            if (budget.RemainingAttempts == 0 || budget.RemainingRemovalSeconds < candidate.ReservedRemovalSeconds)
+                return await Finish(KlaRecipeTerminalStatus.Inconclusive, "Orçamento persistido do cultivo esgotado.").ConfigureAwait(false);
+            if (budget.BlockedReason is not null)
+                return await Finish(KlaRecipeTerminalStatus.OperationalFailure, budget.BlockedReason).ConfigureAwait(false);
+            var wait = Math.Max(budget.WaitSeconds, lastEnd is { } end
+                ? Math.Max(0, template.Retry.MinimumInterAssaySeconds - time.GetElapsedTime(end).TotalSeconds) : 0);
+            if (wait > 0)
+            {
+                if (Elapsed() + wait >= template.Retry.MaximumBlockSeconds || time.GetUtcNow().AddSeconds(wait) >= template.AcquisitionDeadlineUtc)
+                    return await Finish(KlaRecipeTerminalStatus.Inconclusive, "Intervalo mínimo excede o tempo restante.").ConfigureAwait(false);
+                IsWaiting = true;
+                try { await Task.Delay(TimeSpan.FromSeconds(wait), time, acquisition.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+                finally { IsWaiting = false; }
+                continue; // Re-read global limits before reacquiring any actuator.
+            }
+            var pulseDeadline = time.GetUtcNow().AddSeconds(template.Retry.MaximumBlockSeconds - Elapsed());
+            if (pulseDeadline > template.AcquisitionDeadlineUtc) pulseDeadline = template.AcquisitionDeadlineUtc;
+            IKlaRecipePreparedPulse scope;
+            try
+            {
+                var current = store.LoadTest(document.FolderName) ?? throw new InvalidOperationException("Sessão comum ausente.");
+                scope = await preparer.PrepareAsync(template, item, current, pulseDeadline, acquisition.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { continue; }
+            catch (Exception error) { return await Finish(KlaRecipeTerminalStatus.OperationalFailure, error.Message).ConfigureAwait(false); }
+            Volatile.Write(ref _active, scope);
+            KlaAssayApiObservation? observation = null;
+            Exception? executionError = null;
+            bool created = false;
+            try
+            {
+                using var registration = router.Register(scope.Request, scope.Execution);
+                try
+                {
+                    api.Create(scope.Request); created = true;
+                    await api.StartAsync(scope.Request.RequestId, acquisition.Token).ConfigureAwait(false);
+                    observation = await api.WaitForCompletionAsync(scope.Request.RequestId).ConfigureAwait(false);
+                }
+                catch (Exception error)
+                {
+                    executionError = error;
+                    if (created) observation = await api.CancelWithRecoveryAsync(scope.Request.RequestId).ConfigureAwait(false);
+                }
+            }
+            catch (Exception error) { executionError = error; }
+            finally
+            {
+                if (scope.HasStarted) pulses.Add(scope.Request);
+                restored = !scope.HasStarted || scope.HasReturnedSuccessfully;
+                try { scope.Dispose(); }
+                catch (Exception error) { executionError = error; restored = false; }
+                Volatile.Write(ref _active, null);
+            }
+            lastEnd = time.GetTimestamp();
+            var result = observation?.Result;
+            if (result is not { RunFolder: not null, TestFolder: not null } ||
+                observation.State is KlaAssayApiState.PersistenceFailed or KlaAssayApiState.RestorationFailed)
+            {
+                persisted = !scope.HasStarted && observation?.State == KlaAssayApiState.Cancelled;
+                var failedStatus = cancellation.IsCancellationRequested && !scope.HasStarted ? KlaRecipeTerminalStatus.Cancelled :
+                    scope.HasStarted && result?.Outcome.Restoration != KlaRestorationState.Confirmed && !restored
+                        ? KlaRecipeTerminalStatus.RestorationFailure :
+                    observation?.State == KlaAssayApiState.PersistenceFailed || executionError is System.IO.IOException or AggregateException
+                        ? KlaRecipeTerminalStatus.PersistenceFailure : KlaRecipeTerminalStatus.OperationalFailure;
+                return await Finish(failedStatus, executionError?.Message ?? observation?.Reason).ConfigureAwait(false);
+            }
+            if (!restored) return await Finish(KlaRecipeTerminalStatus.RestorationFailure, "Reserva não confirmou a devolução dos produtores.").ConfigureAwait(false);
+            try
+            {
+                var remaining = api.ReadCultivationBudget(scope.Request).RemainingAttempts;
+                var elapsed = Elapsed();
+                var selection = new KlaRecipeSelectionCheckpoint { Observation = observation,
+                    Decision = KlaRecipeAttemptDecider.Decide(observation, attempts, remaining, elapsed, time.GetUtcNow()),
+                    History = attempts.ToImmutableArray(), RemainingCultivationAttempts = remaining, ElapsedBlockSeconds = elapsed };
+                await store.PersistRecipeSelectionAsync(selection).ConfigureAwait(false);
+                attempts.Add(selection.Decision);
+            }
+            catch (Exception error) { persisted = false; return await Finish(KlaRecipeTerminalStatus.PersistenceFailure, error.Message).ConfigureAwait(false); }
+        }
+    }
+}

@@ -79,7 +79,8 @@ public static class KlaRecipeAttemptDecider
 
     private static KlaRetryReason? RetryReason(string code) => code switch
     {
-        "invalid_or_short_window" or "insufficient_respiratory_window" => KlaRetryReason.InsufficientWindow,
+        "invalid_or_short_window" or "insufficient_respiratory_window" or "insufficient_confirmed_recovery" or
+            "insufficient_equilibrium_points" => KlaRetryReason.InsufficientWindow,
         "insufficient_signal_to_noise" or "respiratory_signal_too_small" => KlaRetryReason.ExcessiveNoise,
         "nonconstant_rate_in_subwindows" => KlaRetryReason.UnstableCondition,
         _ => null

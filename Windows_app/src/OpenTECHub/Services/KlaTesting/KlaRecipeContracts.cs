@@ -253,19 +253,27 @@ public sealed record KlaRecipeResult
     public required string SessionFolder { get; init; }
     public required KlaRecipeTerminalStatus Status { get; init; }
     public required ImmutableArray<KlaRecipeAttemptResult> Attempts { get; init; }
+    /// <summary>Individual frozen pulses carry the newly captured return state for each attempt.</summary>
+    public ImmutableArray<KlaAssayApiRequest> Pulses { get; init; } = [];
     public required bool PreAssayStateRestored { get; init; }
     public required bool PersistenceConfirmed { get; init; }
+    public string? Reason { get; init; }
     public void Validate()
     {
         ArgumentNullException.ThrowIfNull(Context); Context.Validate();
         PeriodicInvocation?.Validate();
-        if (SessionId == Guid.Empty || Attempts.IsDefault)
+        if (SessionId == Guid.Empty || Attempts.IsDefault || Pulses.IsDefault)
         {
             throw new ArgumentException("Sessão inválida.");
         }
 
         ContractGuard.Text(SessionFolder); ContractGuard.Defined(Status);
         foreach (var attempt in Attempts) { ArgumentNullException.ThrowIfNull(attempt); attempt.Validate(); }
+        foreach (var pulse in Pulses) { ArgumentNullException.ThrowIfNull(pulse); pulse.Validate(); }
+        if (Pulses.Select(p => p.RequestId).Distinct().Count() != Pulses.Length ||
+            !Pulses.IsEmpty && (Attempts.Any(a => !Pulses.Any(p => p.RequestId == a.AttemptId)) ||
+                Status is KlaRecipeTerminalStatus.Completed or KlaRecipeTerminalStatus.CompletedWithWarnings && Pulses.Length != Attempts.Length))
+            throw new ArgumentException("Pulsos e tentativas da matriz divergem.");
         if (Attempts.Select(a => a.AttemptId).Distinct().Count() != Attempts.Length ||
             Attempts.Select(a => (a.ConditionId, a.ReplicateNumber, a.AttemptNumber)).Distinct().Count() != Attempts.Length ||
             Attempts.Where(a => a.Decision == KlaAutomaticDecision.Selected)
@@ -297,12 +305,27 @@ public sealed record KlaRecipeResult
             throw new ArgumentException("Resultado pertence a outra invocação.");
         }
 
+        foreach (var pulse in Pulses)
+        {
+            var invocation = pulse.RecipePulse?.Invocation ?? throw new ArgumentException("Pulso sem contexto de receita.");
+            // Only a newly captured return state and a tighter acquisition deadline may change.
+            var normalized = invocation with { Restoration = invocation.Restoration with
+                { BeforeAssay = request.Restoration.BeforeAssay }, AcquisitionDeadlineUtc = request.AcquisitionDeadlineUtc };
+            if (invocation.AcquisitionDeadlineUtc > request.AcquisitionDeadlineUtc ||
+                RecipeContractSerializer.Fingerprint(normalized) != RecipeContractSerializer.Fingerprint(request))
+                throw new ArgumentException("Pulso alterou a definição ou política da matriz.");
+        }
+
         foreach (var attempt in Attempts)
         {
+            var binding = Pulses.IsEmpty ? null : Pulses.Single(p => p.RequestId == attempt.AttemptId).RecipePulse;
             var condition = request.Definition.Conditions.FirstOrDefault(c => c.ConditionId == attempt.ConditionId);
             if (condition is null || attempt.ReplicateNumber > condition.RequestedReplicates ||
                 attempt.AttemptNumber > request.Retry.MaximumAttemptsPerReplicate ||
-                attempt.ReturnSnapshotId != request.Restoration.BeforeAssay.SnapshotId ||
+                binding is not null && (binding.ConditionId != attempt.ConditionId || binding.ReplicateNumber != attempt.ReplicateNumber ||
+                    binding.AttemptNumber != attempt.AttemptNumber) ||
+                attempt.ReturnSnapshotId != (Pulses.IsEmpty ? request.Restoration.BeforeAssay.SnapshotId :
+                    Pulses.Single(p => p.RequestId == attempt.AttemptId).RecipePulse!.Invocation.Restoration.BeforeAssay.SnapshotId) ||
                 attempt.PolicyVersion != request.Quality.Version || attempt.DecisionAuthor != RecipeDecisionAuthor.AutomaticPolicy)
             {
                 throw new ArgumentException("Tentativa diverge do contrato executado.");
@@ -328,7 +351,7 @@ public sealed record KlaRecipeResult
             for (var i = 0; i < ordered.Length; i++)
             {
                 if (ordered[i].AttemptNumber != i + 1 ||
-                    i < ordered.Length - 1 && ordered[i].Decision == KlaAutomaticDecision.Selected)
+                    i < ordered.Length - 1 && ordered[i].Decision != KlaAutomaticDecision.Retry)
                 {
                     throw new ArgumentException("Histórico incompleto ou nova tentativa após réplica selecionada.");
                 }

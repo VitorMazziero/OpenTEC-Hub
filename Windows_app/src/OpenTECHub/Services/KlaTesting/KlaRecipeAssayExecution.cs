@@ -19,6 +19,8 @@ public sealed class KlaRecipeAssayExecution : IKlaAssayExecution
     private readonly KlaTestDocument _document;
     private readonly RecipeAssayRecoveryCriteria _recoveryCriteria;
     private int _started;
+    private KlaTestRunner? _runner;
+    public RunPhase? Phase => Volatile.Read(ref _runner)?.Phase;
     public KlaAssayExecutionCapabilities Capabilities { get; }
     public bool IsValidated => Capabilities.IsIsolatedSimulation;
 
@@ -75,6 +77,7 @@ public sealed class KlaRecipeAssayExecution : IKlaAssayExecution
                 await _store.PersistRecipeAttemptAsync(checkpoint, token).ConfigureAwait(false);
                 prepared = checkpoint;
             });
+        Volatile.Write(ref _runner, runner);
         async Task WaitForInitialObservation(CancellationToken token)
         {
             var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

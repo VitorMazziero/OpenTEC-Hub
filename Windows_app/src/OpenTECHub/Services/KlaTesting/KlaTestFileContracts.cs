@@ -12,6 +12,7 @@ namespace OpenTECHub.Services.KlaTesting;
 
 public static class KlaTestFileContracts
 {
+    public const int CurrentSchemaVersion = 3;
     private static readonly Regex RunFolderPattern = new(
         @"^N(?<rpm>\d{4})_Q(?<qint>\d{2})p(?<qdec>\d{2})_Rep(?<rep>\d{2})(?:_Tentativa\d{2})?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
@@ -23,6 +24,7 @@ public static class KlaTestFileContracts
     public const string RunsDirectoryName = "Corridas";
     public const string RunRawDataFileName = "dados-brutos.csv";
     public const string RunAnalysisFileName = "analise.json";
+    public const string RunDefinitionFileName = "definicao-corrida.json";
     public const string RunResultFileName = "resultado.csv";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -113,8 +115,33 @@ public static class KlaTestFileContracts
     public static string SerializeTestDocument(KlaTestDocument doc) =>
         JsonSerializer.Serialize(doc, JsonOptions);
 
-    public static KlaTestDocument? DeserializeTestDocument(string json) =>
-        JsonSerializer.Deserialize<KlaTestDocument>(json, JsonOptions);
+    public static KlaTestDocument? DeserializeTestDocument(string json)
+    {
+        var doc = JsonSerializer.Deserialize<KlaTestDocument>(json, JsonOptions);
+        if (doc is null)
+        {
+            return null;
+        }
+
+        using var source = JsonDocument.Parse(json);
+        if (!source.RootElement.TryGetProperty("schemaVersion", out _))
+        {
+            doc.SchemaVersion = 1;
+        }
+
+        if (doc.SchemaVersion is < 1 or > CurrentSchemaVersion)
+        {
+            throw new NotSupportedException($"Versão de ensaio kLa não suportada: {doc.SchemaVersion}.");
+        }
+
+        if ((doc.Protocol.HasValue && !Enum.IsDefined(doc.Protocol.Value)) ||
+            (doc.CaptureMode.HasValue && !Enum.IsDefined(doc.CaptureMode.Value)))
+        {
+            throw new JsonException("Protocolo ou modo de captura desconhecido.");
+        }
+        // Legacy defaults are computed, not persisted as if they had been recorded at acquisition.
+        return doc;
+    }
 
     public static string SerializeConditionTable(IReadOnlyList<KlaTestCondition> conditions) =>
         JsonSerializer.Serialize(conditions, JsonOptions);
@@ -124,6 +151,12 @@ public static class KlaTestFileContracts
 
     public static string SerializeAnalysis(KlaAnalysisRevision analysis) =>
         JsonSerializer.Serialize(analysis, JsonOptions);
+
+    public static string SerializeRunDefinition(KlaRunDefinition definition) =>
+        JsonSerializer.Serialize(definition, JsonOptions);
+
+    public static KlaRunDefinition? DeserializeRunDefinition(string json) =>
+        JsonSerializer.Deserialize<KlaRunDefinition>(json, JsonOptions);
 
     public static KlaAnalysisRevision? DeserializeAnalysis(string json) =>
         JsonSerializer.Deserialize<KlaAnalysisRevision>(json, JsonOptions);

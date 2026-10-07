@@ -1,0 +1,49 @@
+{
+  "stage": "E1",
+  "schemaVersion": 3,
+  "verifiedAtUtc": "2026-10-06T23:27:52.2935845Z",
+  "regression": {
+    "sha256": "5ACF7432599B9840A8DB9D4A995867801A7BA3959CD0205551D6BA0035EC252B",
+    "failed": 0,
+    "passed": 149,
+    "resultFile": "Windows_app/tests/OpenTECHub.Tests/TestResults/kla-e1.trx"
+  },
+  "finalVerification": {
+    "sha256": "60AB967822F9056400C831DC36C606F74EDE8235D013D000A4F817B110E7C6D7",
+    "failed": 0,
+    "passed": 36,
+    "resultFile": "Windows_app/tests/OpenTECHub.Tests/TestResults/kla-e1-final.trx"
+  },
+  "contractSha256": "AA73D3A0C0A48DF525EFA1C80DCA9C977F5C102F49A69D437B14E69174EEC72F",
+  "e0Verification": {
+    "frozenFiles": 19,
+    "splitCurves": 92,
+    "passed": true,
+    "analyticalCases": 3
+  },
+  "calibrationFilesPreserved": true,
+  "operatingEnvelope": {
+    "removalTargetDoPercent": [
+      5,
+      20
+    ],
+    "airflowLitersPerMinute": [
+      0.5,
+      16
+    ],
+    "agitationRpm": [
+      50,
+      1000
+    ],
+    "removalAgitationRpm": 100,
+    "usualControlDoPercent": [
+      30,
+      100
+    ]
+  },
+  "bioticPhysicalCommandsImplemented": false,
+  "nextPhysicalCommandStage": "E2",
+  "probeResponseTimeRequiredForSession": false,
+  "historicalContractSha256": "7D724C685F9D698D9E9C51B6275BC85ABB0520EFECA48FFE86B6124DF5D3B5E7",
+  "documentationUpdatedAfterValidation": true
+}

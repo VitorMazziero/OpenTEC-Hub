@@ -18,6 +18,8 @@ public sealed class KlaTestStore : IKlaTestStore
     private readonly string _rootDirectory;
     private readonly object _ioLock = new();
     private readonly BackgroundFileWriter _writer;
+    private readonly Dictionary<string, string> _queuedRevisionContents = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _latestRevisionNumbers = new(StringComparer.OrdinalIgnoreCase);
 
     public KlaTestStore(string? rootDirectory = null, BackgroundFileWriter? writer = null)
     {
@@ -32,7 +34,6 @@ public sealed class KlaTestStore : IKlaTestStore
     public event Action<string, Exception>? WriteFailed;
 
     public Task FlushAsync() => _writer.FlushAsync();
-
     public bool ValidateTestName(string name, out string? error) =>
         KlaTestFileContracts.ValidateTestName(name, out error);
 
@@ -348,9 +349,18 @@ public sealed class KlaTestStore : IKlaTestStore
                 FolderName = runFolder,
                 AgitationRpm = rpm,
                 AirflowLpm = flow,
-                Phase = analysis is not null
+                Phase = analysis?.Outcome is { } outcome
+                    ? outcome.OperatorDecision switch
+                    {
+                        KlaOperatorDecision.Accepted => RunPhase.Accepted,
+                        KlaOperatorDecision.Rejected => RunPhase.Rejected,
+                        _ => RunPhase.Reviewing,
+                    }
+                    : analysis is not null
                     ? (analysis.Quality == DecisionQuality.Inconclusive ? RunPhase.Rejected : RunPhase.Accepted)
                     : existing?.Phase ?? RunPhase.Reviewing,
+                Outcome = analysis?.Outcome ?? existing?.Outcome,
+                Definition = LoadRunDefinition(doc.FolderName, runFolder) ?? existing?.Definition,
                 Decision = analysis?.Quality ?? existing?.Decision,
                 KlaPerHour = analysis?.KlaPerHour ?? existing?.KlaPerHour,
                 AnalysisR2 = analysis?.AnalysisR2 ?? existing?.AnalysisR2,
@@ -407,6 +417,19 @@ public sealed class KlaTestStore : IKlaTestStore
         KlaTestSettings settings,
         KlaMapReference? linkedMap = null,
         IReadOnlyList<KlaTestCondition>? initialConditions = null)
+        => CreateTestCore(name, settings, linkedMap, initialConditions, null);
+
+    public KlaTestDocument CreateTest(string name, KlaAssayDefinition definition, KlaMapReference? linkedMap = null)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        definition.Validate(requireConditions: false);
+        return CreateTestCore(name, definition.Settings, linkedMap,
+            definition.Conditions.Select(c => c.ToSessionCondition()).ToArray(), definition);
+    }
+
+    private KlaTestDocument CreateTestCore(string name, KlaTestSettings settings,
+        KlaMapReference? linkedMap, IReadOnlyList<KlaTestCondition>? initialConditions,
+        KlaAssayDefinition? definition)
     {
         if (!ValidateTestName(name, out var error))
         {
@@ -442,7 +465,10 @@ public sealed class KlaTestStore : IKlaTestStore
                 Status = KlaTestStatus.Draft,
                 CreatedUtc = DateTimeOffset.UtcNow,
                 LastModifiedUtc = DateTimeOffset.UtcNow,
-                Nature = "Abiotico",
+                Nature = definition?.Protocol == KlaAssayProtocol.Biotic ? "Biotico" : "Abiotico",
+                Protocol = definition?.Protocol ?? KlaAssayProtocol.Abiotic,
+                CaptureMode = definition?.CaptureMode ?? KlaCaptureMode.Multiple,
+                ProtocolSettings = definition?.ProtocolSettings,
                 LinkedMap = linkedMap,
                 Settings = settings,
                 SettingsRevision = 1,
@@ -538,6 +564,11 @@ public sealed class KlaTestStore : IKlaTestStore
             }
             run.FolderName = runFolder;
             Directory.CreateDirectory(runPath);
+            if (run.Definition is { } definition)
+            {
+                WriteAllTextAtomic(Path.Combine(runPath, KlaTestFileContracts.RunDefinitionFileName),
+                    KlaTestFileContracts.SerializeRunDefinition(definition));
+            }
             WriteAllTextAtomic(Path.Combine(runPath, KlaTestFileContracts.RunRawDataFileName),
                 KlaTestFileContracts.FormatRawDataHeader() + Environment.NewLine);
 
@@ -565,6 +596,14 @@ public sealed class KlaTestStore : IKlaTestStore
             WriteAllTextAtomic(filePath, contents);
             return KlaTestFileContracts.ComputeUtf8FileContentSha256(contents);
         }
+    }
+
+    public KlaRunDefinition? LoadRunDefinition(string testFolderName, string runFolderName)
+    {
+        _writer.Flush();
+        var path = Path.Combine(_rootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName,
+            runFolderName, KlaTestFileContracts.RunDefinitionFileName);
+        return File.Exists(path) ? KlaTestFileContracts.DeserializeRunDefinition(File.ReadAllText(path)) : null;
     }
 
     public void AppendRunRawDataPoint(string testFolderName, string runFolderName, KlaRawDataPoint point)
@@ -670,6 +709,11 @@ public sealed class KlaTestStore : IKlaTestStore
 
     public void SaveRunAnalysis(string testFolderName, string runFolderName, KlaAnalysisRevision analysis)
     {
+        if (analysis.RevisionNumber < 1)
+        {
+            throw new ArgumentException("Revisão de análise inválida.");
+        }
+
         lock (_ioLock)
         {
             var runPath = Path.Combine(_rootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName, runFolderName);
@@ -677,9 +721,26 @@ public sealed class KlaTestStore : IKlaTestStore
 
             var json = KlaTestFileContracts.SerializeAnalysis(analysis);
             var filePath = Path.Combine(runPath, KlaTestFileContracts.RunAnalysisFileName);
-            WriteAllTextAtomic(filePath, json);
             var revisionPath = Path.Combine(runPath, $"analise-rev-{analysis.RevisionNumber:D3}.json");
+            if ((_queuedRevisionContents.TryGetValue(revisionPath, out var queued) && queued != json) ||
+                (File.Exists(revisionPath) && File.ReadAllText(revisionPath) != json))
+            {
+                throw new InvalidOperationException("Revisão já gravada. Salve a reanálise como uma nova revisão.");
+            }
+            var latestRevision = _latestRevisionNumbers.GetValueOrDefault(filePath);
+            if (File.Exists(filePath))
+            {
+                latestRevision = Math.Max(latestRevision,
+                    KlaTestFileContracts.DeserializeAnalysis(File.ReadAllText(filePath))?.RevisionNumber ?? 0);
+            }
+            if (analysis.RevisionNumber < latestRevision)
+            {
+                throw new InvalidOperationException("Não substitua a análise atual por uma revisão anterior.");
+            }
             WriteAllTextAtomic(revisionPath, json);
+            WriteAllTextAtomic(filePath, json);
+            _queuedRevisionContents[revisionPath] = json;
+            _latestRevisionNumbers[filePath] = analysis.RevisionNumber;
         }
     }
 

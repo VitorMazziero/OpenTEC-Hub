@@ -168,6 +168,9 @@ public sealed class KlaTestCondition
 
 public sealed class KlaAnalysisRevision
 {
+    public KlaRunOutcome? Outcome { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public KlaRunOutcome EffectiveOutcome => Outcome ?? KlaRunOutcome.FromLegacy(Quality);
     public int RevisionNumber { get; set; } = 1;
     public DateTimeOffset AnalyzedUtc { get; set; } = DateTimeOffset.UtcNow;
     public double CeqPercent { get; set; } = 100.0;
@@ -201,6 +204,8 @@ public sealed class KlaAnalysisRevision
 
 public sealed class KlaTestRun
 {
+    public KlaRunDefinition? Definition { get; set; }
+    public KlaRunOutcome? Outcome { get; set; }
     public Guid RunId { get; set; } = Guid.NewGuid();
     public Guid TestId { get; set; }
     public Guid ConditionId { get; set; }
@@ -234,6 +239,10 @@ public sealed class KlaTestRun
 
 public sealed record KlaTestRunSummary
 {
+    public KlaRunDefinition? Definition { get; init; }
+    public KlaRunOutcome? Outcome { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public KlaRunOutcome EffectiveOutcome => Outcome ?? KlaRunOutcome.FromLegacy(Decision, Phase);
     public Guid RunId { get; init; }
     public Guid ConditionId { get; init; }
     public int ReplicateNumber { get; init; }
@@ -256,14 +265,13 @@ public sealed record KlaTestRunSummary
 public sealed class KlaTestDocument
 {
     /// <summary>
-    /// 1 = original contract; 2 = <c>dados-brutos.csv</c>/<c>serie-global.csv</c> also carry
-    /// <c>TemperatureC</c> and <c>RpmMeasured</c>.
+    /// 1 = original; 2 = CSV temperature/measured RPM; 3 = protocol, capture mode and outcomes.
     /// </summary>
     /// <remarks>
     /// Only the writer changes with the version. Both readers accept either file, so a schema-1
     /// assay stays openable and re-analysable exactly as it was recorded.
     /// </remarks>
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = KlaTestFileContracts.CurrentSchemaVersion;
     public Guid TestId { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "";
     public string FolderName { get; set; } = "";
@@ -273,6 +281,18 @@ public sealed class KlaTestDocument
     public DateTimeOffset? LastModifiedUtc { get; set; }
     public DateTimeOffset? CompletedUtc { get; set; }
     public string Nature { get; set; } = "Abiotico";
+    /// <summary>Null in legacy files; resolved in memory without rewriting historical metadata.</summary>
+    public KlaAssayProtocol? Protocol { get; set; }
+    public KlaCaptureMode? CaptureMode { get; set; }
+    public KlaProtocolSettings? ProtocolSettings { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public KlaAssayProtocol EffectiveProtocol => Protocol ??
+        (string.Equals(Nature, "Biotico", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(Nature, "Biótico", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(Nature, "Biotic", StringComparison.OrdinalIgnoreCase)
+            ? KlaAssayProtocol.Biotic : KlaAssayProtocol.Abiotic);
+    [System.Text.Json.Serialization.JsonIgnore]
+    public KlaCaptureMode EffectiveCaptureMode => CaptureMode ?? KlaCaptureMode.Multiple;
     public KlaMapReference? LinkedMap { get; set; }
 
     /// <summary>
@@ -284,6 +304,8 @@ public sealed class KlaTestDocument
 
     /// <summary>When the operator confirmed the N₂ open at the source (preflight); goes to the journal.</summary>
     public DateTimeOffset? NitrogenSourceConfirmedUtc { get; set; }
+    /// <summary>Independent physical isolation of N₂; B and C share one electrical output.</summary>
+    public DateTimeOffset? NitrogenIsolationConfirmedUtc { get; set; }
 
     /// <summary>Legacy (pre-A/B/C): which output carried the N₂ line. Read for display only.</summary>
     public NitrogenValve SelectedNitrogenValve { get; set; } = NitrogenValve.Valve1;

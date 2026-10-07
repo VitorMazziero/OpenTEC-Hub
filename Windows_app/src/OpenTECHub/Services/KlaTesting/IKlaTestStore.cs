@@ -28,6 +28,19 @@ public interface IKlaTestStore
         KlaMapReference? linkedMap = null,
         IReadOnlyList<KlaTestCondition>? initialConditions = null);
 
+    KlaTestDocument CreateTest(string name, KlaAssayDefinition definition, KlaMapReference? linkedMap = null)
+    {
+        definition.Validate(requireConditions: false);
+        var doc = CreateTest(name, definition.Settings, linkedMap,
+            definition.Conditions.Select(c => c.ToSessionCondition()).ToArray());
+        doc.Protocol = definition.Protocol;
+        doc.CaptureMode = definition.CaptureMode;
+        doc.ProtocolSettings = definition.ProtocolSettings;
+        doc.Nature = definition.Protocol == KlaAssayProtocol.Biotic ? "Biotico" : "Abiotico";
+        SaveTestManifest(doc);
+        return doc;
+    }
+
     void SaveTestManifest(KlaTestDocument doc);
 
     IReadOnlyList<KlaTestCondition> LoadConditionsTable(string testFolderName);
@@ -35,6 +48,8 @@ public interface IKlaTestStore
     void SaveConditionsTable(string testFolderName, IReadOnlyList<KlaTestCondition> conditions);
 
     string InitializeRunFolder(string testFolderName, KlaTestRun run);
+
+    KlaRunDefinition? LoadRunDefinition(string testFolderName, string runFolderName) => null;
 
     /// <summary>
     /// Rewrites the run's raw CSV in full and returns the SHA-256 the file has once written — the

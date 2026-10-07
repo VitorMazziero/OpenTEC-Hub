@@ -12,6 +12,7 @@ Isso ainda não equivale à API autônoma de receitas. O plano de 06/10 mantém 
 Outros pontos relevantes verificados:
 
 - A receita assume todos os atuadores; seus ramos podem executar em paralelo. O proprietário `Recipe` sozinho não distingue dois blocos concorrentes.
+- Na implementação atual, `Saída Loop` de `CascadeControl` é somente uma condição de encerramento (Monitorar Variável, Temporizador ou Intervenção Manual). O validador rejeita outros blocos. O temporizador existente encerraria a cascata após 2 h; não agenda kLa nem repete o ensaio.
 - `Pause` atua entre blocos; não interrompe automaticamente o trabalho em andamento.
 - `SafeStopAndRelease` atualmente libera a posse; seu nome não garante restauração física ou envio de comandos de recuperação.
 - O armazenamento de kLa já inclui dados brutos, eventos, análises revisionadas e resumo. As escritas são enfileiradas; existem `FlushAsync` e `WriteFailed`.
@@ -127,6 +128,22 @@ Abrir a sessão no visualizador comum de kLa com curvas, eventos, janela selecio
 
 Múltiplas condições: apresentar resultados e réplicas por condição. Agregação usa somente tentativas selecionadas e compatíveis, informa n e dispersão, e não oculta falhas anteriores. Para biótico, preservar tempo e estado do cultivo: não agregar medições de estados distintos sem critério explícito. Atualização de mapa ou do mapa ativo da cascata fica desabilitada por padrão e exige política separada de compatibilidade.
 
+### 3.7 Bloco de periodicidade em ramo paralelo ao Controle de O₂
+
+Caso de referência: `Início → [Controle de O₂ em operação contínua] ∥ [Periodicidade → Determinar kLa]`. O bloco **Periodicidade** possui `Primeira execução em: 2 h` e `Repetir a cada: 4 h`. Os disparos nominais ocorrem em 2 h, 6 h, 10 h, 14 h… desde a entrada no bloco de periodicidade, inclusive o tempo gasto nos ensaios. O ramo periódico não encerra a cascata; o bloco de kLa termina uma invocação e devolve o controle ao agendador. `Saída Loop` da cascata conserva exclusivamente seu significado atual de condição de encerramento.
+
+O agendador é um bloco reutilizável para alvos compatíveis, com uma saída `Executar` ligada ao bloco alvo e retorno explícito ao agendador, mais uma saída de término/erro para controle do fluxo. A primeira implementação aceita kLa e outros alvos somente quando houver contrato de recursos, idempotência, cancelamento e recuperação apropriado. O validador deve impedir ciclos inesperados, duas agendas que manipulem N/Q simultaneamente e ramos sem condição de encerramento coerente. A agenda tem identidade própria (`ScheduleRunId`, `SchedulerNodeId`, `TargetNodeId`, índice de slot) e pode apontar para uma cascata coordenada sem ficar fisicamente dentro dela.
+
+O disparador usa tempo monotônico desde a entrada em **Periodicidade**, incluindo a duração dos ensaios. Concluir um teste não reinicia o período. Slots vencidos enquanto o ensaio estava ativo, a receita estava pausada ou o sistema indisponível são **pulados e registrados**, sem fila de perturbações atrasadas. Ao retomar, calcula-se o primeiro slot futuro. Antes de cada disparo, aplicar intervalo mínimo, orçamento de cultivo, pré-condições e deadlines; registrar `adiado` ou `pulado` com motivo quando não puder executar com segurança. Cada novo slot recebe uma invocação distinta.
+
+Na hora do ensaio, o bloco periódico pede ao coordenador da receita uma cessão temporária de N/Q, rota e demais recursos necessários. O coordenador pede à cascata que suspenda; a cascata interrompe suas atualizações e comandos, confirma que nenhum passo está em andamento e devolve um recibo de pausa. **Somente após esse recibo** o coordenador transfere a posse ao ensaio e permite seu início. Um aviso direto do bloco de kLa à cascata, sem confirmação/barreira de posse, permitiria corrida entre o último comando PID e o primeiro comando do teste. Cada etapa do handoff tem ID, revisão e confirmação registrados.
+
+Durante o ensaio, o relógio `dt` da cascata e suas memórias de erro, integral e derivada não podem incorporar o intervalo do ensaio. Guardar o controlador da receita em execução (modo, SP, ganhos, janelas, mapa/alocação, estado de controle e setpoints efetivos) e capturar o estado operacional anterior de todos os recursos afetados. Se a cascata paralela usar O₂ como referência de comando, coordenar também essa posse; nenhuma atualização concorrente pode atravessar a suspensão.
+
+Após o teste, o coordenador restaura rotas, N/Q, referências, modos, controladores e proprietário anteriores com confirmação compatível com a observabilidade de cada dispositivo. **Somente após confirmação de restauração** reativa a mesma instância lógica da cascata e registra seu recibo de retomada. Rebasear o tempo e o histórico de derivada na amostra atual sem integrar erro durante a suspensão nem provocar um salto por `dt` acumulado. O núcleo atual de `RecipeEngine.Cascade` calcula `dt` desde o último passo, e `CascadeTwoLoopPidController` conserva janelas; isso exige uma operação explícita de suspender/retomar e testes de ausência de windup/transiente. `CascadeService.SuspendForKlaAssay` é o caminho da cascata geral e não suspende, por si só, o controlador da receita.
+
+Enquanto a cascata espera o ensaio, outros ramos da receita seguem somente se não concorrerem pelos recursos reservados. Se a restauração falhar, registrar a falha, bloquear o próximo slot e o avanço do fluxo e preservar o estado seguro. Definir explicitamente o ciclo de vida do grupo paralelo: término/cancelamento da cascata cancela a agenda, e uma falha irrecuperável da agenda termina o grupo conforme a política da receita. `AND`/`OR` existentes não substituem esse vínculo de duração. O temporizador comum de saída da cascata mantém sua semântica legada.
+
 ## 4. Bloco Rampa linear de setpoints
 
 ### 4.1 Interface e significado do tempo
@@ -173,11 +190,11 @@ Pausa: manter os últimos setpoints e congelar o tempo ativo da rampa. Ao retoma
 
 | Pacote | Entrega | Evidência de aceite |
 |---|---|---|
-| R0 — Contratos | Requests/resultados, IDs, políticas, unidades, autoria automática, migração e snapshots | Round-trip; compatibilidade de receitas antigas; desconhecidos rejeitados; campos contextuais validados |
+| R0 — Contratos | Requests/resultados, IDs, políticas, unidades, autoria automática, migração, snapshots e agenda periódica de bloco | Round-trip; compatibilidade de receitas antigas; desconhecidos rejeitados; 2 h + 4 h sem backlog; campos contextuais validados |
 | R1 — Coordenação | Reservas por bloco, cessão/retorno Recipe–KlaAssay, suspensão de produtores, cancelamento e emergência | Nenhuma escrita concorrente; recuperação em cada fase; sem reativação depois de emergência; ramos independentes preservados |
 | R2 — Serviço autônomo kLa | API idempotente, fila de condições/réplicas/tentativas, análise e política limitada | Matriz Abiótico/Biótico × Único/Múltiplos; mesma chave não duplica atuação; limites e deadlines verificáveis |
 | R3 — Persistência e resultados | Diário, recibos de escrita, autoria, resumo, abertura no visualizador comum | Tentativas ruins/abortadas preservadas; falha de disco bloqueia avanço; reconciliação após queda sem repetir pulso |
-| R4 — Bloco e editor kLa | Catálogo, campos contextuais, validador, executor, progresso e política de falha | Receita inteira termina sem diálogos; inconclusivo segue a política; restauração falha nunca passa como sucesso |
+| R4 — Blocos e editor | Catálogo e executor de kLa; bloco de Periodicidade, ciclo de vida do grupo paralelo, campos contextuais, validador, progresso e política de falha | Disparos em 2/6/10 h; kLa retorna ao agendador e a cascata retoma os comandos; condição de saída legada continua válida; falha de restauração nunca passa como sucesso |
 | R5 — Rampas | Modelo de linhas, interpolação, cadência, destinos, pausa e confirmação | Tempos distintos, subida/descida, final exato na resolução do dispositivo, relógio virtual e conflito com kLa/cascata |
 | R6 — Integração e qualificação | Documentação, exemplos, regressão, renderização WPF e ensaios de bancada | Evidências de software e de equipamento separadas; liberação autônoma apenas para combinações qualificadas |
 
@@ -195,4 +212,4 @@ Entrega de R0: [contrato e recibo](receitas-r0/CONTRATO_R0.md). Os contratos for
 
 O objetivo é receita autônoma durante a execução normal, inclusive classificação e repetição limitada. Situações irrecuperáveis terminam automaticamente com estado e diagnóstico preservados; não ficam esperando um usuário ausente. Procedimentos manuais pertencem à preparação anterior ou à recuperação posterior.
 
-Agendamento periódico, recuperação integral de receita após reinício do Windows e atualização automática do mapa usado pelo controlador não entram implicitamente nos dois novos blocos. Seus contratos podem reutilizar os IDs, resultados e reservas aqui definidos, mas exigem entregas específicas.
+O bloco genérico de Periodicidade em paralelo à cascata faz parte desta entrega, com kLa como primeiro alvo. Outros tipos de bloco entram gradualmente após definirem contrato de recursos e cancelamento. A recuperação integral da receita após reinício do Windows e a atualização automática do mapa usado pelo controlador exigem entregas específicas.

@@ -10,6 +10,150 @@ public enum RecipeDecisionAuthor { AutomaticPolicy, Operator }
 public enum SetpointStartSource { CurrentConfirmed, Explicit }
 public enum RampOxygenTarget { MonitorReference, ActiveCascadeReference }
 public enum RampCancellationPolicy { HoldLastReferences, RestoreSnapshot }
+public enum MissedPeriodicSlotPolicy { Skip }
+public enum RecipeActuatorHandoffPhase
+{
+    Requested, CascadeQuiesced, AssayActive, Restoring, CascadeResumed,
+    RestorationFailed, EmergencyStopped
+}
+
+/// <summary>
+/// Journalled handshake between concurrent recipe branches. Only the coordinator advances it;
+/// a target block cannot claim the wire merely by publishing a notification.
+/// </summary>
+public sealed record RecipeActuatorHandoff
+{
+    public required Guid HandoffId { get; init; }
+    public required string ControllerNodeId { get; init; }
+    public required string TargetNodeId { get; init; }
+    public required Guid ReturnSnapshotId { get; init; }
+    public required ImmutableArray<ActuatorId> Resources { get; init; }
+    public required RecipeActuatorHandoffPhase Phase { get; init; }
+    public required int Revision { get; init; }
+    public required DateTimeOffset UpdatedUtc { get; init; }
+    public required string AcknowledgedBy { get; init; }
+    public string? Reason { get; init; }
+
+    public void Validate()
+    {
+        if (HandoffId == Guid.Empty || ReturnSnapshotId == Guid.Empty || Revision < 0 || UpdatedUtc == default)
+            throw new ArgumentException("Handoff não identificado.");
+        ContractGuard.Text(ControllerNodeId); ContractGuard.Text(TargetNodeId);
+        ContractGuard.Text(AcknowledgedBy); ContractGuard.Defined(Phase);
+        if (ControllerNodeId == TargetNodeId || Resources.IsDefaultOrEmpty ||
+            Resources.Distinct().Count() != Resources.Length)
+            throw new ArgumentException("Recursos ou participantes do handoff inválidos.");
+        foreach (var resource in Resources) ContractGuard.Defined(resource);
+        if (!Resources.Contains(ActuatorId.Agitation) || !Resources.Contains(ActuatorId.Aeration))
+            throw new ArgumentException("Ensaio de kLa requer cessão de agitação e aeração.");
+        if (Phase is RecipeActuatorHandoffPhase.RestorationFailed or RecipeActuatorHandoffPhase.EmergencyStopped &&
+            string.IsNullOrWhiteSpace(Reason))
+            throw new ArgumentException("Falha de handoff requer motivo.");
+        var expectedRevision = Phase switch
+        {
+            RecipeActuatorHandoffPhase.Requested => 0,
+            RecipeActuatorHandoffPhase.CascadeQuiesced => 1,
+            RecipeActuatorHandoffPhase.AssayActive => 2,
+            RecipeActuatorHandoffPhase.Restoring => 3,
+            RecipeActuatorHandoffPhase.CascadeResumed => 4,
+            _ => -1,
+        };
+        if (expectedRevision >= 0 && Revision != expectedRevision)
+            throw new ArgumentException("Revisão de handoff incompatível com a fase.");
+        if (Phase is RecipeActuatorHandoffPhase.CascadeQuiesced or RecipeActuatorHandoffPhase.CascadeResumed &&
+            AcknowledgedBy != ControllerNodeId ||
+            Phase == RecipeActuatorHandoffPhase.AssayActive && AcknowledgedBy != TargetNodeId)
+            throw new ArgumentException("Confirmação de handoff pertence ao bloco errado.");
+    }
+
+    public RecipeActuatorHandoff Advance(RecipeActuatorHandoffPhase next, DateTimeOffset atUtc,
+        string acknowledgedBy, string? reason = null)
+    {
+        Validate(); ContractGuard.Defined(next); ContractGuard.Text(acknowledgedBy);
+        if (atUtc < UpdatedUtc || !CanAdvance(Phase, next))
+            throw new InvalidOperationException("Transição de handoff fora de ordem.");
+        var updated = this with { Phase = next, Revision = checked(Revision + 1),
+            UpdatedUtc = atUtc, AcknowledgedBy = acknowledgedBy, Reason = reason };
+        updated.Validate();
+        return updated;
+    }
+
+    private static bool CanAdvance(RecipeActuatorHandoffPhase current, RecipeActuatorHandoffPhase next)
+        => (current, next) switch
+        {
+            (RecipeActuatorHandoffPhase.Requested, RecipeActuatorHandoffPhase.CascadeQuiesced) => true,
+            (RecipeActuatorHandoffPhase.CascadeQuiesced, RecipeActuatorHandoffPhase.AssayActive) => true,
+            (RecipeActuatorHandoffPhase.AssayActive, RecipeActuatorHandoffPhase.Restoring) => true,
+            (RecipeActuatorHandoffPhase.Restoring, RecipeActuatorHandoffPhase.CascadeResumed) => true,
+            (_, RecipeActuatorHandoffPhase.RestorationFailed) when current is not
+                (RecipeActuatorHandoffPhase.CascadeResumed or RecipeActuatorHandoffPhase.EmergencyStopped) => true,
+            (_, RecipeActuatorHandoffPhase.EmergencyStopped) when current is not
+                (RecipeActuatorHandoffPhase.CascadeResumed or RecipeActuatorHandoffPhase.RestorationFailed) => true,
+            _ => false,
+        };
+}
+
+/// <summary>
+/// Periodic trigger on a recipe branch. Slot zero falls after InitialDelaySeconds;
+/// later slots retain their original cadence even when a target block takes time.
+/// </summary>
+public sealed record PeriodicBlockSchedule
+{
+    public required double InitialDelaySeconds { get; init; }
+    public required double PeriodSeconds { get; init; }
+    public MissedPeriodicSlotPolicy MissedSlotPolicy { get; init; } = MissedPeriodicSlotPolicy.Skip;
+
+    public void Validate()
+    {
+        ContractGuard.NonNegative(InitialDelaySeconds);
+        ContractGuard.Positive(PeriodSeconds);
+        ContractGuard.Defined(MissedSlotPolicy);
+    }
+
+    /// <summary>Elapsed real time from entry into the periodic block, measured by a monotonic clock.</summary>
+    public double DueAfterSeconds(long slotIndex)
+    {
+        Validate();
+        if (slotIndex < 0) throw new ArgumentOutOfRangeException(nameof(slotIndex));
+        var due = InitialDelaySeconds + slotIndex * PeriodSeconds;
+        if (!double.IsFinite(due)) throw new ArgumentOutOfRangeException(nameof(slotIndex));
+        return due;
+    }
+
+    /// <summary>First slot still due in the future; missed slots are not queued for catch-up.</summary>
+    public long FirstFutureSlot(double elapsedSeconds)
+    {
+        Validate(); ContractGuard.NonNegative(elapsedSeconds);
+        if (elapsedSeconds < InitialDelaySeconds) return 0;
+        var index = Math.Floor((elapsedSeconds - InitialDelaySeconds) / PeriodSeconds) + 1;
+        if (!double.IsFinite(index) || index > long.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(elapsedSeconds));
+        return (long)index;
+    }
+}
+
+/// <summary>Scheduling provenance of a due block; one invocation per slot, never a catch-up burst.</summary>
+public sealed record PeriodicBlockInvocation
+{
+    public required Guid ScheduleRunId { get; init; }
+    public required string SchedulerNodeId { get; init; }
+    public required string TargetNodeId { get; init; }
+    public string? CoordinatedCascadeNodeId { get; init; }
+    public required long SlotIndex { get; init; }
+    public required PeriodicBlockSchedule Schedule { get; init; }
+    public void Validate()
+    {
+        if (ScheduleRunId == Guid.Empty || SlotIndex < 0)
+            throw new ArgumentException("Identidade do ciclo periódico inválida.");
+        ContractGuard.Text(SchedulerNodeId); ContractGuard.Text(TargetNodeId);
+        if (SchedulerNodeId == TargetNodeId || CoordinatedCascadeNodeId is not null &&
+            (string.IsNullOrWhiteSpace(CoordinatedCascadeNodeId) || CoordinatedCascadeNodeId == SchedulerNodeId ||
+             CoordinatedCascadeNodeId == TargetNodeId))
+            throw new ArgumentException("Blocos da agenda e do controle devem ser distintos.");
+        ArgumentNullException.ThrowIfNull(Schedule); Schedule.Validate();
+        _ = Schedule.DueAfterSeconds(SlotIndex);
+    }
+}
 
 /// <summary>Stable identity of one invocation, distinct from an assay attempt or a transport retry.</summary>
 public sealed record RecipeInvocationContext

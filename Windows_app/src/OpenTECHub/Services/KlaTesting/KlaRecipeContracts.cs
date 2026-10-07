@@ -93,6 +93,7 @@ public sealed record KlaRecipeRestorationContract
 public sealed record KlaRecipeRequest
 {
     public required RecipeInvocationContext Context { get; init; }
+    public PeriodicBlockInvocation? PeriodicInvocation { get; init; }
     public required KlaAssayDefinition Definition { get; init; }
     public required KlaAutomaticQualityPolicy Quality { get; init; }
     public required KlaAutomaticRetryPolicy Retry { get; init; }
@@ -103,6 +104,9 @@ public sealed record KlaRecipeRequest
     public void Validate()
     {
         ArgumentNullException.ThrowIfNull(Context); Context.Validate();
+        PeriodicInvocation?.Validate();
+        if (PeriodicInvocation is { } periodic && periodic.TargetNodeId != Context.NodeId)
+            throw new ArgumentException("A agenda aponta para outro bloco de kLa.");
         ArgumentNullException.ThrowIfNull(Definition);
         if (!Definition.Conditions.IsDefault && Definition.Conditions.Any(c => c is null))
         {
@@ -244,6 +248,7 @@ public sealed record KlaRecipeAttemptResult
 public sealed record KlaRecipeResult
 {
     public required RecipeInvocationContext Context { get; init; }
+    public PeriodicBlockInvocation? PeriodicInvocation { get; init; }
     public required Guid SessionId { get; init; }
     public required string SessionFolder { get; init; }
     public required KlaRecipeTerminalStatus Status { get; init; }
@@ -253,6 +258,7 @@ public sealed record KlaRecipeResult
     public void Validate()
     {
         ArgumentNullException.ThrowIfNull(Context); Context.Validate();
+        PeriodicInvocation?.Validate();
         if (SessionId == Guid.Empty || Attempts.IsDefault)
         {
             throw new ArgumentException("Sessão inválida.");
@@ -286,7 +292,7 @@ public sealed record KlaRecipeResult
     public void ValidateAgainst(KlaRecipeRequest request)
     {
         ArgumentNullException.ThrowIfNull(request); request.Validate(); Validate();
-        if (Context != request.Context)
+        if (Context != request.Context || PeriodicInvocation != request.PeriodicInvocation)
         {
             throw new ArgumentException("Resultado pertence a outra invocação.");
         }

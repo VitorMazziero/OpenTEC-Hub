@@ -29,6 +29,90 @@ public sealed class RecipeExecutionContractTests
     }
 
     [Fact]
+    public void Parallel_schedule_runs_first_at_two_hours_then_every_four_hours_without_catch_up()
+    {
+        var schedule = new PeriodicBlockSchedule { InitialDelaySeconds = 2 * 3600,
+            PeriodSeconds = 4 * 3600 };
+        Assert.Equal(7200, schedule.DueAfterSeconds(0));
+        Assert.Equal(21600, schedule.DueAfterSeconds(1));
+        Assert.Equal(36000, schedule.DueAfterSeconds(2));
+        Assert.Equal(0, schedule.FirstFutureSlot(7199));
+        Assert.Equal(1, schedule.FirstFutureSlot(7200));
+        Assert.Equal(2, schedule.FirstFutureSlot(21900));
+        Assert.Equal(3, schedule.FirstFutureSlot(50000));
+
+        var request = Request() with { PeriodicInvocation = new()
+        { ScheduleRunId = Guid.NewGuid(), SchedulerNodeId = "periodic", TargetNodeId = "kla",
+            CoordinatedCascadeNodeId = "oxygen-cascade", SlotIndex = 1, Schedule = schedule } };
+        var copy = RecipeContractSerializer.ReadKlaRequest(RecipeContractSerializer.Serialize(request));
+        Assert.Equal(21600, copy.PeriodicInvocation!.Schedule.DueAfterSeconds(copy.PeriodicInvocation.SlotIndex));
+        var result = Result(request, Attempt(request));
+        RecipeContractSerializer.ReadKlaResult(RecipeContractSerializer.Serialize(result)).ValidateAgainst(copy);
+    }
+
+    [Fact]
+    public void Parallel_schedule_rejects_invalid_intervals_and_result_with_different_slot()
+    {
+        var schedule = new PeriodicBlockSchedule { InitialDelaySeconds = 7200, PeriodSeconds = 14400 };
+        Assert.Throws<ArgumentException>(() => (schedule with { PeriodSeconds = 0 }).Validate());
+        Assert.Throws<ArgumentException>(() => (schedule with { InitialDelaySeconds = double.NaN }).Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => schedule.DueAfterSeconds(-1));
+        var request = Request() with { PeriodicInvocation = new()
+        { ScheduleRunId = Guid.NewGuid(), SchedulerNodeId = "periodic", TargetNodeId = "kla",
+            CoordinatedCascadeNodeId = "oxygen-cascade", SlotIndex = 0, Schedule = schedule } };
+        var result = Result(request, Attempt(request));
+        Assert.Throws<ArgumentException>(() => (result with { PeriodicInvocation = result.PeriodicInvocation! with { SlotIndex = 1 } })
+            .ValidateAgainst(request));
+        Assert.Throws<ArgumentException>(() => (request with { PeriodicInvocation = request.PeriodicInvocation! with
+            { TargetNodeId = "another-block" } }).Validate());
+        new PeriodicBlockInvocation { ScheduleRunId = Guid.NewGuid(), SchedulerNodeId = "periodic",
+            TargetNodeId = "logging", SlotIndex = 0, Schedule = schedule }.Validate();
+    }
+
+    [Fact]
+    public void Cascade_handoff_requires_pause_ack_before_assay_and_restore_ack_before_resume()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var handoff = new RecipeActuatorHandoff { HandoffId = Guid.NewGuid(),
+            ControllerNodeId = "oxygen-cascade", TargetNodeId = "kla",
+            ReturnSnapshotId = Guid.NewGuid(), Resources = [ActuatorId.Agitation, ActuatorId.Aeration],
+            Phase = RecipeActuatorHandoffPhase.Requested, Revision = 0,
+            UpdatedUtc = now, AcknowledgedBy = "periodic-coordinator" };
+        Assert.Throws<InvalidOperationException>(() => handoff.Advance(
+            RecipeActuatorHandoffPhase.AssayActive, now, "kla"));
+        handoff = handoff.Advance(RecipeActuatorHandoffPhase.CascadeQuiesced, now, "oxygen-cascade");
+        handoff = handoff.Advance(RecipeActuatorHandoffPhase.AssayActive, now, "kla");
+        Assert.Throws<InvalidOperationException>(() => handoff.Advance(
+            RecipeActuatorHandoffPhase.CascadeResumed, now, "oxygen-cascade"));
+        handoff = handoff.Advance(RecipeActuatorHandoffPhase.Restoring, now, "coordinator");
+        handoff = handoff.Advance(RecipeActuatorHandoffPhase.CascadeResumed, now, "oxygen-cascade");
+        Assert.Equal(4, handoff.Revision);
+        Assert.Throws<InvalidOperationException>(() => handoff.Advance(
+            RecipeActuatorHandoffPhase.AssayActive, now, "kla"));
+    }
+
+    [Fact]
+    public void Failed_or_emergency_handoff_cannot_resume_late()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var handoff = new RecipeActuatorHandoff { HandoffId = Guid.NewGuid(),
+            ControllerNodeId = "oxygen-cascade", TargetNodeId = "kla",
+            ReturnSnapshotId = Guid.NewGuid(), Resources = [ActuatorId.Agitation, ActuatorId.Aeration],
+            Phase = RecipeActuatorHandoffPhase.AssayActive, Revision = 2,
+            UpdatedUtc = now, AcknowledgedBy = "kla" };
+        Assert.Throws<ArgumentException>(() => handoff.Advance(
+            RecipeActuatorHandoffPhase.RestorationFailed, now, "coordinator"));
+        var failed = handoff.Advance(RecipeActuatorHandoffPhase.RestorationFailed, now,
+            "coordinator", "flow confirmation missing");
+        Assert.Throws<InvalidOperationException>(() => failed.Advance(
+            RecipeActuatorHandoffPhase.CascadeResumed, now, "oxygen-cascade"));
+        var emergency = handoff.Advance(RecipeActuatorHandoffPhase.EmergencyStopped, now,
+            "safety", "operator emergency stop");
+        Assert.Throws<InvalidOperationException>(() => emergency.Advance(
+            RecipeActuatorHandoffPhase.CascadeResumed, now, "oxygen-cascade"));
+    }
+
+    [Fact]
     public void Snapshot_detaches_settings_and_identity_detects_changed_payload()
     {
         var request = Request();
@@ -281,6 +365,7 @@ public sealed class RecipeExecutionContractTests
     private static KlaRecipeResult Result(KlaRecipeRequest request, params KlaRecipeAttemptResult[] attempts) => new()
     {
         Context = request.Context, SessionId = Guid.NewGuid(), SessionFolder = "session-1",
+        PeriodicInvocation = request.PeriodicInvocation,
         Status = KlaRecipeTerminalStatus.Completed, Attempts = attempts.ToImmutableArray(),
         PreAssayStateRestored = true, PersistenceConfirmed = true,
     };

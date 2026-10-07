@@ -58,6 +58,7 @@ public sealed class SettingsService : ISettingsService, IAsyncDisposable
     private readonly Lock _gate = new();
 
     private CancellationTokenSource? _pendingSave;
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     public SettingsService(ILogger<SettingsService> log, string? path = null)
     {
@@ -94,13 +95,7 @@ public sealed class SettingsService : ISettingsService, IAsyncDisposable
     {
         CancelPendingSave();
 
-        AppSettings snapshot;
-        lock (_gate)
-        {
-            snapshot = Current;
-        }
-
-        await WriteAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
+        await WriteAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     public void Reload()
@@ -187,65 +182,82 @@ public sealed class SettingsService : ISettingsService, IAsyncDisposable
 
     private void ScheduleSave()
     {
-        CancelPendingSave();
-
-        var cts = new CancellationTokenSource();
-        _pendingSave = cts;
-
-        _ = Task.Run(async () =>
+        lock (_gate)
         {
-            try
-            {
-                await Task.Delay(SaveDebounce, cts.Token).ConfigureAwait(false);
+            CancelPendingSave();
+            var cts = new CancellationTokenSource();
+            _pendingSave = cts;
+            // Capture and register the token before another update can cancel it.
+            _ = SaveAfterDelayAsync(cts, cts.Token);
+        }
+    }
 
-                AppSettings snapshot;
-                lock (_gate)
-                {
-                    snapshot = Current;
-                }
-
-                await WriteAsync(snapshot, cts.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
+    private async Task SaveAfterDelayAsync(CancellationTokenSource source, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(SaveDebounce, token).ConfigureAwait(false);
+            await WriteAsync(token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer change; the newer save will land.
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Deferred settings save failed");
+        }
+        finally
+        {
+            lock (_gate)
             {
-                // Superseded by a newer change; the newer save will land.
+                if (ReferenceEquals(_pendingSave, source)) _pendingSave = null;
+                source.Dispose();
             }
-        }, CancellationToken.None);
+        }
     }
 
     private void CancelPendingSave()
     {
-        var pending = Interlocked.Exchange(ref _pendingSave, null);
-        if (pending is null)
+        lock (_gate)
         {
-            return;
-        }
-
-        try
-        {
+            var pending = _pendingSave;
+            _pendingSave = null;
+            if (pending is null) return;
             pending.Cancel();
+            // The asynchronous operation owns disposal after its final token use.
         }
-        catch (ObjectDisposedException)
-        {
-            // Already completed.
-        }
-
-        pending.Dispose();
     }
 
     /// <remarks>
     /// Writes to a temporary file and moves it into place, so a crash mid-write
     /// cannot leave a half-written settings file behind.
     /// </remarks>
-    private async Task WriteAsync(AppSettings settings, CancellationToken token)
+    private async Task WriteAsync(CancellationToken token)
     {
+        await _writeGate.WaitAsync(token).ConfigureAwait(false);
+        var temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            token.ThrowIfCancellationRequested();
+            AppSettings settings;
+            lock (_gate) { settings = Current; }
             var json = JsonSerializer.Serialize(settings, SerializerOptions);
-            var temporary = _path + ".tmp";
-
             await File.WriteAllTextAsync(temporary, json, token).ConfigureAwait(false);
-            File.Move(temporary, _path, overwrite: true);
+            for (var attempt = 1; ; attempt++)
+            {
+                token.ThrowIfCancellationRequested();
+                try
+                {
+                    File.Move(temporary, _path, overwrite: true);
+                    break;
+                }
+                catch (Exception ex) when (attempt < 5 && ex is IOException or UnauthorizedAccessException)
+                {
+                    // Windows readers can briefly prevent replacing the destination.
+                    await Task.Delay(20, token).ConfigureAwait(false);
+                }
+            }
 
             _log.LogDebug("Settings saved to {Path}", _path);
         }
@@ -257,6 +269,12 @@ public sealed class SettingsService : ISettingsService, IAsyncDisposable
         {
             // Losing a preference is annoying; failing to run is not acceptable.
             _log.LogError(ex, "Could not save settings to {Path}", _path);
+        }
+        finally
+        {
+            try { File.Delete(temporary); }
+            catch (Exception ex) { _log.LogWarning(ex, "Could not remove temporary settings file"); }
+            _writeGate.Release();
         }
     }
 }

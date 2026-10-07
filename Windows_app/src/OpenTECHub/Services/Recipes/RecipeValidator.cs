@@ -145,6 +145,28 @@ public static class RecipeValidator
         }
 
         ValidateCascadeContinuations(recipe, findings);
+        ValidatePeriodicCascadeReferences(recipe, reachable, findings);
+    }
+
+    private static void ValidatePeriodicCascadeReferences(
+        RecipeDocument recipe, HashSet<string> reachable, List<RecipeFinding> findings)
+    {
+        foreach (var periodic in recipe.Nodes.Where(n => n.Type == NodeType.Periodic))
+        {
+            RecipePeriodicBlockConfiguration configuration;
+            try { configuration = RecipeAutonomousBlockConfiguration.ReadPeriodic(periodic); }
+            catch (Exception error) when (error is ArgumentException or InvalidOperationException or FormatException)
+            {
+                continue; // Per-block validation reports malformed configuration.
+            }
+
+            if (configuration.CoordinatedCascadeId is not { } cascadeId) continue;
+            var cascade = recipe.Node(cascadeId);
+            if (cascade is null || cascade.Type != NodeType.CascadeControl)
+                findings.Add(Error("A periodicidade deve estar vinculada a uma cascata existente.", periodic.Id));
+            else if (!reachable.Contains(cascadeId))
+                findings.Add(Error("A cascata vinculada à periodicidade está inacessível a partir do Início.", periodic.Id));
+        }
     }
 
     /// <summary>

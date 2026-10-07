@@ -9,6 +9,30 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeAutonomousBlockConfigurationTests
 {
+    [Theory]
+    [InlineData("missing", false)]
+    [InlineData("timer", false)]
+    [InlineData("cascade", false)]
+    [InlineData("cascade", true)]
+    [InlineData("", false)]
+    public void Periodic_cascade_binding_requires_an_existing_reachable_cascade(string binding, bool reachable)
+    {
+        var recipe = new RecipeDocument();
+        var periodic = RecipeNode.Create(NodeType.Periodic, id: "periodic");
+        periodic.Set("coordinatedCascadeId", binding);
+        recipe.Nodes.AddRange([RecipeNode.Create(NodeType.Start, id: "start"),
+            RecipeNode.Create(NodeType.End, id: "end"), periodic,
+            RecipeNode.Create(NodeType.Timer, id: "timer"),
+            RecipeNode.Create(NodeType.CascadeControl, id: "cascade")]);
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "periodic", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("periodic", ConnectorNames.Out, "end", ConnectorNames.In));
+        if (reachable)
+            recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "cascade", ConnectorNames.In));
+        var errors = RecipeValidator.Validate(recipe).Errors.Where(e => e.NodeId == periodic.Id);
+        if (binding.Length == 0 || reachable) Assert.Empty(errors);
+        else Assert.Single(errors);
+    }
+
     internal static RecipeNode ConfiguredKla()
     {
         var node = RecipeNode.Create(NodeType.KlaAssay, id: "kla");

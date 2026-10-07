@@ -11,6 +11,47 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeAssayRestorationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LifecycleRecoversWithItsOwnDeadlineAfterAcquisitionCancellation(bool failRecording)
+    {
+        using var fixture = new Fixture(); await fixture.Initialize();
+        var directory = Path.Combine(Path.GetTempPath(), "recipe-lifecycle-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var writer = new BackgroundFileWriter(synchronous: true);
+            var store = new KlaTestStore(directory, writer);
+            var settings = new MemorySettingsService(new AppSettings { GasRig = GasRigSettings.From(fixture.Rig) });
+            using var runner = new KlaTestRunner(fixture.Device, fixture.Arbiter, store, new KlaAnalysisEngine(), settings,
+                fixture.Clock, actuationRelease: new(isIsolatedSimulation: true), recipeLease: fixture.Lease, recipeReturnSnapshot: fixture.Snapshot);
+            var document = store.CreateTest("independent recovery", new KlaTestSettings { DOMinPercent = 10, AirPrestageLeadPercent = 0 });
+            document.NitrogenSourceConfirmedUtc = fixture.Clock.GetUtcNow();
+            var condition = new KlaTestCondition { AgitationRpm = 450, AirflowLpm = 3, RequestedReplicates = 1 };
+            document.Conditions.Add(condition);
+            fixture.Clock.Advance(TimeSpan.FromSeconds(1));
+            fixture.Device.PushTelemetry(fixture.Sample(285, 2, command: 1, oxygen: 80));
+            using var cancellation = new CancellationTokenSource();
+            var lifecycle = new KlaRecipePulseLifecycle(runner, fixture.Lease, new RecipeAssayRestoration(fixture.Device, fixture.Clock), fixture.Clock);
+            var task = lifecycle.ExecuteAsync(document, condition, 1, fixture.Contract(),
+                new() { MaximumTelemetryAgeSeconds = 5 }, cancellation.Token);
+            await WaitUntil(() => fixture.Device.Sent.Count > 0);
+            fixture.Device.Sent.Clear();
+            cancellation.Cancel();
+            await fixture.DriveRoute(command: 20);
+            if (failRecording) writer.Dispose();
+            await fixture.PushStable(command: 20);
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(KlaRecipeAcquisitionState.Cancelled, result.Acquisition.State);
+            Assert.Equal(KlaRestorationState.Confirmed, result.Recovery.Restoration);
+            Assert.Equal(KlaRestorationState.Confirmed, runner.CurrentRun!.Outcome!.Restoration);
+            Assert.Equal(CommandOwner.KlaAssay, fixture.Arbiter.OwnerOf(ActuatorId.Agitation));
+            Assert.False(fixture.Lease.HasReturnedSuccessfully);
+            Assert.Equal(failRecording, result.RecoveryRecordingError is not null);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     [Fact]
     public async Task AutonomousAcquisitionCompletesFromTelemetryWithoutAcceptingAReplicate()
     {

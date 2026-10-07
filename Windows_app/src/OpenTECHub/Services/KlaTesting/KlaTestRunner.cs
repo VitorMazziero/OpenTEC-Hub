@@ -147,6 +147,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     public KlaTestDocument? CurrentTest => _currentTest;
     public KlaTestRun? CurrentRun => _currentRun;
     internal bool UsesRecipeAuthority => _recipeLease is not null;
+    internal RecipeAssayResourceLease? RecipeAuthorityLease => _recipeLease;
     public KlaTestCondition? CurrentCondition => _currentCondition;
     public RunPhase Phase => _phase;
     public bool IsRunning => _phase is not (RunPhase.Idle or RunPhase.Completed or RunPhase.Faulted);

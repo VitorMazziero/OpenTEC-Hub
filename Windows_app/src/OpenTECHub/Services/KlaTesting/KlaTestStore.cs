@@ -332,8 +332,13 @@ public sealed partial class KlaTestStore : IKlaTestStore
                 continue;
             }
 
-            var condition = doc.Conditions.FirstOrDefault(c =>
-                Math.Abs(c.AgitationRpm - rpm) < 0.5 && Math.Abs(c.AirflowLpm - flow) < 0.005);
+            var automaticDecision = ReadSelectionForRun(doc.FolderName, runFolder);
+            var condition = automaticDecision is not null
+                ? doc.Conditions.SingleOrDefault(c => c.ConditionId == automaticDecision.ConditionId)
+                : doc.Conditions.FirstOrDefault(c =>
+                    Math.Abs(c.AgitationRpm - rpm) < 0.5 && Math.Abs(c.AirflowLpm - flow) < 0.005);
+            if (automaticDecision is not null && condition is null)
+                throw new InvalidDataException("Seleção aponta para condição ausente da sessão.");
             if (condition is null)
             {
                 condition = new KlaTestCondition
@@ -376,6 +381,7 @@ public sealed partial class KlaTestStore : IKlaTestStore
                     ? (analysis.Quality == DecisionQuality.Inconclusive ? RunPhase.Rejected : RunPhase.Accepted)
                     : existing?.Phase ?? RunPhase.Reviewing,
                 Outcome = MergePhysicalOutcome(runPath, analysis?.Outcome ?? existing?.Outcome),
+                AutomaticDecision = automaticDecision,
                 Definition = LoadRunDefinition(doc.FolderName, runFolder) ?? existing?.Definition,
                 AttemptNumber = LoadRunDefinition(doc.FolderName, runFolder)?.AttemptNumber ?? existing?.AttemptNumber ?? 1,
                 Context = LoadRunDefinition(doc.FolderName, runFolder)?.Context ?? existing?.Context,
@@ -404,7 +410,7 @@ public sealed partial class KlaTestStore : IKlaTestStore
 
         foreach (var condition in doc.Conditions)
         {
-            if (doc.SequenceLimits is not null)
+            if (doc.SequenceLimits is not null || doc.Runs.Any(r => r.AutomaticDecision is not null))
             {
                 var before = (condition.CompletedReplicates, condition.AcceptedReplicates, condition.RejectedReplicates, condition.Status);
                 KlaSequence.RefreshCounters(doc, condition);

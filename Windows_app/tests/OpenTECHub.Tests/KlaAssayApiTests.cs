@@ -209,4 +209,28 @@ public sealed class KlaAssayApiTests : IDisposable
     }
 
     public void Dispose() { if (Directory.Exists(_directory)) Directory.Delete(_directory, true); }
+
+    [Fact]
+    public async Task Budget_reads_do_not_reserve_and_reopen_preserves_the_stricter_limits()
+    {
+        var executor = new Executor(); var request = Request();
+        using (var api = new KlaAssayApi(Journal, executor))
+        {
+            var before = api.ReadCultivationBudget(request);
+            Assert.Equal(3, before.RemainingAttempts);
+            Assert.Equal(before, api.ReadCultivationBudget(request));
+            Assert.Equal(0, executor.Calls);
+            api.Create(request); await api.StartAsync(request.RequestId);
+            await executor.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(2, api.ReadCultivationBudget(request).RemainingAttempts);
+            Assert.NotNull(api.ReadCultivationBudget(request).BlockedReason);
+            executor.Recovery.SetResult(Result()); await Finish(api, request.RequestId);
+        }
+        using var reopened = new KlaAssayApi(Journal, executor);
+        var looser = request with { RequestId = Guid.NewGuid(), Limits = new(100, 10000, 0) };
+        Assert.Equal(2, reopened.ReadCultivationBudget(looser).RemainingAttempts);
+        Assert.Equal(160, reopened.ReadCultivationBudget(looser).RemainingRemovalSeconds);
+        var tighter = looser with { Limits = new(1, 100, 0) };
+        Assert.False(reopened.ReadCultivationBudget(tighter).CanStart);
+    }
 }

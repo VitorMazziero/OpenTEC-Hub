@@ -83,21 +83,9 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
                 throw new InvalidOperationException("Execução de receita requer capacidades por instalação e perfil.");
             _execution.Capabilities?.EnsureAllows(record.Request);
             if (_running.Count > 0) throw new InvalidOperationException("Outro ensaio detém a execução; aguarde a recuperação.");
-            var cultivation = _requests.Values.Where(r => string.Equals(r.Request.CultivationId.Trim(),
-                record.Request.CultivationId.Trim(), StringComparison.OrdinalIgnoreCase) && r.StartedUtc.HasValue).ToArray();
-            if (_requests.Values.Any(r => r.State is KlaAssayApiState.Interrupted or KlaAssayApiState.RestorationFailed or KlaAssayApiState.PersistenceFailed))
-                throw new InvalidOperationException("Há retorno ou persistência sem confirmação; execução bloqueada.");
-            // Saved limits can become stricter, never be loosened by a subsequent request in the same cultivation.
-            var maxRuns = cultivation.Select(r => r.Request.Limits.MaximumRuns).Append(record.Request.Limits.MaximumRuns).Min();
-            var maxExposure = cultivation.Select(r => r.Request.Limits.MaximumReservedRemovalSeconds)
-                .Append(record.Request.Limits.MaximumReservedRemovalSeconds).Min();
-            var interval = cultivation.Select(r => Math.Max(r.Request.Limits.MinimumIntervalSeconds,
-                    r.Request.Definition.ProtocolSettings.AerationReturn.MinimumInterAssaySeconds ?? 0))
-                .Append(Math.Max(record.Request.Limits.MinimumIntervalSeconds,
-                    record.Request.Definition.ProtocolSettings.AerationReturn.MinimumInterAssaySeconds ?? 0)).Max();
-            if (cultivation.Length >= maxRuns || cultivation.Sum(r => r.Request.ReservedRemovalSeconds) + record.Request.ReservedRemovalSeconds > maxExposure)
-                throw new InvalidOperationException("Limite acumulado por cultivo atingido.");
-            if (cultivation.Any(r => r.CompletedUtc is { } end && (now - end).TotalSeconds < interval))
+            var budget = Budget(record.Request, now);
+            if (budget.BlockedReason is not null) throw new InvalidOperationException(budget.BlockedReason);
+            if (budget.WaitSeconds > 0)
                 throw new InvalidOperationException("Intervalo mínimo ainda não cumprido; solicitação permanece adiada.");
             var delay = record.Request.DeadlineUtc - now;
             if (delay > TimeSpan.FromMilliseconds(uint.MaxValue - 1))
@@ -162,6 +150,39 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
 
     public KlaAssayApiObservation Observe(Guid requestId) { lock (_gate) return Require(requestId); }
     public KlaAssayApiResult? GetResult(Guid requestId) => Observe(requestId).Result;
+
+    public KlaCultivationAssayBudget ReadCultivationBudget(KlaAssayApiRequest request)
+    {
+        request.Validate();
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return Budget(request, _time.GetUtcNow());
+        }
+    }
+
+    private KlaCultivationAssayBudget Budget(KlaAssayApiRequest request, DateTimeOffset now)
+    {
+        var cultivation = _requests.Values.Where(r => string.Equals(r.Request.CultivationId.Trim(),
+            request.CultivationId.Trim(), StringComparison.OrdinalIgnoreCase) && r.StartedUtc.HasValue).ToArray();
+        // A later profile can tighten limits, but cannot erase the previously reserved budget.
+        var maxRuns = cultivation.Select(r => r.Request.Limits.MaximumRuns).Append(request.Limits.MaximumRuns).Min();
+        var maxExposure = cultivation.Select(r => r.Request.Limits.MaximumReservedRemovalSeconds)
+            .Append(request.Limits.MaximumReservedRemovalSeconds).Min();
+        var interval = cultivation.Select(r => Math.Max(r.Request.Limits.MinimumIntervalSeconds,
+                r.Request.Definition.ProtocolSettings.AerationReturn.MinimumInterAssaySeconds ?? 0))
+            .Append(Math.Max(request.Limits.MinimumIntervalSeconds,
+                request.Definition.ProtocolSettings.AerationReturn.MinimumInterAssaySeconds ?? 0)).Max();
+        var remaining = Math.Max(0, maxRuns - cultivation.Length);
+        var exposure = Math.Max(0, maxExposure - cultivation.Sum(r => r.Request.ReservedRemovalSeconds));
+        var wait = cultivation.Where(r => r.CompletedUtc.HasValue)
+            .Select(r => Math.Max(0, interval - (now - r.CompletedUtc!.Value).TotalSeconds)).DefaultIfEmpty(0).Max();
+        var blocked = _requests.Values.Any(r => r.State is KlaAssayApiState.Interrupted or KlaAssayApiState.RestorationFailed or KlaAssayApiState.PersistenceFailed)
+            ? "Há retorno ou persistência sem confirmação; execução bloqueada."
+            : _running.Count > 0 ? "Outro ensaio detém a execução; aguarde a recuperação."
+            : remaining == 0 || exposure < request.ReservedRemovalSeconds ? "Limite acumulado por cultivo atingido." : null;
+        return new(remaining, exposure, wait, blocked);
+    }
 
     /// <summary>Reconciles historical storage without restarting acquisition or certifying live recovery.</summary>
     public KlaAssayApiObservation ReconcileRecipeAttempt(Guid requestId, IKlaTestStore store, string testFolder, string runFolder)

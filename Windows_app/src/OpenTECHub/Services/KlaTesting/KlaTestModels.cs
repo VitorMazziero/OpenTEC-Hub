@@ -255,6 +255,8 @@ public sealed record KlaTestRunSummary
     public double? RemovalSeconds { get; init; }
     public KlaRunDefinition? Definition { get; init; }
     public KlaRunOutcome? Outcome { get; init; }
+    /// <summary>Separate authorship; never substitutes an operator's approval.</summary>
+    public KlaRecipeAttemptResult? AutomaticDecision { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public KlaRunOutcome EffectiveOutcome => Outcome ?? KlaRunOutcome.FromLegacy(Decision, Phase);
     public Guid RunId { get; init; }

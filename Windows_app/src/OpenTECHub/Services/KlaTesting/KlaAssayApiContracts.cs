@@ -6,6 +6,13 @@ public enum KlaAssayApiState { Created, Running, Completed, Inconclusive, Cancel
 public enum KlaAssayFailurePolicy { HaltRecipe, ContinueAfterConfirmedReturn }
 public enum KlaConditionSelection { Explicit, Current }
 
+/// <summary>Read-only projection of the authoritative journal; reading does not reserve a pulse.</summary>
+public sealed record KlaCultivationAssayBudget(int RemainingAttempts, double RemainingRemovalSeconds,
+    double WaitSeconds, string? BlockedReason)
+{
+    public bool CanStart => RemainingAttempts > 0 && WaitSeconds <= 0 && BlockedReason is null;
+}
+
 public sealed record KlaCultivationAssayLimits(int MaximumRuns, double MaximumReservedRemovalSeconds,
     double MinimumIntervalSeconds)
 {
@@ -89,6 +96,8 @@ public static class KlaRecipeQualityEvaluator
 
 public interface IKlaAssayApi
 {
+    KlaCultivationAssayBudget ReadCultivationBudget(KlaAssayApiRequest request)
+        => throw new NotSupportedException("API sem leitura de orçamento persistido.");
     KlaAssayApiObservation Create(KlaAssayApiRequest request);
     Task<KlaAssayApiObservation> StartAsync(Guid requestId, CancellationToken ct = default);
     Task<KlaAssayApiObservation> WaitForCompletionAsync(Guid requestId, CancellationToken ct = default);

@@ -43,9 +43,23 @@ public sealed record KlaQueueReadiness(bool CanStart, string Reason, double Wait
 /// <summary>Scheduling never acts on hardware. One replicate can have multiple immutable attempts.</summary>
 public static class KlaSequence
 {
-    public static bool IsAccepted(KlaTestRunSummary run) => run.Phase == RunPhase.Accepted &&
+    public static bool IsAccepted(KlaTestRunSummary run) => run.AutomaticDecision is not null
+        ? IsAutomaticallySelected(run) : run.Phase == RunPhase.Accepted &&
         run.EffectiveOutcome.OperatorDecision == KlaOperatorDecision.Accepted &&
         run.Decision is DecisionQuality.Acceptable or DecisionQuality.AcceptableWithWarning;
+
+    private static bool IsAutomaticallySelected(KlaTestRunSummary run)
+    {
+        var automatic = run.AutomaticDecision;
+        if (automatic is null) return false;
+        automatic.Validate();
+        return automatic.DecisionAuthor == OpenTECHub.Services.Recipes.RecipeDecisionAuthor.AutomaticPolicy &&
+            automatic.Decision == KlaAutomaticDecision.Selected && automatic.PersistenceConfirmed &&
+            automatic.Restoration == KlaRestorationState.Confirmed && automatic.ConditionId == run.ConditionId &&
+            automatic.ReplicateNumber == run.ReplicateNumber && automatic.AttemptNumber == run.AttemptNumber &&
+            automatic.RunFolder == run.FolderName && automatic.KlaQuality == run.EffectiveOutcome.KlaQuality &&
+            run.EffectiveOutcome.Restoration == KlaRestorationState.Confirmed && automatic.KlaPerHour == run.KlaPerHour;
+    }
 
     public static IReadOnlyList<KlaQueueItem> Pending(KlaTestDocument doc, IEnumerable<KlaTestCondition> conditions)
         => conditions.OrderBy(c => c.OrderIndex).SelectMany(c => Enumerable.Range(1, c.RequestedReplicates)
@@ -102,12 +116,19 @@ public static class KlaSequence
     public static void RefreshCounters(KlaTestDocument doc, KlaTestCondition condition)
     {
         var runs = doc.Runs.Where(r => r.ConditionId == condition.ConditionId).ToArray();
-        condition.CompletedReplicates = runs.Where(r => r.Phase is RunPhase.Accepted or RunPhase.Rejected)
+        condition.CompletedReplicates = runs.Where(r => r.Phase is RunPhase.Accepted or RunPhase.Rejected ||
+            IsAutomaticallySelected(r) || IsAutomaticallyRejected(r))
             .Select(r => r.ReplicateNumber).Distinct().Count();
         condition.AcceptedReplicates = runs.Where(IsAccepted).Select(r => r.ReplicateNumber).Distinct().Count();
-        condition.RejectedReplicates = runs.Where(r => r.Phase == RunPhase.Rejected &&
+        condition.RejectedReplicates = runs.Where(r => (r.Phase == RunPhase.Rejected || IsAutomaticallyRejected(r)) &&
             !runs.Any(a => a.ReplicateNumber == r.ReplicateNumber && IsAccepted(a)))
             .Select(r => r.ReplicateNumber).Distinct().Count();
         condition.Status = condition.AcceptedReplicates >= condition.RequestedReplicates ? ConditionStatus.Completed : ConditionStatus.Pending;
     }
+
+    private static bool IsAutomaticallyRejected(KlaTestRunSummary run) => run.AutomaticDecision is { } decision &&
+        decision.DecisionAuthor == OpenTECHub.Services.Recipes.RecipeDecisionAuthor.AutomaticPolicy &&
+        decision.Decision == KlaAutomaticDecision.NotSelected && decision.PersistenceConfirmed &&
+        decision.Restoration == KlaRestorationState.Confirmed && decision.ConditionId == run.ConditionId &&
+        decision.ReplicateNumber == run.ReplicateNumber && decision.AttemptNumber == run.AttemptNumber && decision.RunFolder == run.FolderName;
 }

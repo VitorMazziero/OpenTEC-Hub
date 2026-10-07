@@ -154,6 +154,25 @@ public sealed class KlaRecipeAssayExecutionTests
             Assert.Equal(KlaRestorationState.Confirmed, completed.Result!.Outcome.Restoration);
             Assert.Equal(!failPersistence, completed.Result.PersistenceReceiptId is not null);
             Assert.Equal(!failPersistence, fixture.Lease.HasReturnedSuccessfully);
+            if (!failPersistence)
+            {
+                var budget = api.ReadCultivationBudget(request);
+                var decision = KlaRecipeAttemptDecider.Decide(completed, [], budget.RemainingAttempts,
+                    (fixture.Clock.GetUtcNow() - invocation.Restoration.BeforeAssay.CapturedUtc).TotalSeconds, fixture.Clock.GetUtcNow());
+                var checkpoint = new KlaRecipeSelectionCheckpoint
+                {
+                    Observation = completed, Decision = decision, RemainingCultivationAttempts = budget.RemainingAttempts,
+                    ElapsedBlockSeconds = (fixture.Clock.GetUtcNow() - invocation.Restoration.BeforeAssay.CapturedUtc).TotalSeconds
+                };
+                var selected = await store.PersistRecipeSelectionAsync(checkpoint);
+                Assert.Equal(selected, await store.PersistRecipeSelectionAsync(checkpoint));
+                Assert.Equal(decision.AttemptId, new KlaTestStore(directory).ReadRecipeSelection(
+                    document.FolderName, completed.Result.RunFolder!, request.RequestId)!.Decision.AttemptId);
+                var projected = store.LoadTest(document.FolderName)!;
+                Assert.Equal(decision.AttemptId, Assert.Single(projected.Runs).AutomaticDecision!.AttemptId);
+                Assert.Equal(decision.Decision == KlaAutomaticDecision.Selected ? 1 : 0,
+                    Assert.Single(projected.Conditions).AcceptedReplicates);
+            }
             var saved = store.LoadTest(document.FolderName)!;
             var run = Assert.Single(saved.Runs);
             Assert.Equal(KlaOperatorDecision.Pending, run.Outcome!.OperatorDecision);

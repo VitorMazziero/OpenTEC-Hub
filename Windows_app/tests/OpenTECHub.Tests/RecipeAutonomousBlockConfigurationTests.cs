@@ -23,9 +23,10 @@ public sealed class RecipeAutonomousBlockConfigurationTests
         recipe.Nodes.AddRange([RecipeNode.Create(NodeType.Start, id: "start"),
             RecipeNode.Create(NodeType.End, id: "end"), periodic,
             RecipeNode.Create(NodeType.Timer, id: "timer"),
-            RecipeNode.Create(NodeType.CascadeControl, id: "cascade")]);
+            RecipeNode.Create(NodeType.CascadeControl, id: "cascade"), ConfiguredKla()]);
         recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "periodic", ConnectorNames.In));
-        recipe.Connections.Add(new RecipeConnection("periodic", ConnectorNames.Out, "end", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("periodic", ConnectorNames.Out, "kla", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "end", ConnectorNames.In));
         if (reachable)
             recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "cascade", ConnectorNames.In));
         var errors = RecipeValidator.Validate(recipe).Errors.Where(e => e.NodeId == periodic.Id);

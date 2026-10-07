@@ -246,7 +246,7 @@ public static class DocumentationCatalog
                     F("Fim", "Marca uma saída concluída com sucesso."),
                 ]),
                 new DocumentationSection("Gatilhos — etapas que esperam", [
-                    F("Periodicidade", "Define o primeiro disparo e o período dos próximos ensaios. Por exemplo, 2 h e 4 h correspondem a 2, 6 e 10 h. Disparos perdidos durante pausa ou execução não se acumulam. A configuração pode ser salva; a partida aguarda integração operacional qualificada."),
+                    F("Periodicidade", "Define o primeiro disparo e o período dos próximos ensaios. Por exemplo, 2 h e 4 h correspondem a 2, 6 e 10 h. Ligue Alvo periódico a um único bloco Determinar kLa, sem continuação após o ensaio: ele retorna à agenda. Para coordenar o Controle de O₂, coloque os dois em ramos paralelos e vincule a cascata. Disparos perdidos durante pausa ou execução não se acumulam. A configuração pode ser salva; a partida aguarda integração operacional qualificada."),
                     F("Temporizador", "Espera uma duração em segundos, minutos ou horas."),
                     F("Monitorar Variável", "Espera uma leitura satisfazer uma condição. Defina variável, comparação, valor alvo, frequência de verificação, confirmações consecutivas e tempo limite."),
                     F("Monitorar Variável · no laço do Controle de O₂", "Nesse uso, a leitura participa da decisão de cada repetição do controle, em vez de ser uma etapa separada."),

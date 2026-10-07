@@ -246,7 +246,8 @@ public static class RecipeNodeCatalog
         },
         new()
         {
-            Type = NodeType.Periodic, Title = "Periodicidade", Category = BlockCategory.Triggers, Ports = InOut,
+            Type = NodeType.Periodic, Title = "Periodicidade", Category = BlockCategory.Triggers,
+            Ports = [PortIn, new RecipePort(ConnectorNames.Out, PortDirection.Out, "Alvo periódico")],
             Parameters =
             [Num("initialDelay", "Primeiro disparo após", 2, min: 0),
              EnumP("initialDelayUnit", "Unidade do primeiro disparo", nameof(TimeUnit.Hours), TimeUnits),

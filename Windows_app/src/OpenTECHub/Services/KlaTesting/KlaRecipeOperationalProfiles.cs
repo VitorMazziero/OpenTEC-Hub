@@ -86,17 +86,31 @@ public sealed class KlaRecipeOperationalProfileRegistry(string installationId, T
     private static T Copy<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
 
     public void Register(KlaRecipeOperationalProfile profile)
+        => RegisterMany([profile]);
+
+    /// <summary>Validate the complete catalog before publishing any of its capabilities.</summary>
+    public void RegisterMany(IEnumerable<KlaRecipeOperationalProfile> profiles)
     {
-        ArgumentNullException.ThrowIfNull(profile);
-        profile = Copy(profile); profile.Validate(time.GetUtcNow());
-        if (!isIsolatedEnvironment || string.IsNullOrWhiteSpace(installationId) || profile.Capabilities.InstallationId != installationId)
-            throw new InvalidOperationException("Ambiente ou instalação não corresponde ao perfil qualificado.");
-        var key = (profile.Capabilities.ProfileId, profile.Capabilities.ProfileVersion, profile.Template.Protocol);
+        ArgumentNullException.ThrowIfNull(profiles);
+        var additions = new Dictionary<(string Id, string Version, KlaAssayProtocol Protocol), KlaRecipeOperationalProfile>();
+        var now = time.GetUtcNow();
+        foreach (var candidate in profiles)
+        {
+            ArgumentNullException.ThrowIfNull(candidate);
+            var profile = Copy(candidate); profile.Validate(now);
+            if (!isIsolatedEnvironment || string.IsNullOrWhiteSpace(installationId) || profile.Capabilities.InstallationId != installationId)
+                throw new InvalidOperationException("Ambiente ou instalação não corresponde ao perfil qualificado.");
+            var key = (profile.Capabilities.ProfileId, profile.Capabilities.ProfileVersion, profile.Template.Protocol);
+            if (additions.TryGetValue(key, out var previous) && JsonSerializer.Serialize(previous) != JsonSerializer.Serialize(profile))
+                throw new InvalidOperationException("Catálogo contém conteúdos distintos para a mesma versão de perfil.");
+            additions[key] = profile;
+        }
         lock (_gate)
         {
-            if (_profiles.TryGetValue(key, out var existing) && JsonSerializer.Serialize(existing) != JsonSerializer.Serialize(profile))
-                throw new InvalidOperationException("Uma versão de perfil já registrada não pode mudar de conteúdo.");
-            _profiles[key] = profile;
+            foreach (var (key, profile) in additions)
+                if (_profiles.TryGetValue(key, out var existing) && JsonSerializer.Serialize(existing) != JsonSerializer.Serialize(profile))
+                    throw new InvalidOperationException("Uma versão de perfil já registrada não pode mudar de conteúdo.");
+            foreach (var (key, profile) in additions) _profiles[key] = profile;
         }
     }
 

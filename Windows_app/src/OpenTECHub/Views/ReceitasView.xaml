@@ -630,6 +630,15 @@
                             </Grid>
 
                             <!-- Intervenção Manual properties button & explanation -->
+                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsKlaAssay, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
+                                <TextBlock Text="Perfil operacional" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding SelectedTab.SelectedNode.AvailableOperationalProfiles}"
+                                          SelectedItem="{Binding SelectedTab.SelectedNode.SelectedOperationalProfile, Mode=TwoWay}"
+                                          DisplayMemberPath="Label" />
+                                <TextBlock Text="{Binding SelectedTab.SelectedNode.OperationalProfileStatus}" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,6,0,0" />
+                            </StackPanel>
+
                             <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsManualIntervention, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
                                 <Button Background="{Binding SelectedTab.SelectedNode.ManualButtonColor, Converter={StaticResource HexToBrush}}"
                                         BorderThickness="0" Padding="12,8" Cursor="Hand"

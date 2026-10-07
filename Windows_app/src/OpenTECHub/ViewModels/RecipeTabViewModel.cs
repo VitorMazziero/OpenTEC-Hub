@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
+using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Recipes;
 
@@ -17,6 +18,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
     private readonly ISettingsService? _settings;
     private readonly IDialogService? _dialogs;
     private readonly IKlaProfileStore? _klaStore;
+    private readonly KlaRecipeOperationalProfileRegistry? _operationalProfiles;
     private readonly Stack<string> _undo = new();
     private readonly Stack<string> _redo = new();
     private (string NodeId, string Port)? _pendingConnection;
@@ -27,11 +29,13 @@ public sealed partial class RecipeTabViewModel : ObservableObject
         string? fileName,
         ISettingsService? settings = null,
         IDialogService? dialogs = null,
-        IKlaProfileStore? klaStore = null)
+        IKlaProfileStore? klaStore = null,
+        KlaRecipeOperationalProfileRegistry? operationalProfiles = null)
     {
         _settings = settings;
         _dialogs = dialogs;
         _klaStore = klaStore;
+        _operationalProfiles = operationalProfiles;
         Document = document;
         FileName = fileName;
         Name = document.Name;
@@ -72,6 +76,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     partial void OnSelectedNodeChanged(RecipeNodeViewModel? value)
     {
+        value?.RefreshOperationalProfiles();
         if (value is { Type: NodeType.CascadeControl } cascade)
         {
             cascade.RefreshPresets();
@@ -383,7 +388,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     private RecipeNodeViewModel CreateNodeViewModel(RecipeNode node)
     {
-        var vm = new RecipeNodeViewModel(node, _settings, _dialogs, _klaStore);
+        var vm = new RecipeNodeViewModel(node, _settings, _dialogs, _klaStore, _operationalProfiles);
         vm.Changed += OnNodeChanged;
         return vm;
     }

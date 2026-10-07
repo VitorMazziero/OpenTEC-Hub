@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
+using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Recipes;
 
@@ -276,17 +277,20 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     private readonly ISettingsService? _settings;
     private readonly IDialogService? _dialogs;
     private readonly IKlaProfileStore? _klaStore;
+    private readonly KlaRecipeOperationalProfileRegistry? _operationalProfiles;
 
     public RecipeNodeViewModel(
         RecipeNode model,
         ISettingsService? settings = null,
         IDialogService? dialogs = null,
-        IKlaProfileStore? klaStore = null)
+        IKlaProfileStore? klaStore = null,
+        KlaRecipeOperationalProfileRegistry? operationalProfiles = null)
     {
         Model = model;
         _settings = settings;
         _dialogs = dialogs;
         _klaStore = klaStore;
+        _operationalProfiles = operationalProfiles;
         Title = model.Definition.Title;
         HeaderColor = RecipeNodeCatalog.HeaderColor(model.Type);
         Fields = [.. model.Definition.Parameters.Select(p => new RecipeParameterFieldViewModel(model.Parameters, p, OnFieldChanged))];
@@ -295,6 +299,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         Y = model.Y;
         Summary = BuildSummary();
         UpdatePortOffsets();
+        RefreshOperationalProfiles();
 
         if (Type == NodeType.CascadeControl)
         {
@@ -322,7 +327,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     public IReadOnlyList<RecipePortViewModel> Ports { get; }
 
-    public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible);
+    public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible &&
+        !(IsKlaAssay && f.Key is "profileId" or "profileVersion"));
 
     public bool ShowSummary => Type is not (NodeType.Start or NodeType.End or NodeType.And or NodeType.Or or NodeType.ManualIntervention);
 
@@ -967,6 +973,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         OnPropertyChanged(nameof(CascadeRateEstimationFields));
         Summary = BuildSummary();
         OnPropertyChanged(nameof(VisibleFields));
+        RefreshOperationalProfiles();
 
         if (Type == NodeType.CascadeControl && CascadeUsesMap)
         {

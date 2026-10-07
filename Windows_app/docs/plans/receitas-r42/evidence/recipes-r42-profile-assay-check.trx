@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="c26ded0d-2d40-4924-8c51-f796605b9730" name="vitor@DESKTOP-J4OP7IO 2026-10-07 16:51:24" runUser="DESKTOP-J4OP7IO\vitor" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-07T16:51:24.3720072-03:00" queuing="2026-10-07T16:51:24.3720079-03:00" start="2026-10-07T16:51:22.4607766-03:00" finish="2026-10-07T16:51:25.5663308-03:00" />
+  <TestSettings name="default" id="112344b1-1a1b-45dc-8037-dc857be10b3f">
+    <Deployment runDeploymentRoot="vitor_DESKTOP-J4OP7IO_2026-10-07_16_51_24" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="37cc5499-4db2-4c2a-8963-905fc4f7a7f2" testId="2e62f787-04b6-9b52-2639-5ccc94671780" testName="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Abiotic, deadline: False, failPersistence: False, completeNormally: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.7598587" startTime="2026-10-07T16:51:23.9853886-03:00" endTime="2026-10-07T16:51:23.9854265-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="37cc5499-4db2-4c2a-8963-905fc4f7a7f2" />
+    <UnitTestResult executionId="5755336f-277a-41c5-8114-288c56132ab3" testId="f0e80b93-b862-ec8f-8a72-46ce3d4a2f71" testName="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.FactoryRejectsPhysicalEnvironmentOrPhysicalCapability(isolatedEnvironment: False, isolatedCapability: True)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.0026210" startTime="2026-10-07T16:51:25.5008581-03:00" endTime="2026-10-07T16:51:25.5008582-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5755336f-277a-41c5-8114-288c56132ab3" />
+    <UnitTestResult executionId="b407e75a-3371-4fc7-a6b9-abe47eef7707" testId="75015e61-aca8-4b85-2320-0a92d3ff0bf7" testName="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Abiotic, deadline: False, failPersistence: False, completeNormally: True)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.6269544" startTime="2026-10-07T16:51:25.3608293-03:00" endTime="2026-10-07T16:51:25.3608296-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b407e75a-3371-4fc7-a6b9-abe47eef7707" />
+    <UnitTestResult executionId="ffe2eac4-6e5f-47fe-9b56-65dbd5d599db" testId="a2048caf-d855-8ead-23b2-f4a6da837acf" testName="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Abiotic, deadline: False, failPersistence: True, completeNormally: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.0665649" startTime="2026-10-07T16:51:24.7335667-03:00" endTime="2026-10-07T16:51:24.7335669-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ffe2eac4-6e5f-47fe-9b56-65dbd5d599db" />
+    <UnitTestResult executionId="4108debe-cb96-4c2b-8c77-9b77196df2af" testId="59a184af-5d4a-dfaa-9ae1-9212370f1756" testName="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Biotic, deadline: False, failPersistence: False, completeNormally: True)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.5114527" startTime="2026-10-07T16:51:24.4971024-03:00" endTime="2026-10-07T16:51:24.4971026-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4108debe-cb96-4c2b-8c77-9b77196df2af" />
+    <UnitTestResult executionId="023a7bfd-a708-4f07-a5a3-f54bb3f13fba" testId="49a92423-3bd6-ce43-469c-74644c536ddf" testName="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Abiotic, deadline: True, failPersistence: False, completeNormally: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.1360030" startTime="2026-10-07T16:51:25.4970687-03:00" endTime="2026-10-07T16:51:25.4970689-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="023a7bfd-a708-4f07-a5a3-f54bb3f13fba" />
+    <UnitTestResult executionId="1da46fb0-dc4a-4a1f-a67b-8a27bc242fbd" testId="00fcecaf-ecfd-6141-2e15-8c10664bcbab" testName="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Biotic, deadline: False, failPersistence: False, completeNormally: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.1692715" startTime="2026-10-07T16:51:24.6667127-03:00" endTime="2026-10-07T16:51:24.6667130-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1da46fb0-dc4a-4a1f-a67b-8a27bc242fbd" />
+    <UnitTestResult executionId="b077fee8-7dd9-42c3-b978-e4723f048682" testId="595153d9-5681-03c7-2a7a-3a887cd7c96a" testName="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.FactoryRejectsPhysicalEnvironmentOrPhysicalCapability(isolatedEnvironment: True, isolatedCapability: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.0012257" startTime="2026-10-07T16:51:25.5021526-03:00" endTime="2026-10-07T16:51:25.5021527-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b077fee8-7dd9-42c3-b978-e4723f048682" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Abiotic, deadline: False, failPersistence: True, completeNormally: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="a2048caf-d855-8ead-23b2-f4a6da837acf">
+      <Execution id="ffe2eac4-6e5f-47fe-9b56-65dbd5d599db" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRecipeAssayExecutionTests" name="ApiPulseUsesCommonRecoveryAnalysisAndPersistence" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.FactoryRejectsPhysicalEnvironmentOrPhysicalCapability(isolatedEnvironment: True, isolatedCapability: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="595153d9-5681-03c7-2a7a-3a887cd7c96a">
+      <Execution id="b077fee8-7dd9-42c3-b978-e4723f048682" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRecipeAssayExecutionTests" name="FactoryRejectsPhysicalEnvironmentOrPhysicalCapability" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.FactoryRejectsPhysicalEnvironmentOrPhysicalCapability(isolatedEnvironment: False, isolatedCapability: True)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="f0e80b93-b862-ec8f-8a72-46ce3d4a2f71">
+      <Execution id="5755336f-277a-41c5-8114-288c56132ab3" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRecipeAssayExecutionTests" name="FactoryRejectsPhysicalEnvironmentOrPhysicalCapability" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Abiotic, deadline: True, failPersistence: False, completeNormally: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="49a92423-3bd6-ce43-469c-74644c536ddf">
+      <Execution id="023a7bfd-a708-4f07-a5a3-f54bb3f13fba" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRecipeAssayExecutionTests" name="ApiPulseUsesCommonRecoveryAnalysisAndPersistence" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Biotic, deadline: False, failPersistence: False, completeNormally: True)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="59a184af-5d4a-dfaa-9ae1-9212370f1756">
+      <Execution id="4108debe-cb96-4c2b-8c77-9b77196df2af" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRecipeAssayExecutionTests" name="ApiPulseUsesCommonRecoveryAnalysisAndPersistence" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Abiotic, deadline: False, failPersistence: False, completeNormally: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="2e62f787-04b6-9b52-2639-5ccc94671780">
+      <Execution id="37cc5499-4db2-4c2a-8963-905fc4f7a7f2" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRecipeAssayExecutionTests" name="ApiPulseUsesCommonRecoveryAnalysisAndPersistence" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Biotic, deadline: False, failPersistence: False, completeNormally: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="00fcecaf-ecfd-6141-2e15-8c10664bcbab">
+      <Execution id="1da46fb0-dc4a-4a1f-a67b-8a27bc242fbd" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRecipeAssayExecutionTests" name="ApiPulseUsesCommonRecoveryAnalysisAndPersistence" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Abiotic, deadline: False, failPersistence: False, completeNormally: True)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="75015e61-aca8-4b85-2320-0a92d3ff0bf7">
+      <Execution id="b407e75a-3371-4fc7-a6b9-abe47eef7707" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRecipeAssayExecutionTests" name="ApiPulseUsesCommonRecoveryAnalysisAndPersistence" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="2e62f787-04b6-9b52-2639-5ccc94671780" executionId="37cc5499-4db2-4c2a-8963-905fc4f7a7f2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f0e80b93-b862-ec8f-8a72-46ce3d4a2f71" executionId="5755336f-277a-41c5-8114-288c56132ab3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="75015e61-aca8-4b85-2320-0a92d3ff0bf7" executionId="b407e75a-3371-4fc7-a6b9-abe47eef7707" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a2048caf-d855-8ead-23b2-f4a6da837acf" executionId="ffe2eac4-6e5f-47fe-9b56-65dbd5d599db" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="59a184af-5d4a-dfaa-9ae1-9212370f1756" executionId="4108debe-cb96-4c2b-8c77-9b77196df2af" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="49a92423-3bd6-ce43-469c-74644c536ddf" executionId="023a7bfd-a708-4f07-a5a3-f54bb3f13fba" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="00fcecaf-ecfd-6141-2e15-8c10664bcbab" executionId="1da46fb0-dc4a-4a1f-a67b-8a27bc242fbd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="595153d9-5681-03c7-2a7a-3a887cd7c96a" executionId="b077fee8-7dd9-42c3-b978-e4723f048682" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados que não estão em uma lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos os resultados carregados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="8" executed="8" passed="8" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 10.0.12)&#xD;
+[xUnit.net 00:00:00.10]   Discovering: OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.32]   Discovered:  OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.33]   Starting:    OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:02.65]   Finished:    OpenTECHub.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

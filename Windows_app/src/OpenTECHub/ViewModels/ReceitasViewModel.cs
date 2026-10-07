@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
+using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Recipes;
 
@@ -31,6 +32,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     private readonly ISettingsService? _settings;
     private readonly IDialogService? _dialogs;
     private readonly IKlaProfileStore? _klaStore;
+    private readonly KlaRecipeOperationalProfileRegistry? _operationalProfiles;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _elapsedTimer;
     private RecipeTabViewModel? _runningTab;
@@ -40,13 +42,15 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         IRecipeStore store,
         ISettingsService? settings = null,
         IDialogService? dialogs = null,
-        IKlaProfileStore? klaStore = null)
+        IKlaProfileStore? klaStore = null,
+        KlaRecipeOperationalProfileRegistry? operationalProfiles = null)
     {
         _engine = engine;
         _store = store;
         _settings = settings;
         _dialogs = dialogs;
         _klaStore = klaStore;
+        _operationalProfiles = operationalProfiles;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         Library = BuildLibrary();
@@ -266,7 +270,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
 
     private RecipeTabViewModel CreateTab(RecipeDocument document, string? fileName)
     {
-        var tab = new RecipeTabViewModel(document, fileName, _settings, _dialogs, _klaStore);
+        var tab = new RecipeTabViewModel(document, fileName, _settings, _dialogs, _klaStore, _operationalProfiles);
         tab.CenterRequested += node => OnUi(() => CenterOnNodeRequested?.Invoke(node));
         return tab;
     }

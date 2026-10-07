@@ -1,0 +1,3 @@
+Execução de teste para D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll (.NETCoreApp,Version=v10.0)
+1 arquivos de teste no total corresponderam ao padrão especificado.
+[xUnit.net 00:00:11.82]     OpenTECHub.Tests.KlaRecipeAssayExecutionTests.ApiPulseUsesCommonRecoveryAnalysisAndPersistence(protocol: Biotic, deadline: False, failPersistence: False, completeNormally: False) [FAIL]

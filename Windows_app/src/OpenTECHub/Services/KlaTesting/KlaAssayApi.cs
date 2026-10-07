@@ -163,6 +163,33 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
     public KlaAssayApiObservation Observe(Guid requestId) { lock (_gate) return Require(requestId); }
     public KlaAssayApiResult? GetResult(Guid requestId) => Observe(requestId).Result;
 
+    /// <summary>Reconciles historical storage without restarting acquisition or certifying live recovery.</summary>
+    public KlaAssayApiObservation ReconcileRecipeAttempt(Guid requestId, IKlaTestStore store, string testFolder, string runFolder)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var record = Require(requestId);
+            if (record.Request.RecipePulse is null || _running.ContainsKey(requestId))
+                throw new InvalidOperationException("Reconciliação requer tentativa de receita sem executor ativo.");
+            var evidence = KlaAttemptReconciliation.Read(store, record, testFolder, runFolder);
+            if (!evidence.ChargeReservedBudget) return record;
+            var preparation = store.ReadRecipeAttemptReceipt(testFolder, runFolder, requestId, KlaAttemptPersistencePhase.BeforeActuation);
+            var terminal = store.ReadRecipeAttemptReceipt(testFolder, runFolder, requestId, KlaAttemptPersistencePhase.Terminal);
+            var uncertain = evidence.RequiresRecoveryVerification || record.State is KlaAssayApiState.Created or KlaAssayApiState.Cancelled or KlaAssayApiState.Skipped;
+            var reconciled = record with
+            {
+                StartedUtc = record.StartedUtc ?? preparation?.PersistedUtc ?? _time.GetUtcNow(),
+                CompletedUtc = record.CompletedUtc ?? terminal?.PersistedUtc,
+                Result = evidence.PersistedResult ?? record.Result,
+                State = uncertain ? KlaAssayApiState.Interrupted : record.State,
+                Reason = uncertain ? "Tentativa reconciliada sem repetir atuação; recuperação atual requer verificação." : record.Reason
+            };
+            Persist(reconciled);
+            return reconciled;
+        }
+    }
+
     /// <summary>Waiting cancellation stops observation only; use CancelWithRecoveryAsync to cancel acquisition.</summary>
     public async Task<KlaAssayApiObservation> WaitForCompletionAsync(Guid requestId, CancellationToken ct = default)
     {

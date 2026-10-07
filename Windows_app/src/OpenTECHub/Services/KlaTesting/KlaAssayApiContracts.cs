@@ -95,6 +95,8 @@ public interface IKlaAssayApi
     KlaAssayApiObservation Observe(Guid requestId);
     Task<KlaAssayApiObservation> CancelWithRecoveryAsync(Guid requestId);
     KlaAssayApiResult? GetResult(Guid requestId);
+    KlaAssayApiObservation ReconcileRecipeAttempt(Guid requestId, IKlaTestStore store, string testFolder, string runFolder)
+        => throw new NotSupportedException("Este executor não suporta reconciliação persistida.");
 }
 
 /// <summary>

@@ -61,6 +61,8 @@ public sealed record KlaAttemptPersistenceReceipt(int SchemaVersion, string Rece
 
 public sealed partial class KlaTestStore
 {
+    private static readonly JsonSerializerOptions CheckpointReadOptions = new()
+    { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow };
     private readonly SemaphoreSlim _recipeCheckpointGate = new(1, 1);
     private sealed record DurableAttemptEnvelope(int SchemaVersion, KlaAttemptPersistenceCheckpoint Checkpoint,
         KlaAttemptPersistenceReceipt Receipt);
@@ -74,6 +76,8 @@ public sealed partial class KlaTestStore
         {
             var directory = AttemptDirectory(checkpoint.TestFolder, checkpoint.RunFolder);
             if (!Directory.Exists(directory)) throw new DirectoryNotFoundException("Corrida comum deve ser criada antes do checkpoint.");
+            using var sessionLease = new FileStream(Path.Combine(directory, "receita-checkpoint.lease"),
+                FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             var path = ReceiptPath(directory, checkpoint.Request.RequestId, checkpoint.Phase);
             var hash = CheckpointHash(checkpoint);
             await _writer.FlushDurableAsync(Path.Combine(RootDirectory, checkpoint.TestFolder)).ConfigureAwait(false);
@@ -148,7 +152,9 @@ public sealed partial class KlaTestStore
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(checkpoint))));
     private static DurableAttemptEnvelope ReadEnvelope(string path)
     {
-        var envelope = JsonSerializer.Deserialize<DurableAttemptEnvelope>(File.ReadAllText(path))
+        var json = File.ReadAllText(path);
+        using (var document = JsonDocument.Parse(json)) RejectDuplicateProperties(document.RootElement);
+        var envelope = JsonSerializer.Deserialize<DurableAttemptEnvelope>(json, CheckpointReadOptions)
             ?? throw new InvalidDataException("Checkpoint vazio.");
         if (envelope.SchemaVersion != 1 || envelope.Receipt.SchemaVersion != 1)
             throw new InvalidDataException("Versão de checkpoint desconhecida.");
@@ -160,6 +166,20 @@ public sealed partial class KlaTestStore
             receipt.SnapshotId != checkpoint.Request.RecipePulse!.Invocation.Restoration.BeforeAssay.SnapshotId)
             throw new InvalidDataException("Identidade ou integridade do checkpoint inválida.");
         return envelope;
+    }
+    private static void RejectDuplicateProperties(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in value.EnumerateObject())
+            {
+                if (!names.Add(property.Name)) throw new InvalidDataException("Chave duplicada no checkpoint.");
+                RejectDuplicateProperties(property.Value);
+            }
+        }
+        else if (value.ValueKind == JsonValueKind.Array)
+            foreach (var item in value.EnumerateArray()) RejectDuplicateProperties(item);
     }
     private static void VerifyRawData(string directory, KlaAttemptPersistenceReceipt receipt)
     {

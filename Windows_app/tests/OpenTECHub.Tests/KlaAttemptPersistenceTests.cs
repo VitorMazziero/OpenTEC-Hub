@@ -35,6 +35,66 @@ public sealed class KlaAttemptPersistenceTests : IDisposable
     };
 
     [Fact]
+    public async Task DuplicateAndUnknownPropertiesCannotChangeCheckpointMeaning()
+    {
+        var prepared = Prepare();
+        var store = new KlaTestStore(_root);
+        await store.PersistRecipeAttemptAsync(prepared);
+        var path = Path.Combine(_root, "session", KlaTestFileContracts.RunsDirectoryName, "run",
+            $"receita-{prepared.Request.RequestId:N}-BeforeActuation.json");
+        var original = File.ReadAllText(path);
+        File.WriteAllText(path, "{\"SchemaVersion\":1," + original[1..]);
+        Assert.Throws<InvalidDataException>(() => store.ReadRecipeAttemptReceipt("session", "run", prepared.Request.RequestId,
+            KlaAttemptPersistencePhase.BeforeActuation));
+        File.WriteAllText(path, "{\"UnexpectedField\":1," + original[1..]);
+        Assert.Throws<System.Text.Json.JsonException>(() => store.ReadRecipeAttemptReceipt("session", "run", prepared.Request.RequestId,
+            KlaAttemptPersistencePhase.BeforeActuation));
+    }
+
+    [Fact]
+    public async Task ApiReconciliationPersistsReservedAttemptWithoutRedispatchOnReopen()
+    {
+        var prepared = Prepare();
+        var store = new KlaTestStore(_root);
+        await store.PersistRecipeAttemptAsync(prepared);
+        var journal = Path.Combine(_root, "api.json");
+        using (var api = new KlaAssayApi(journal, new NoExecution()))
+        {
+            api.Create(prepared.Request);
+            var reconciled = api.ReconcileRecipeAttempt(prepared.Request.RequestId, store, "session", "run");
+            Assert.Equal(KlaAssayApiState.Interrupted, reconciled.State);
+            Assert.NotNull(reconciled.StartedUtc);
+        }
+        using var reopened = new KlaAssayApi(journal, new NoExecution());
+        var resumed = await reopened.StartAsync(prepared.Request.RequestId);
+        Assert.Equal(KlaAssayApiState.Interrupted, resumed.State);
+        Assert.NotNull(resumed.StartedUtc);
+        File.WriteAllText(store.GetRunRawDataPath("session", "run"), "raw");
+        var receipt = await store.PersistRecipeAttemptAsync(Terminal(prepared));
+        var terminal = reopened.ReconcileRecipeAttempt(prepared.Request.RequestId, store, "session", "run");
+        Assert.Equal(KlaAssayApiState.Interrupted, terminal.State);
+        Assert.Equal(receipt.ReceiptId, terminal.Result!.PersistenceReceiptId);
+        Assert.False(terminal.MayContinueRecipe);
+    }
+
+    [Fact]
+    public async Task ASecondWriterCannotCommitWhileTheSessionCheckpointIsLocked()
+    {
+        var prepared = Prepare();
+        var directory = Path.Combine(_root, "session", KlaTestFileContracts.RunsDirectoryName, "run");
+        using var externalLease = new FileStream(Path.Combine(directory, "receita-checkpoint.lease"), FileMode.OpenOrCreate,
+            FileAccess.ReadWrite, FileShare.None);
+        await Assert.ThrowsAsync<IOException>(() => new KlaTestStore(_root).PersistRecipeAttemptAsync(prepared));
+    }
+
+    private sealed class NoExecution : IKlaAssayExecution
+    {
+        public bool IsValidated => false;
+        public Task<KlaAssayApiResult> ExecuteWithRecoveryAsync(KlaAssayApiRequest request, CancellationToken token)
+            => throw new InvalidOperationException("Reconciliation must never command equipment.");
+    }
+
+    [Fact]
     public async Task ReconciliationPreservesBudgetAndDoesNotInferPhysicalRecoveryAfterInterruption()
     {
         var prepared = Prepare();

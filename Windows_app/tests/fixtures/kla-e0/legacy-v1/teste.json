@@ -1,0 +1,67 @@
+﻿{
+  "schemaVersion": 1,
+  "testId": "bdd02d31-d17e-4f17-ba0f-ed79f2cf9ab4",
+  "name": "Ensaio Alivio Parada",
+  "folderName": "Ensaio Alivio Parada",
+  "status": "Interrupted",
+  "createdUtc": "2026-09-03T11:42:01.1739879+00:00",
+  "startedUtc": "2026-09-03T11:42:01.1666416+00:00",
+  "lastModifiedUtc": "2026-09-11T01:16:23.8762941+00:00",
+  "nature": "Abiotico",
+  "selectedNitrogenValve": "Valve1",
+  "selectedVentValve": "Valve2",
+  "settings": {
+    "doMinPercent": 10,
+    "doMaxPercent": 85,
+    "degassingAgitationRpm": 700,
+    "smoothingWindowSize": 5,
+    "maxDegassingTimeMinutes": 30,
+    "maxReoxygenationTimeMinutes": 60,
+    "postNitrogenMinimumDelaySeconds": 5,
+    "stabilityDerivativeSpanSeconds": 6,
+    "stabilityDerivativeThresholdPercentPerSecond": 0.05,
+    "stabilityRequiredSamples": 5,
+    "maxPostNitrogenStabilizationSeconds": 120,
+    "ventStabilizationEnabled": true,
+    "ventAgitationRpm": 50,
+    "ventFlowToleranceLpm": 0.2,
+    "ventFlowStableSamples": 3,
+    "maxVentStabilizationSeconds": 120,
+    "defaultCeqPercent": 100,
+    "autoAcceptRuns": false,
+    "autoLinearStartPercent": 45,
+    "autoLinearEndPercent": 70
+  },
+  "settingsRevision": 2,
+  "appVersion": "0.0.0.0",
+  "protocolVersion": "OpenTEC_ESP32_v7 \u002B flowmeter_OpenTECHUB_V05",
+  "algorithmVersion": "LogLinear_OLS_v2",
+  "conditions": [
+    {
+      "conditionId": "309d94f8-7a8a-4189-98c4-0628baa77bf9",
+      "orderIndex": 0,
+      "agitationRpm": 450,
+      "airflowLpm": 3,
+      "requestedReplicates": 1,
+      "completedReplicates": 0,
+      "acceptedReplicates": 0,
+      "rejectedReplicates": 0,
+      "origin": "Manual",
+      "status": "Pending"
+    }
+  ],
+  "runs": [
+    {
+      "runId": "8c04421a-08a8-493a-a13c-46bf514207de",
+      "conditionId": "309d94f8-7a8a-4189-98c4-0628baa77bf9",
+      "replicateNumber": 1,
+      "folderName": "N0450_Q03p00_Rep01",
+      "agitationRpm": 450,
+      "airflowLpm": 3,
+      "phase": "Reviewing",
+      "startedUtc": "2026-09-03T11:42:01.1666416+00:00"
+    }
+  ],
+  "interruptionReason": "Execu\u00E7\u00E3o anterior encerrada sem fechamento registrado.",
+  "fileHashes": {}
+}

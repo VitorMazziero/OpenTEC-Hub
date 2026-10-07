@@ -1,0 +1,17 @@
+{
+  "contractVersion": "OpenTecDeterministicKlaV1-E0.1",
+  "validatedUtc": "2026-10-06T22:56:22.6330537+00:00",
+  "testFilter": "KlaE0ReferenceTests | KlaAnalysisEngineTests | KlaTestStoreTests",
+  "total": 26,
+  "passed": 26,
+  "failed": 0,
+  "baselineSha256": "a4f076b02c3b53addf9799b919d7bb01c9616ab12b17bcad85ab69d8a688a5dd",
+  "contractSha256": "799f09ed60978d52ced2766663f0d574224b5371420dfebcf9652ba7fb0a1185",
+  "trxSha256": "67968393678a502583e915517d0a2d22cc67a57ff3e1315e5e39ca8c644c9d8f",
+  "fixtureHashesVerified": 19,
+  "analyticalTruthCasesVerified": 3,
+  "splitEntriesVerified": 92,
+  "applicationAndCalibrationSourcesUnchanged": true,
+  "operationalEnvelopeStatus": "pending-operator-input",
+  "bioticRelease": false
+}

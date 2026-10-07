@@ -1,0 +1,44 @@
+[
+  {
+    "id": "abiotic",
+    "path": "analytic-v2/abiotic",
+    "ceqPercent": 100.0,
+    "physicalSaturationPercent": 100.0,
+    "klaPerHour": 72.0,
+    "ourPercentPointsPerHour": 0.0,
+    "windowStartSeconds": 10.0,
+    "windowEndSeconds": 120.0,
+    "points": 101,
+    "expectedUsedPoints": 56,
+    "toleranceKlaPerHour": 1e-06,
+    "provenance": "analytic truth, ideal probe; biotic is an algebraic kernel fixture, not an executable biotic assay"
+  },
+  {
+    "id": "biotic-constant-our",
+    "path": "analytic-v2/biotic-constant-our",
+    "ceqPercent": 75.0,
+    "physicalSaturationPercent": 100.0,
+    "klaPerHour": 72.0,
+    "ourPercentPointsPerHour": 1800.0,
+    "windowStartSeconds": 10.0,
+    "windowEndSeconds": 120.0,
+    "points": 101,
+    "expectedUsedPoints": 56,
+    "toleranceKlaPerHour": 1e-06,
+    "provenance": "analytic truth, ideal probe; biotic is an algebraic kernel fixture, not an executable biotic assay"
+  },
+  {
+    "id": "shifted-time",
+    "path": "analytic-v2/shifted-time",
+    "ceqPercent": 100.0,
+    "physicalSaturationPercent": 100.0,
+    "klaPerHour": 72.0,
+    "ourPercentPointsPerHour": 0.0,
+    "windowStartSeconds": 133.0,
+    "windowEndSeconds": 243.0,
+    "points": 101,
+    "expectedUsedPoints": 56,
+    "toleranceKlaPerHour": 1e-06,
+    "provenance": "analytic truth, ideal probe; biotic is an algebraic kernel fixture, not an executable biotic assay"
+  }
+]

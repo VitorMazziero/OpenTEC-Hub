@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "name": "shifted-time",
+  "folderName": "shifted-time",
+  "status": "Completed",
+  "nature": "Abiotico",
+  "appVersion": "E0-fixture",
+  "algorithmVersion": "LogLinear_OLS_v2"
+}

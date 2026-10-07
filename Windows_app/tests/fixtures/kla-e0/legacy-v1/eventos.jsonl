@@ -1,0 +1,25 @@
+﻿{
+  "timestampUtc": "2026-09-03T11:42:01.1666416+00:00",
+  "eventType": "TestStarted",
+  "message": "Teste \u0027Ensaio Alivio Parada\u0027 iniciado."
+}
+{
+  "timestampUtc": "2026-09-03T11:42:01.1666416+00:00",
+  "eventType": "RunStarted",
+  "message": "Iniciando corrida N0450_Q03p00_Rep01 (N=450 rpm, Q=3 L/min, Rep=1)."
+}
+{
+  "timestampUtc": "2026-09-03T11:42:01.1666416+00:00",
+  "eventType": "VentOpened",
+  "message": "Al\u00EDvio aberto e confirmado. O g\u00E1s sai pelo al\u00EDvio at\u00E9 a vaz\u00E3o assentar em 3,00 \u00B1 0,20 L/min."
+}
+{
+  "timestampUtc": "2026-09-03T11:42:01.1666416+00:00",
+  "eventType": "RunStopped",
+  "message": "Corrida interrompida para revis\u00E3o: Parada durante o al\u00EDvio"
+}
+{
+  "timestampUtc": "2026-09-11T01:16:23.873625+00:00",
+  "eventType": "SettingsUpdated",
+  "message": "Limiares atualizados: DOMin=10,0%, DOMax=85,0%."
+}

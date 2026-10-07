@@ -1,0 +1,45 @@
+{
+  "status": "pending-operator-input",
+  "bioticExecutionApproved": false,
+  "settingsSourceSha256": "bb459b2a43fb26f5654db416d5e760feea3a6ba006c3b00e4757dd50adacc84c",
+  "observedSetpointsNotExperimentalApproval": {
+    "TemperatureCelsius": 0,
+    "TemperatureEnabled": false,
+    "MotorRpm": 0,
+    "MotorEnabled": false,
+    "OxygenPercent": 0,
+    "OxygenEnabled": false,
+    "FlowLitresPerMinute": 0.5,
+    "MaxFlowLitresPerMinute": 50,
+    "FlowEnabled": true,
+    "PressureKilopascal": 0,
+    "PressureEnabled": false
+  },
+  "observedOurSettingsNotScientificCalibration": {
+    "OxygenSaturationMmolPerL": 0.21,
+    "SetpointTolerancePercentPoints": 5,
+    "RateLimitPointsPerHour": 10,
+    "GateTolerancePercentPoints": 2,
+    "RateWindowSeconds": 900
+  },
+  "approved": {
+    "workingVolumeL": null,
+    "temperatureC": null,
+    "agitationMinRpm": null,
+    "agitationMaxRpm": null,
+    "airflowMinLpm": null,
+    "airflowMaxLpm": null,
+    "operatingDoPercent": null,
+    "minimumDoPercent": null,
+    "maximumDoDropPoints": null,
+    "maximumGasOffSeconds": null,
+    "maximumRecoverySeconds": null,
+    "minimumInterAssaySeconds": null,
+    "probeModel": null,
+    "probeTauSeconds": null,
+    "sampleIntervalSeconds": null,
+    "maximumOxygenSampleAgeSeconds": null,
+    "approvedBy": null,
+    "approvedUtc": null
+  }
+}

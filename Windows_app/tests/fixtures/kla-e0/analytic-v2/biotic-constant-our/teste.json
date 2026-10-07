@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "name": "biotic-constant-our",
+  "folderName": "biotic-constant-our",
+  "status": "Completed",
+  "nature": "Abiotico",
+  "appVersion": "E0-fixture",
+  "algorithmVersion": "LogLinear_OLS_v2"
+}

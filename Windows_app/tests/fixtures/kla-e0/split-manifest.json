@@ -1,0 +1,646 @@
+[
+  {
+    "curveId": "ALR5L-01",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-02",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-03",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-04",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-05",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-06",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-07",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-08",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-09",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-10",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALR5L-13",
+    "biology": "abiotic",
+    "group": "ALR5L:ALR5",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-01",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-02",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-03",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-04",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-05",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-06",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-07",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-08",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-09",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-10",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-11",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRACR-12",
+    "biology": "abiotic",
+    "group": "ALRACR:ALRA",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRFIL-01",
+    "biology": "abiotic",
+    "group": "ALRFIL:ALRF",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRFIL-02",
+    "biology": "abiotic",
+    "group": "ALRFIL:ALRF",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "ALRFIL-03",
+    "biology": "abiotic",
+    "group": "ALRFIL:ALRF",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-01",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-02",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-03",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-04",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-05",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-06",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-07",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-08",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-09",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-10",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-11",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-12",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-13",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-14",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-15",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-16",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-17",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-18",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-19",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-20",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-21",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-22",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-23",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-24",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-25",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-26",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-27",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-28",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-29",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-30",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-31",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-32",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-33",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-34",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-35",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-36",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "STR20L-37",
+    "biology": "abiotic",
+    "group": "STR20L:STR",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-01",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-02",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-03",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-04",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-05",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-06",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-07",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-08",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-09",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-10",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-11",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "TRANSFO2-12",
+    "biology": "abiotic",
+    "group": "TRANSFO2:ABI",
+    "role": "reserved-not-evaluated",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-02",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-03",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-04",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-05",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-06",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-07",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-08",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-09",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-10",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-11",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-12",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-13",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-14",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-15",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-16",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-17",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  },
+  {
+    "curveId": "SC0708-18",
+    "biology": "biotic",
+    "group": "SC0708:B1",
+    "role": "development",
+    "reason": "group-level split; new cultivations required for independent biotic evaluation"
+  }
+]

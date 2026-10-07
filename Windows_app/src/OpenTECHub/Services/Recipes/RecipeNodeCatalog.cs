@@ -1,4 +1,5 @@
 using OpenTECHub.Protocol;
+using OpenTECHub.Services.KlaTesting;
 
 namespace OpenTECHub.Services.Recipes;
 
@@ -212,6 +213,47 @@ public static class RecipeNodeCatalog
 
     private static IReadOnlyList<RecipeNodeDefinition> Build() =>
     [
+        new()
+        {
+            Type = NodeType.KlaAssay, Title = "Determinar kLa", Category = BlockCategory.Actions, Ports = InOut,
+            Parameters =
+            [
+                EnumP("protocol", "Protocolo", nameof(KlaAssayProtocol.Abiotic),
+                    [new(nameof(KlaAssayProtocol.Abiotic), "Abiótico"), new(nameof(KlaAssayProtocol.Biotic), "Biótico")]),
+                EnumP("conditionsMode", "Condições", nameof(RecipeKlaConditionMode.SingleAtCurrentCondition),
+                    [new(nameof(RecipeKlaConditionMode.SingleAtCurrentCondition), "Único — condições atuais do cultivo"),
+                     new(nameof(RecipeKlaConditionMode.SingleExplicit), "Único — definir N e Q"),
+                     new(nameof(RecipeKlaConditionMode.Multiple), "Múltiplos — matriz de condições")]),
+                Num("agitationRpm", "Agitação", 300, min: 15, max: 1000, unit: "rpm", visibleWhen: "conditionsMode=SingleExplicit"),
+                Num("airflowLpm", "Vazão de ar", 2, min: 0.001, unit: "L/min", visibleWhen: "conditionsMode=SingleExplicit"),
+                ListP("conditions", "Condições e réplicas",
+                    [Num("agitationRpm", "Agitação", 300, min: 15, max: 1000, unit: "rpm"),
+                     Num("airflowLpm", "Vazão de ar", 2, min: 0.001, unit: "L/min"),
+                     Int("replicates", "Réplicas", 1, min: 1)], "conditionsMode=Multiple"),
+                Text("profileId", "Perfil operacional qualificado", ""),
+                Text("profileVersion", "Versão do perfil", ""),
+                Bool("requireValidOur", "Exigir OUR válido para aceitar a réplica", false, visibleWhen: "protocol=Biotic"),
+                Int("maximumAttemptsPerReplicate", "Máximo de tentativas por réplica", 1, min: 1),
+                Int("maximumAttemptsPerCultivation", "Máximo de tentativas no cultivo", 1, min: 1),
+                Num("minimumIntervalSeconds", "Intervalo mínimo entre ensaios", 0, min: 0, unit: "s"),
+                Num("maximumBlockSeconds", "Prazo total do bloco", 0, min: 0, unit: "s"),
+                Num("maximumGasOffSeconds", "Exposição máxima por tentativa", 0, min: 0, unit: "s"),
+                Num("maximumCultivationGasOffSeconds", "Exposição máxima acumulada no cultivo", 0, min: 0, unit: "s"),
+                EnumP("failurePolicy", "Se o resultado for inconclusivo", nameof(KlaRecipeFailurePolicy.StopAfterRestoration),
+                    [new(nameof(KlaRecipeFailurePolicy.StopAfterRestoration), "Encerrar após restaurar"),
+                     new(nameof(KlaRecipeFailurePolicy.ContinueWithoutResultAfterRestoration), "Continuar sem resultado após restaurar")]),
+            ]
+        },
+        new()
+        {
+            Type = NodeType.Periodic, Title = "Periodicidade", Category = BlockCategory.Triggers, Ports = InOut,
+            Parameters =
+            [Num("initialDelay", "Primeiro disparo após", 2, min: 0),
+             EnumP("initialDelayUnit", "Unidade do primeiro disparo", nameof(TimeUnit.Hours), TimeUnits),
+             Num("period", "Período", 4, min: 0),
+             EnumP("periodUnit", "Unidade do período", nameof(TimeUnit.Hours), TimeUnits),
+             Text("coordinatedCascadeId", "Controle de O₂ associado", "")]
+        },
         // ── Fluxo ─────────────────────────────────────────────────────────────
         new()
         {
@@ -588,8 +630,8 @@ public static class RecipeNodeCatalog
             VisibleWhen = visibleWhen,
         };
 
-    private static RecipeParameter Bool(string key, string label, bool def, string? group = null)
-        => new() { Key = key, Label = label, Kind = ParameterKind.Bool, Default = def, Group = group };
+    private static RecipeParameter Bool(string key, string label, bool def, string? group = null, string? visibleWhen = null)
+        => new() { Key = key, Label = label, Kind = ParameterKind.Bool, Default = def, Group = group, VisibleWhen = visibleWhen };
 
     private static RecipeParameter Text(string key, string label, string def)
         => new() { Key = key, Label = label, Kind = ParameterKind.Text, Default = def };
@@ -609,6 +651,6 @@ public static class RecipeNodeCatalog
             VisibleWhen = visibleWhen,
         };
 
-    private static RecipeParameter ListP(string key, string label, RecipeParameter[] itemSchema)
-        => new() { Key = key, Label = label, Kind = ParameterKind.List, ItemSchema = itemSchema };
+    private static RecipeParameter ListP(string key, string label, RecipeParameter[] itemSchema, string? visibleWhen = null)
+        => new() { Key = key, Label = label, Kind = ParameterKind.List, ItemSchema = itemSchema, VisibleWhen = visibleWhen };
 }

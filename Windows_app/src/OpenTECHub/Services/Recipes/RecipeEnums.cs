@@ -89,7 +89,15 @@ public enum NodeType
 
     /// <summary>Resets the module's process variables (<c>resetVariables:1</c>). Confirms first.</summary>
     ResetVariables,
+
+    /// <summary>Unattended determination over the common kLa runner and store.</summary>
+    KlaAssay,
+
+    /// <summary>Monotonic periodic trigger; missed slots are skipped.</summary>
+    Periodic,
 }
+
+public enum RecipeKlaConditionMode { SingleAtCurrentCondition, SingleExplicit, Multiple }
 
 /// <summary>Where a node is in its execution lifecycle. Mirrors ReceitasOpenTEC's <c>NodeState</c>.</summary>
 public enum NodeState

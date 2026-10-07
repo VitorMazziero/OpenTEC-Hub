@@ -15,9 +15,8 @@ public sealed class RecipeDomainTests
     [Fact]
     public void Catalog_declares_every_block_type_exactly_once()
     {
-        // Twenty-one: the original nineteen plus the biomass sensor and the flask agitator, which
-        // gained recipe blocks once their devices could confirm what they were told.
-        Assert.Equal(21, RecipeNodeCatalog.All.Count);
+        // Original blocks, external devices, unattended kLa and periodic scheduling.
+        Assert.Equal(23, RecipeNodeCatalog.All.Count);
         Assert.Equal(Enum.GetValues<NodeType>().Length, RecipeNodeCatalog.All.Count);
 
         foreach (var type in Enum.GetValues<NodeType>())

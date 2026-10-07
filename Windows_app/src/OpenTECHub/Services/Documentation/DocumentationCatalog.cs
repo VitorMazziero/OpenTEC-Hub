@@ -246,6 +246,7 @@ public static class DocumentationCatalog
                     F("Fim", "Marca uma saída concluída com sucesso."),
                 ]),
                 new DocumentationSection("Gatilhos — etapas que esperam", [
+                    F("Periodicidade", "Define o primeiro disparo e o período dos próximos ensaios. Por exemplo, 2 h e 4 h correspondem a 2, 6 e 10 h. Disparos perdidos durante pausa ou execução não se acumulam. A configuração pode ser salva; a partida aguarda integração operacional qualificada."),
                     F("Temporizador", "Espera uma duração em segundos, minutos ou horas."),
                     F("Monitorar Variável", "Espera uma leitura satisfazer uma condição. Defina variável, comparação, valor alvo, frequência de verificação, confirmações consecutivas e tempo limite."),
                     F("Monitorar Variável · no laço do Controle de O₂", "Nesse uso, a leitura participa da decisão de cada repetição do controle, em vez de ser uma etapa separada."),
@@ -258,6 +259,7 @@ public static class DocumentationCatalog
                     F("Controle de O₂", "Mantém o oxigênio dissolvido próximo do alvo enquanto a receita continua dentro desse bloco."),
                 ]),
                 new DocumentationSection("Ações", [
+                    F("Determinar kLa", "Prepara um teste abiótico ou biótico, nas condições atuais do cultivo, em uma condição informada ou em uma matriz. Os campos incluem perfil, limites de tentativas e exposição, e política para resultado inconclusivo. A configuração pode ser salva; a execução autônoma ainda está em integração. No protocolo biótico, OUR tem requisito próprio."),
                     F("Definir Ponto de Ajuste", "Altera uma variável para o valor informado. Para pH, também pode definir Histerese."),
                     F("Múltiplos Pontos de Ajuste", "Altera vários alvos juntos, útil quando uma nova condição precisa entrar de uma vez."),
                     F("Controle de Malha", "Liga ou desliga uma malha de controle."),

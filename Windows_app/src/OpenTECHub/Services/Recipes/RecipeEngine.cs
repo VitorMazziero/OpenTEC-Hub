@@ -102,6 +102,12 @@ public sealed partial class RecipeEngine : IRecipeEngine
             return false;
         }
 
+        if (recipe.Nodes.Any(n => n.Type is NodeType.KlaAssay or NodeType.Periodic))
+        {
+            reason = "Os blocos autônomos requerem integração e perfil operacional qualificado antes da execução.";
+            return false;
+        }
+
         if (_device.State is not ConnectionState.Connected)
         {
             reason = "Conecte-se ao equipamento antes de iniciar a receita.";
@@ -200,27 +206,21 @@ public sealed partial class RecipeEngine : IRecipeEngine
 
     public void Pause()
     {
-        if (State is not RecipeRunState.Running)
+        if (!TransitionPauseState(RecipeRunState.Running, RecipeRunState.Paused, openGate: false))
         {
             return;
         }
 
-        _pauseGate.Reset();
-        PausePeriodicGroups(true);
-        SetState(RecipeRunState.Paused);
         Log(RecipeLogSeverity.Info, "Receita pausada.");
     }
 
     public void Resume()
     {
-        if (State is not RecipeRunState.Paused)
+        if (!TransitionPauseState(RecipeRunState.Paused, RecipeRunState.Running, openGate: true))
         {
             return;
         }
 
-        _pauseGate.Set();
-        SetState(RecipeRunState.Running);
-        PausePeriodicGroups(false);
         Log(RecipeLogSeverity.Info, "Receita retomada.");
     }
 

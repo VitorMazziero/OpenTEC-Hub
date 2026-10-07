@@ -54,18 +54,27 @@ public sealed partial class RecipeEngine
 
     private void SetState(RecipeRunState state, string? reason = null)
     {
-        if (reason is not null)
+        lock (_lock)
         {
-            StatusReason = reason;
+            if (reason is not null) StatusReason = reason;
+            if (State == state) return;
+            State = state;
         }
-
-        if (State == state)
-        {
-            return;
-        }
-
-        State = state;
         StateChanged?.Invoke();
+    }
+
+    private bool TransitionPauseState(RecipeRunState expected, RecipeRunState next, bool openGate)
+    {
+        lock (_lock)
+        {
+            if (State != expected) return false;
+            // Completion uses the same lock: the awakened flow cannot be overwritten by Resume.
+            if (openGate) _pauseGate.Set(); else _pauseGate.Reset();
+            State = next;
+            PausePeriodicGroups(!openGate);
+        }
+        StateChanged?.Invoke();
+        return true;
     }
 
     public NodeState NodeStateOf(string nodeId)

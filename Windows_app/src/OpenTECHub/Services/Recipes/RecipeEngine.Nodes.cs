@@ -11,6 +11,9 @@ public sealed partial class RecipeEngine
     {
         switch (node.Type)
         {
+            case NodeType.KlaAssay:
+            case NodeType.Periodic:
+                throw new InvalidOperationException("Execução autônoma ainda requer o provedor qualificado dos blocos.");
             case NodeType.Start:
             case NodeType.End:
             case NodeType.And:

@@ -277,6 +277,18 @@ public static class RecipeValidator
     {
         switch (node.Type)
         {
+            case NodeType.KlaAssay:
+            case NodeType.Periodic:
+                try
+                {
+                    if (node.Type == NodeType.KlaAssay) RecipeAutonomousBlockConfiguration.ReadKla(node);
+                    else RecipeAutonomousBlockConfiguration.ReadPeriodic(node);
+                }
+                catch (Exception error) when (error is ArgumentException or InvalidOperationException or FormatException)
+                {
+                    findings.Add(Error(error.Message, node.Id));
+                }
+                break;
             case NodeType.Timer:
                 RequireFinite(node, "duracao", "A duração", findings, allowNegative: false);
                 break;

@@ -1,7 +1,7 @@
 # Receitas: determinação autônoma de kLa e rampas lineares
 
-Data: 07/10/2026. Revisão após chegada de E5/E6/E7. Base inspecionada: `main`, HEAD `c51253f`, dois commits à frente de `origin/main`, mais alterações locais E5/E6/E7 ainda não consolidadas em commit neste checkout.
-Estado: R0 implementado; integração autônoma ainda pendente. Esta revisão é um plano de execução baseado nos arquivos locais, não uma liberação de atuação ou qualificação de bancada. Recibos E7 de outras revisões não identificam automaticamente este conjunto de fontes.
+Data: 07/10/2026. Segunda revisão após chegada de E5/E6/E7. Base inspecionada: `main`, HEAD `237c254`, com base E5/E6/E7 consolidada e entregas R0.2/R1.1/R1.2. Há imagens/evidências locais modificadas ou não rastreadas, inclusive duplicatas de sincronização; não as incorporar nem excluir automaticamente.
+Estado: R0.1, R0.2, R1.1 e R1.2 entregues para software conforme [registro de execução](EXECUCAO_RECEITAS.md). R1.3 e integrações seguintes pendentes. Esta revisão não libera atuação ou qualificação de bancada. Recibos E7 de outras revisões não identificam automaticamente este conjunto de fontes.
 
 ## 1. Situação atual e escopo
 
@@ -22,7 +22,9 @@ Outros pontos relevantes verificados:
 
 Este plano integra E5/E6 com três blocos: Determinar kLa, Periodicidade e Rampa linear, preservando runner, núcleo científico e armazenamento comuns. A API é interna ao aplicativo; servidor HTTP não é requisito.
 
-### 1.1 Auditoria da revisão E5/E6/E7
+### 1.1 Auditoria inicial da revisão E5/E6/E7 — histórico
+
+A tabela abaixo documenta a inspeção em `c51253f`. Não representa todos os problemas ainda abertos em `237c254`; a reconciliação atual está na seção 1.2.
 
 Prioridades abaixo referem-se à habilitação autônoma. São incompatibilidades verificadas com este plano, não evidência de atuação insegura já habilitada: o caminho de receitas continua fechado.
 
@@ -43,6 +45,22 @@ Prioridades abaixo referem-se à habilitação autônoma. São incompatibilidade
 Verificação desta revisão: `dotnet test Windows_app/tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj -p:SelfContained=false --no-restore --filter "FullyQualifiedName~RecipeExecutionContractTests|FullyQualifiedName~RecipeCascadeSuspensionGateTests|FullyQualifiedName~KlaAssayApiTests|FullyQualifiedName~KlaSequenceTests" -v quiet`: **55 aprovados, 0 falhas, 0 ignorados**. A compilação atual passou; os erros transitórios de campos ausentes durante a chegada dos arquivos não permanecem neste recorte. Não foi reexecutada a regressão completa E7 nesta auditoria.
 
 Evidência E7 consultada: [execução e limites](kla-e7/EXECUCAO_E7.md). O recibo relata 397 verificações distintas em execuções diferentes, builds candidatas vinculadas a outras revisões e bancada pendente; não somar esse número aos 55 testes atuais nem apresentá-lo como aprovação integral deste checkout.
+
+### 1.2 Reconciliação com o checkout atual e riscos restantes
+
+Inspeção estática em `237c254`: os contratos E6 agora exigem retorno confirmado, vínculo ao snapshot e recibo para receitas; distinguem `PersistenceFailed` e exigem capacidades por instalação/protocolo. A cessão usa reservas e barreira de transporte, e a cascata já suspende Update+Dispatch e retoma somente com amostra nova. Não repetir essas implementações. A regressão completa de R1.2 registrada no recibo teve 1996 testes aprovados; esta atualização documental não reexecutou a suíte.
+
+| Prioridade | Situação atual verificada | Execução necessária |
+|---|---|---|
+| Bloqueante | `KlaTestRunner` ainda chama `Release(true, 0, 0, ...)` na revisão/terminal abióticos; coordenador do runner não usa a reserva de receita | R1.3: introduzir contexto de atuação reservado no runner comum, sem alterar o fluxo manual; devolver snapshot completo, não valores medidos ou zero |
+| Bloqueante | `RecipeEngine.Safety.SafeStopAndRelease` apenas libera `Recipe`; não aguarda recuperação de ensaio nem confirma parada | R1.3 define recuperação; R4.1 integra encerramento de todo o grupo. Nenhum sucesso/avanço antes da conclusão desse caminho |
+| Alta | Snapshot R0 possui JSON de comandos, mas falta captura de produção do estado desejado completo, eco e medição separados | R1.3: inventário dos campos de motor/gás/controle, ledger de comandos autorizados e captura após suspensão+drenagem; ausência de evidência bloqueia modalidade que a exige |
+| Alta | Revogar a reserva invalida tokens; ainda é necessário provar que comandos já enfileirados não religam saídas após emergência | R1.3: reconciliar fila de transporte e prioridade de segurança; testar corrida entre enqueue, drenagem, transferência e emergência |
+| Alta | Recibo exigido no contrato ainda não é produzido pelo armazenamento de tentativas; `WriteFailed` não equivale a barreira durável | R3.1: recibos reais, falhas acumuladas, persistência pré-atuação e reconciliação após queda |
+| Alta | Não há adaptador de produção E6 sobre o runner nem orquestração automática completa da matriz | R2.1/R2.2: serviço sem diálogos, decisão automática com autoria própria e orçamento persistido |
+| Alta | Fim da cascata durante suspensão é observado, mas ainda falta vínculo ao cancelamento/recuperação do ensaio paralelo | R4.1: grupo com encerramento aguardável, recuperação independente do token cancelado e agenda monotônica |
+| Integração | Catálogo/executor/editor de kLa, periodicidade e rampas continuam pendentes | R4.2/R5: adicionar somente após serviços e caminhos de falha comprovados |
+| Liberação | Evidência simulada não confirma retorno físico; bloqueio biótico E7 permanece aplicável | R6.2: qualificação por instalação, protocolo e perfil; manter produção fechada sem evidência correspondente |
 
 ## 2. Decisões de produto
 
@@ -226,6 +244,8 @@ Ordem executável revisada: **R0.1 → R0.2 → R1.1 → R1.2 → R1.3 → R3.1 
 
 ### 5.1 Etapas explícitas de execução
 
+As quatro primeiras etapas abaixo são entregas registradas, não tarefas a repetir. A próxima execução é R1.3. Cada etapa subsequente depende do aceite da anterior; uma falha de recuperação ou escrita nunca autoriza seguir para a próxima tentativa.
+
 **R0.1 — Consolidar a base recebida (primeira etapa).** Inventariar alterações E5/E6/E7, identificar arquivos de conflito/screenshot duplicados sem excluir evidências automaticamente e consolidar fontes, contratos e testes correspondentes. Conferir vínculos dos recibos aos commits/builds de origem. Preservar as correções de quadros em `RecipeEngine.cs`, `RecipeEngine.Cascade.cs`, `TestClock.cs` e testes associados. Executar regressão de E5/E6, contratos R0, persistência e receitas; registrar baseline com commit e estado local. Aceite: checkout reproduzível, dependências presentes e falhas residuais discriminadas. Não usar `git add` global para misturar material paralelo.
 
 **R0.2 — Conciliar contratos R0/E6 e migração.** Alterar `KlaRecipeContracts.cs`, `RecipeExecutionContracts.cs`, `KlaAssayApiContracts.cs` e serializadores conforme necessário; adicionar mapeador de invocação para pulsos. Definir versão e migração do diário E6, autoria automática, recibos, distinção de falha de persistência/retorno e vínculo ao snapshot. Manter leitura de sessões antigas sem inventar confirmações. Definir contrato de capacidades qualificadas por protocolo/instalação no lugar de depender apenas de um booleano global. Aceite: round-trip/migração, chave repetida com payload diferente recusada, Multiple decomposto em Single com IDs estáveis e nenhuma atuação nesta etapa.
@@ -254,12 +274,34 @@ Ordem executável revisada: **R0.1 → R0.2 → R1.1 → R1.2 → R1.3 → R3.1 
 
 **R6.2 — Qualificação operacional e habilitação restrita.** Executar roteiro de bancada de E7 ampliado para cessão/retomada da receita, protocolos habilitáveis, exposição, falhas e persistência. Registrar instalação, dispositivos/firmware, calibrações, perfil e evidência de cada retorno. Validar também rampas em rotas reais. Habilitar apenas combinações comprovadas; `KlaActuationRelease` continua bloqueando biótico físico até satisfazer critérios específicos. Aceite: confirmação física e autorização operacional documentadas; se não disponíveis, entrega de software fica explicitamente concluída apenas no ambiente simulado e R6.2 permanece pendente.
 
-### 5.2 Estado de partida e critério de conclusão
+### 5.2 Sequência operacional detalhada para as próximas entregas
+
+**R1.3, executar nesta ordem:**
+
+1. Inventariar cada campo comandado e sua confirmação disponível: rota/modo do motor, referência N, vazão Q, válvulas/desvio de gás e configurações dos controladores. Definir estado desejado, eco confirmado e leitura como registros distintos, com origem e timestamp. Não deduzir referência da leitura instantânea.
+2. Estender `CommandArbiter` e snapshot/serialização para manter e capturar o estado desejado completo dos recursos reservados. Capturar após suspensão e drenagem; validar proprietário, execução, geração e cobertura dos campos. Registrar estado do controlador suspenso sem recriar uma instância que perca sua configuração.
+3. Introduzir atuação reservada em `KlaAssayCoordinator`, runner e coordenador de rotas. Todas as escritas do ensaio passam pela autoridade vigente; o fluxo de receita não executa `Claim/Release` comum nem transição para Manual. Manter comportamento manual separado e testado.
+4. Implementar recuperação comum aos dois protocolos, com prazo próprio: aplicar rotas/modos em ordem apropriada, restaurar referências/configurações e aguardar ecos/amostras novas e estabilidade exigida pelo perfil. Cancelar aquisição não cancela recuperação. Não religar se a autoridade foi revogada por emergência.
+5. Resolver comandos pendentes na parada de segurança, incluindo frames ordenados já enfileirados. Provar que nenhum frame antigo pode executar depois da parada e reativar motor/gás; não basta testar recusa de um dispatch novo com token vencido.
+6. Produzir resultado de recuperação vinculado ao snapshot e às evidências de confirmação. A devolução efetiva à receita depende também do recibo durável de R3.1; até lá testar com armazenamento controlado, sem fabricar recibo em produção. Falha mantém produtores suspensos e termina explicitamente.
+7. Validar ambos os protocolos nas fases de preparação, remoção, aquisição e retorno: sucesso, cancelamento, timeout, telemetria obsoleta, desconexão e emergência. Incluir retorno a OFF/zero quando esse era o estado anterior, rotas alternativas e término da cascata durante o ensaio. Emitir recibo e commit isolado.
+
+**R3.1:** primeiro criar barreira durável que propague erros anteriores; depois persistir request/snapshot/reserva antes da atuação e resultado/decisão antes da devolução; por fim testar queda em cada fronteira entre diário E6 e sessão comum. Reinício não retoma perturbação automaticamente nem reinicia orçamento. Aceite inclui recibo real consumido pela devolução R1.3.
+
+**R2.1 → R2.2:** primeiro ligar um pulso ao runner comum e observar seu término, recuperação e persistência; depois adicionar fila de condições/réplicas, seleção da primeira tentativa aceitável e repetição limitada. Espera entre tentativas ocorre com cascata retomada. Registrar capacidades apenas para o ambiente comprovado.
+
+**R4.1 → R4.2:** primeiro implementar duração do grupo paralelo e encerramento aguardável em sucesso/erro/pausa/cancelamento; depois agenda monotônica 2/6/10 h, slots descartados e IDs estáveis; finalmente expor os blocos, campos e resultados no editor. O fim da cascata cancela novos disparos, recupera o ensaio em curso e só então encerra o grupo.
+
+**R5.1 → R5.2:** primeiro implementar interpolação e destinos comuns, incluindo referência da cascata distinta de monitoramento; depois reservas, pausa do tempo ativo, confirmação final e editor. Validar cada trajetória inteira antes de comandar, inclusive intervalos não representáveis entre OFF e operação.
+
+**R6.1 → R6.2:** executar regressão integrada e exemplos no simulador; verificar UI e gerar recibo da revisão final. A habilitação física é uma entrega posterior dependente da bancada, com evidência de instalação/protocolo/perfil e recuperação. Software aprovado não encerra R6.2.
+
+### 5.3 Estado de partida e critério de conclusão
 
 - R0 original e extensão de periodicidade/handoff: commits `b8b5f2e` e `c51253f`; seus contratos não provam execução autônoma.
-- Gate de suspensão e testes: protótipo local não integrado, incluído nos 55 testes aprovados desta auditoria; não marcar R1 concluído.
+- R0.1/R0.2/R1.1/R1.2: commits `be213dc`, `5669f3a`, `52cee5a`, `237c254`; gate integrado ao engine/PID. R1 completo permanece pendente de R1.3.
 - E5/E6/E7: reutilizar o que foi entregue; não refazer núcleo/diário/visualizador nem remover bloqueios para fazer o exemplo funcionar.
-- Próxima alteração de código: R0.1/R0.2, seguida da autoridade de recursos R1.1. Não iniciar pela conexão dos blocos ao catálogo.
+- Próxima alteração de código: R1.3, seguida de R3.1 e do adaptador R2.1. Não iniciar pela conexão dos blocos ao catálogo.
 - Pacote só termina com alterações, testes relevantes e recibo; aprovação simulada não fecha bancada. Rever este plano se o checkout receber nova alteração concorrente antes da etapa seguinte.
 
 Arquivos existentes envolvidos: `Services/KlaTesting/{IKlaTestRunner,KlaTestRunner,KlaTestRunner.Biotic,KlaAssayCoordinator,KlaSessionModels,IKlaTestStore,KlaTestStore}.cs`; `Services/Recipes/{RecipeEnums,RecipeNodeCatalog,RecipeSchema,RecipeValidator,RecipeSerializer,RecipeEngine,RecipeEngine.Flow,RecipeEngine.State,RecipeEngine.Safety,RecipeEngine.Actuation,RecipeEngine.Cascade}.cs`; editor/visualizadores de receitas e kLa. Novos serviços devem permanecer fora de ViewModels e compartilhar o núcleo científico atual.

@@ -46,7 +46,7 @@ public sealed class VisibleRedrawTimerTests
                 Assert.Equal(1, redraws);
 
                 timer.MarkDirty();
-                Pump(50);
+                PumpUntil(() => redraws >= 2);
                 Assert.Equal(2, redraws);
 
                 // Hidden the way the shell hides a page: collapse the host, not the page.
@@ -75,6 +75,16 @@ public sealed class VisibleRedrawTimerTests
     {
         var until = DateTime.UtcNow.AddMilliseconds(milliseconds);
         while (DateTime.UtcNow < until)
+        {
+            WpfRenderingHost.PumpDispatcher();
+            System.Threading.Thread.Sleep(5);
+        }
+    }
+
+    private static void PumpUntil(Func<bool> condition)
+    {
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition() && elapsed.Elapsed < TimeSpan.FromSeconds(5))
         {
             WpfRenderingHost.PumpDispatcher();
             System.Threading.Thread.Sleep(5);

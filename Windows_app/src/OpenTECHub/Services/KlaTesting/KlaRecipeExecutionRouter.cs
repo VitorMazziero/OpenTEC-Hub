@@ -4,13 +4,28 @@ using System.Text.Json;
 namespace OpenTECHub.Services.KlaTesting;
 
 /// <summary>One journal can dispatch successive reserved scopes without resetting cultivation budgets.</summary>
-public sealed class KlaRecipeExecutionRouter(KlaAssayExecutionCapabilities capabilities) : IKlaAssayExecution
+public sealed class KlaRecipeExecutionRouter : IKlaAssayExecution
 {
+    private readonly KlaRecipeOperationalProfileRegistry? _profiles;
     private readonly object _gate = new();
     private readonly Dictionary<Guid, Scope> _scopes = new();
     private bool _running;
-    public KlaAssayExecutionCapabilities Capabilities { get; } = capabilities;
+    public KlaAssayExecutionCapabilities Capabilities { get; }
     public bool IsValidated => Capabilities.IsIsolatedSimulation;
+    public KlaRecipeExecutionRouter(KlaAssayExecutionCapabilities capabilities) => Capabilities = capabilities;
+    public KlaRecipeExecutionRouter(KlaRecipeOperationalProfileRegistry profiles)
+    {
+        _profiles = profiles;
+        Capabilities = new() { InstallationId = profiles.InstallationId, ProfileId = "operational-profile-registry",
+            ProfileVersion = "1", Protocols = [KlaAssayProtocol.Abiotic, KlaAssayProtocol.Biotic],
+            EvidenceId = "host-routing-only", IsIsolatedSimulation = profiles.IsIsolatedEnvironment };
+    }
+    public void EnsureAllows(KlaAssayApiRequest request)
+    {
+        var allowed = _profiles is null ? Capabilities : _profiles.ResolveCapabilities(
+            request.RecipePulse?.Invocation ?? throw new InvalidOperationException("Roteador de perfis exige contexto de receita."));
+        allowed.EnsureAllows(request);
+    }
     private sealed record Scope(string Fingerprint, IKlaAssayExecution Execution)
     {
         public bool Started { get; set; }
@@ -21,7 +36,10 @@ public sealed class KlaRecipeExecutionRouter(KlaAssayExecutionCapabilities capab
         request.Validate();
         if (!IsValidated || !execution.IsValidated || request.RecipePulse is null || execution.Capabilities is null)
             throw new InvalidOperationException("Escopo de receita sem capacidades isoladas validadas.");
-        Capabilities.EnsureAllows(request); execution.Capabilities.EnsureAllows(request);
+        EnsureAllows(request); execution.Capabilities.EnsureAllows(request);
+        if (_profiles is not null && JsonSerializer.Serialize(execution.Capabilities) !=
+            JsonSerializer.Serialize(_profiles.ResolveCapabilities(request.RecipePulse.Invocation)))
+            throw new InvalidOperationException("Escopo não corresponde à evidência do perfil registrado.");
         if (!execution.Capabilities.IsIsolatedSimulation)
             throw new InvalidOperationException("Escopo físico não pode ser registrado no roteador isolado.");
         lock (_gate)
@@ -35,6 +53,7 @@ public sealed class KlaRecipeExecutionRouter(KlaAssayExecutionCapabilities capab
 
     public async Task<KlaAssayApiResult> ExecuteWithRecoveryAsync(KlaAssayApiRequest request, CancellationToken acquisitionCancellation)
     {
+        EnsureAllows(request);
         Scope scope;
         lock (_gate)
         {

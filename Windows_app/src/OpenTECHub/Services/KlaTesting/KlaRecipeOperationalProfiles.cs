@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Collections.Immutable;
 using OpenTECHub.Services.Recipes;
 
 namespace OpenTECHub.Services.KlaTesting;
@@ -78,6 +79,8 @@ public sealed record KlaRecipeOperationalProfile
 public sealed class KlaRecipeOperationalProfileRegistry(string installationId, TimeProvider time,
     bool isIsolatedEnvironment = false)
 {
+    public string InstallationId { get; } = installationId;
+    public bool IsIsolatedEnvironment { get; } = isIsolatedEnvironment;
     private readonly object _gate = new();
     private readonly Dictionary<(string Id, string Version, KlaAssayProtocol Protocol), KlaRecipeOperationalProfile> _profiles = [];
     private static T Copy<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
@@ -124,6 +127,23 @@ public sealed class KlaRecipeOperationalProfileRegistry(string installationId, T
             requested.MaximumGasOffSecondsPerAttempt < profile.RemovalSeconds ||
             configuration.Conditions.Sum(c => (long)c.Replicates) > requested.MaximumAttemptsPerCultivation)
             throw new InvalidOperationException("Configuração da receita excede os limites do perfil operacional.");
+    }
+
+    internal KlaAssayExecutionCapabilities ResolveCapabilities(KlaRecipeRequest invocation)
+    {
+        var definition = invocation.Definition;
+        var configuration = new RecipeKlaBlockConfiguration(definition.Protocol,
+            definition.CaptureMode == KlaCaptureMode.Single ? RecipeKlaConditionMode.SingleExplicit : RecipeKlaConditionMode.Multiple,
+            definition.Conditions.Select(c => new RecipeKlaCondition(c.AgitationRpm, c.AirflowLpm, c.RequestedReplicates)).ToImmutableArray(),
+            invocation.Quality.ProfileId, invocation.Quality.Version, invocation.Quality.RequireValidOur, invocation.Retry, invocation.FailurePolicy);
+        var profile = Resolve(configuration);
+        if (JsonSerializer.Serialize(definition.Settings) != JsonSerializer.Serialize(profile.Template.Settings) ||
+            JsonSerializer.Serialize(definition.ProtocolSettings) != JsonSerializer.Serialize(profile.Template.ProtocolSettings) ||
+            JsonSerializer.Serialize(invocation.Quality.Analysis) != JsonSerializer.Serialize(profile.Quality.Analysis) ||
+            !invocation.Quality.AllowedConditionalReasonCodes.SequenceEqual(profile.Quality.AllowedConditionalReasonCodes) ||
+            profile.Quality.RequireValidOur && !invocation.Quality.RequireValidOur)
+            throw new InvalidOperationException("Solicitação diverge do protocolo e dos critérios científicos qualificados.");
+        return profile.Capabilities;
     }
 
     public IReadOnlyList<KlaRecipeOperationalProfile> AvailableProfiles

@@ -35,7 +35,10 @@ public sealed class RecipePeriodicKlaIntegrationTests
     [InlineData(KlaAssayProtocol.Abiotic, false, false, true)] [InlineData(KlaAssayProtocol.Biotic, false, false, true)]
     [InlineData(KlaAssayProtocol.Abiotic, true, false, true)] [InlineData(KlaAssayProtocol.Biotic, true, false, true)]
     [InlineData(KlaAssayProtocol.Abiotic, false, true, true)] [InlineData(KlaAssayProtocol.Biotic, false, true, true)]
-    public async Task Cascade_exit_pause_or_emergency_during_common_assay_awaits_terminal_group(KlaAssayProtocol protocol, bool pause, bool emergency, bool graph = false)
+    [InlineData(KlaAssayProtocol.Abiotic, false, false, true, true)] [InlineData(KlaAssayProtocol.Biotic, false, false, true, true)]
+    [InlineData(KlaAssayProtocol.Abiotic, true, false, true, true)] [InlineData(KlaAssayProtocol.Biotic, true, false, true, true)]
+    [InlineData(KlaAssayProtocol.Abiotic, false, true, true, true)] [InlineData(KlaAssayProtocol.Biotic, false, true, true, true)]
+    public async Task Cascade_exit_pause_or_emergency_during_common_assay_awaits_terminal_group(KlaAssayProtocol protocol, bool pause, bool emergency, bool graph = false, bool concrete = false)
     {
         var root = Path.Combine(Path.GetTempPath(), "periodic-kla-" + Guid.NewGuid().ToString("N"));
         using var fixture = new RecipeAssayRestorationTests.Fixture(virtualTimers: true);
@@ -73,7 +76,17 @@ public sealed class RecipePeriodicKlaIntegrationTests
             ProfileVersion = template.Quality.Version, Protocols = [KlaAssayProtocol.Abiotic, KlaAssayProtocol.Biotic],
             EvidenceId = "isolated-periodic", IsIsolatedSimulation = true };
         var factory = new KlaRecipeAssayExecutionFactory(fixture.Device, arbiter, store, new KlaAnalysisEngine(), settings, clock, true);
-        var router = new KlaRecipeExecutionRouter(capabilities);
+        var registry = new KlaRecipeOperationalProfileRegistry("test", clock, true);
+        var qualified = KlaRecipeOperationalProfileTests.Profile(clock, protocol) with
+        {
+            Capabilities = capabilities, Template = template.Definition, Quality = template.Quality, MaximumRetry = template.Retry,
+            MaximumRecoverySeconds = 30, RecoveryStabilitySeconds = 2, AgitationToleranceRpm = 2, FlowToleranceLpm = .05,
+            RecoveryCriteria = new() { MaximumTelemetryAgeSeconds = 5, MinimumOxygenPercent = protocol == KlaAssayProtocol.Biotic ? 30 : null,
+                MaximumOxygenPercent = protocol == KlaAssayProtocol.Biotic ? 100 : null,
+                MaximumOxygenSlopePercentPerSecond = protocol == KlaAssayProtocol.Biotic ? .05 : null }
+        };
+        registry.Register(qualified);
+        var router = concrete ? new KlaRecipeExecutionRouter(registry) : new KlaRecipeExecutionRouter(capabilities);
         using var api = new KlaAssayApi(Path.Combine(root, "api.json"), router, clock);
         KlaRecipeOrchestrator? orchestrator = null;
         KlaRecipeRequest? request = null; KlaRecipeResult? result = null;
@@ -105,9 +118,11 @@ public sealed class RecipePeriodicKlaIntegrationTests
                     result = await matrix;
                 }, journal.RecordAsync);
         });
+        var concreteSource = new KlaRecipeAutonomousWorkSource(registry, router, api, factory, store, settings, clock, writer,
+            Path.Combine(root, "recipe-journal"), () => template.Context.CultivationId);
         using var engine = new RecipeEngine(arbiter, arbiter, settings, clock,
             periodicWorkSource: graph ? null : source,
-            autonomousWorkSource: graph ? new GraphSource(source, capabilities, () => result!) : null);
+            autonomousWorkSource: concrete ? concreteSource : graph ? new GraphSource(source, capabilities, () => result!) : null);
         var recipe = new RecipeDocument { Name = "periodic common assay" };
         var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
         cascade.Set("spO2", 80.0); cascade.Set("nMinRpm", 300.0); cascade.Set("nMaxRpm", 350.0);
@@ -126,6 +141,7 @@ public sealed class RecipePeriodicKlaIntegrationTests
             var assayNode = RecipeAutonomousBlockConfigurationTests.ConfiguredKla();
             assayNode.Set("protocol", protocol.ToString()); assayNode.Set("profileId", capabilities.ProfileId);
             assayNode.Set("profileVersion", capabilities.ProfileVersion);
+            if (concrete) assayNode.Set("minimumIntervalSeconds", .02);
             recipe.Nodes.AddRange([periodicNode, assayNode]);
             recipe.Connections.AddRange([new("start", ConnectorNames.Out, "periodic", ConnectorNames.In),
                 new("periodic", ConnectorNames.Out, "kla", ConnectorNames.In)]);
@@ -135,15 +151,20 @@ public sealed class RecipePeriodicKlaIntegrationTests
             await engine.StartAsync(recipe);
             fixture.Device.PushTelemetry(fixture.Sample(300, 2, command: 10, oxygen: 80));
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            while (engine.CascadeTermsFor("casc") is null) await Task.Delay(1, timeout.Token);
+            while (engine.CascadeTermsFor("casc") is null || clock.PendingTimers == 0) await Task.Delay(1, timeout.Token);
             clock.Advance(TimeSpan.FromSeconds(5));
-            while (matrix is null) await Task.Delay(1, timeout.Token);
+            if (concrete)
+            {
+                while (concreteSource.ActiveInvocations.Count == 0) await Task.Delay(1, timeout.Token);
+                var active = concreteSource.ActiveInvocations.Single(); request = active.Request; orchestrator = active.Orchestrator;
+            }
+            else while (matrix is null) await Task.Delay(1, timeout.Token);
             var exit = false; var resumed = false; var emergencyCommandCount = 0;
             using var cancellation = new CancellationTokenSource();
             await KlaRecipeOrchestratorTests.Drive(engine.Completion, orchestrator!, fixture, request!, () => false,
                 KlaRecipeOrchestratorTests.Scenario.Normal, cancellation, current =>
                 {
-                    if (pause && exit && !resumed && matrix.IsCompleted)
+                    if (pause && exit && !resumed && (concrete ? concreteSource.ActiveInvocations.Count == 0 && engine.AutonomousResults.Count > 0 : matrix!.IsCompleted))
                     {
                         Assert.NotNull(engine.CascadeTermsFor("casc")); Assert.Equal(RecipeRunState.Paused, engine.State);
                         resumed = true; gate.Set("operacao", nameof(ManualGateOperation.Pass)); engine.Resume();
@@ -158,6 +179,12 @@ public sealed class RecipePeriodicKlaIntegrationTests
                     else if (pause) engine.Pause(); else gate.Set("operacao", nameof(ManualGateOperation.Pass));
                 });
             await engine.Completion.WaitAsync(timeout.Token);
+            if (concrete)
+            {
+                result = engine.AutonomousResults.Single();
+                scheduleId = result.PeriodicInvocation!.ScheduleRunId;
+                journal = new RecipePeriodicJournal(Path.Combine(root, "recipe-journal"), engine.ExecutionId, result.Context.RecipeSha256, writer, clock);
+            }
             Assert.True(exit, $"Ensaio terminou antes da recuperação: {result?.Status}, {result?.Reason}; engine {engine.State}, {engine.StatusReason}");
             Assert.Equal(emergency ? RecipeRunState.Stopped : RecipeRunState.Completed, engine.State);
             Assert.NotNull(result);

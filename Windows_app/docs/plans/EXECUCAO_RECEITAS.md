@@ -13,9 +13,10 @@ Plano: [14 etapas](2026-10-07-receitas-kla-autonomo-e-rampas.md). Atualização:
 | R2.1 | Implementada e validada em software | [recibo](receitas-r21/EXECUCAO_R21.md); adaptador comum dos dois protocolos, recuperação independente e recibo antes da devolução; 2093 testes na regressão completa |
 | R2.2 | Implementada e validada em software | [execução da matriz](receitas-r22/EXECUCAO_R22.md); 24 cenários integrados e 2147 testes na regressão completa; espera com controle devolvido, recaptura, decisão e resultado duráveis |
 | R4.1 | Implementada e validada em software | [agenda e grupo](receitas-r41/AGENDA_E_GRUPO.md), [vínculo à cascata e diário](receitas-r41/INTEGRACAO_CASCATA_E_DIARIO.md); 2172 testes, runner comum em saída/pausa/emergência; registro dos blocos no aplicativo pertence a R4.2 |
-| R4.2 | Em implementação | [catálogo](receitas-r42/CATALOGO_E_CONFIGURACAO.md), [topologia](receitas-r42/TOPOLOGIA_PERIODICA.md), [executor](receitas-r42/EXECUTOR_E_GRUPO_DO_GRAFO.md), [perfis e construtor](receitas-r42/PERFIS_E_CONSTRUTOR.md); 2253 testes na regressão completa; provedor concreto, armazenamento/seleção de perfis, editor e resultados pendentes |
+| R4.2 | Em implementação | [catálogo](receitas-r42/CATALOGO_E_CONFIGURACAO.md), [topologia](receitas-r42/TOPOLOGIA_PERIODICA.md), [executor](receitas-r42/EXECUTOR_E_GRUPO_DO_GRAFO.md), [perfis e construtor](receitas-r42/PERFIS_E_CONSTRUTOR.md); [provedor concreto](receitas-r42/PROVEDOR_CONCRETO.md); 2265 testes na regressão completa; armazenamento/seleção de perfis, editor, resultados e ligação ao aplicativo pendentes |
 | R5.1/R5.2 | Pendente | Rampas e destinos no controle |
 | R6.1 | Pendente | Regressão final, exemplos e UI |
 | R6.2 | Pendente — exige bancada | Retorno físico e habilitação por instalação/protocolo |
 
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.
+

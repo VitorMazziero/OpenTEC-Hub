@@ -18,6 +18,7 @@ public interface IKlaRecipePreparedPulse : IDisposable
 
 public interface IKlaRecipePulsePreparer
 {
+    void ReleasePendingPreparation() { }
     Task<IKlaRecipePreparedPulse> PrepareAsync(KlaRecipeRequest template, KlaQueueItem item,
         KlaTestDocument document, DateTimeOffset acquisitionDeadlineUtc, CancellationToken ct);
 }
@@ -26,17 +27,23 @@ public interface IKlaRecipePulsePreparer
 public sealed class KlaRecipePulsePreparer(RecipeResourceCoordinator coordinator,
     KlaRecipeAssayExecutionFactory factory, ISettingsService settings, TimeProvider time,
     KlaAssayExecutionCapabilities capabilities, RecipeAssayRecoveryCriteria recoveryCriteria,
-    TimeSpan reservationTimeout) : IKlaRecipePulsePreparer
+    TimeSpan reservationTimeout, RecipeAssayResourceLease? initialLease = null) : IKlaRecipePulsePreparer, IDisposable
 {
+    private RecipeAssayResourceLease? _initial = initialLease;
+    public void Dispose() => Interlocked.Exchange(ref _initial, null)?.AbortBeforeAssay();
+    public void ReleasePendingPreparation() => Dispose();
+
     public async Task<IKlaRecipePreparedPulse> PrepareAsync(KlaRecipeRequest template, KlaQueueItem item,
         KlaTestDocument document, DateTimeOffset acquisitionDeadlineUtc, CancellationToken ct)
     {
-        var lease = await coordinator.ReserveForAssayAsync(template.Context,
+        var initial = Interlocked.Exchange(ref _initial, null);
+        var lease = initial ?? await coordinator.ReserveForAssayAsync(template.Context,
             [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen], reservationTimeout, ct).ConfigureAwait(false);
         try
         {
             ct.ThrowIfCancellationRequested();
-            var snapshot = lease.CaptureReturnSnapshot(settings.Current.GasRig.ToConfiguration(), time);
+            var snapshot = initial is null ? lease.CaptureReturnSnapshot(settings.Current.GasRig.ToConfiguration(), time)
+                : template.Restoration.BeforeAssay;
             var invocation = template with { Restoration = template.Restoration with { BeforeAssay = snapshot },
                 AcquisitionDeadlineUtc = acquisitionDeadlineUtc };
             var startDeadline = time.GetUtcNow().Add(reservationTimeout);

@@ -40,6 +40,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
 
         async Task<KlaRecipeResult> Finish(KlaRecipeTerminalStatus status, string? reason = null)
         {
+            preparer.ReleasePendingPreparation();
             CurrentItem = null; IsWaiting = false;
             var result = new KlaRecipeResult { Context = template.Context, PeriodicInvocation = template.PeriodicInvocation,
                 SessionId = document.TestId, SessionFolder = document.FolderName, Status = status,
@@ -71,6 +72,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
                 ? Math.Max(0, template.Retry.MinimumInterAssaySeconds - time.GetElapsedTime(end).TotalSeconds) : 0);
             if (wait > 0)
             {
+                preparer.ReleasePendingPreparation();
                 if (Elapsed() + wait >= template.Retry.MaximumBlockSeconds || time.GetUtcNow().AddSeconds(wait) >= template.AcquisitionDeadlineUtc)
                     return await Finish(KlaRecipeTerminalStatus.Inconclusive, "Intervalo mínimo excede o tempo restante.").ConfigureAwait(false);
                 IsWaiting = true;

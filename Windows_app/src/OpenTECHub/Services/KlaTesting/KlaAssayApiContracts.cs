@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using OpenTECHub.Services.Recipes;
 
 namespace OpenTECHub.Services.KlaTesting;
 
@@ -21,6 +22,17 @@ public sealed record KlaCultivationAssayLimits(int MaximumRuns, double MaximumRe
         if (MaximumRuns < 1 || !double.IsFinite(MaximumReservedRemovalSeconds) || MaximumReservedRemovalSeconds <= 0 ||
             !double.IsFinite(MinimumIntervalSeconds) || MinimumIntervalSeconds < 0)
             throw new ArgumentException("Limites por cultivo inválidos.");
+    }
+}
+
+/// <summary>Read-only budget lookup before reserving actuators or freezing the current condition.</summary>
+public sealed record KlaAssayBudgetQuery(string CultivationId, KlaCultivationAssayLimits Limits,
+    double ReservedRemovalSeconds, double MinimumIntervalSeconds)
+{
+    public void Validate()
+    {
+        ContractGuard.Text(CultivationId); ArgumentNullException.ThrowIfNull(Limits); Limits.Validate();
+        ContractGuard.Positive(ReservedRemovalSeconds); ContractGuard.NonNegative(MinimumIntervalSeconds);
     }
 }
 
@@ -96,6 +108,8 @@ public static class KlaRecipeQualityEvaluator
 
 public interface IKlaAssayApi
 {
+    KlaCultivationAssayBudget ReadCultivationBudget(KlaAssayBudgetQuery query)
+        => throw new NotSupportedException("Consulta prévia de orçamento não disponível.");
     KlaCultivationAssayBudget ReadCultivationBudget(KlaAssayApiRequest request)
         => throw new NotSupportedException("API sem leitura de orçamento persistido.");
     KlaAssayApiObservation Create(KlaAssayApiRequest request);
@@ -118,6 +132,7 @@ public interface IKlaAssayExecution
 {
     bool IsValidated { get; }
     KlaAssayExecutionCapabilities? Capabilities => null;
+    void EnsureAllows(KlaAssayApiRequest request) => Capabilities?.EnsureAllows(request);
     Task<KlaAssayApiResult> ExecuteWithRecoveryAsync(KlaAssayApiRequest request, CancellationToken acquisitionCancellation);
 }
 

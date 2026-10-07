@@ -81,7 +81,7 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
             if (!_execution.IsValidated) throw new InvalidOperationException("Execução por receita requer validação operacional em bancada.");
             if (record.Request.RecipePulse is not null && _execution.Capabilities is null)
                 throw new InvalidOperationException("Execução de receita requer capacidades por instalação e perfil.");
-            _execution.Capabilities?.EnsureAllows(record.Request);
+            _execution.EnsureAllows(record.Request);
             if (_running.Count > 0) throw new InvalidOperationException("Outro ensaio detém a execução; aguarde a recuperação.");
             var budget = Budget(record.Request, now);
             if (budget.BlockedReason is not null) throw new InvalidOperationException(budget.BlockedReason);
@@ -162,6 +162,20 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
     }
 
     private KlaCultivationAssayBudget Budget(KlaAssayApiRequest request, DateTimeOffset now)
+        => Budget(new KlaAssayBudgetQuery(request.CultivationId, request.Limits, request.ReservedRemovalSeconds,
+            request.Definition.ProtocolSettings.AerationReturn.MinimumInterAssaySeconds ?? 0), now);
+
+    public KlaCultivationAssayBudget ReadCultivationBudget(KlaAssayBudgetQuery query)
+    {
+        query.Validate();
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return Budget(query, _time.GetUtcNow());
+        }
+    }
+
+    private KlaCultivationAssayBudget Budget(KlaAssayBudgetQuery request, DateTimeOffset now)
     {
         var cultivation = _requests.Values.Where(r => string.Equals(r.Request.CultivationId.Trim(),
             request.CultivationId.Trim(), StringComparison.OrdinalIgnoreCase) && r.StartedUtc.HasValue).ToArray();
@@ -172,7 +186,7 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
         var interval = cultivation.Select(r => Math.Max(r.Request.Limits.MinimumIntervalSeconds,
                 r.Request.Definition.ProtocolSettings.AerationReturn.MinimumInterAssaySeconds ?? 0))
             .Append(Math.Max(request.Limits.MinimumIntervalSeconds,
-                request.Definition.ProtocolSettings.AerationReturn.MinimumInterAssaySeconds ?? 0)).Max();
+                request.MinimumIntervalSeconds)).Max();
         var remaining = Math.Max(0, maxRuns - cultivation.Length);
         var exposure = Math.Max(0, maxExposure - cultivation.Sum(r => r.Request.ReservedRemovalSeconds));
         var wait = cultivation.Where(r => r.CompletedUtc.HasValue)

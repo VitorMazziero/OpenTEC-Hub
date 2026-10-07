@@ -79,6 +79,9 @@ public interface IDeviceService
     /// </remarks>
     void SendAfterCurrentFrame(OpenTECCommand command) => Send(command);
 
+    Task DrainCommandsAsync(CancellationToken ct = default)
+        => Task.FromException(new NotSupportedException("Dispositivo não oferece barreira de transporte."));
+
     /// <summary>Requests diagnostics without claiming ownership of any actuator.</summary>
     void RequestNodeDiag(string device) => Send(CommandBuilders.NodeDiag(device));
 
@@ -244,6 +247,8 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
 
     public void SendAfterCurrentFrame(OpenTECCommand command)
         => _manager.SendCommandAfterCurrentFrame(command);
+
+    public Task DrainCommandsAsync(CancellationToken ct = default) => _manager.DrainCommandsAsync(ct);
 
     public void RequestNodeDiag(string device) => _manager.SendCommand(CommandBuilders.NodeDiag(device));
 

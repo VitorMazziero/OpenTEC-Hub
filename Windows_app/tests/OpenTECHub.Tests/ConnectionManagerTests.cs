@@ -76,6 +76,38 @@ public class ConnectionManagerTests
     }
 
     [Fact]
+    public async Task Drain_barrier_waits_for_buffered_frames_and_preserves_their_order()
+    {
+        var fake = new FakeTransport { ConnectDuration = TimeSpan.FromMilliseconds(300) };
+        await using var manager = new ConnectionManager(FastOptions(), transportFactory: _ => fake);
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        await fake.StalledConnectEntered.WaitAsync(TimeSpan.FromSeconds(5));
+        manager.SendCommand(CommandBuilders.MotorSetpoint(300));
+        manager.SendCommandAfterCurrentFrame(CommandBuilders.MotorSetpoint(500));
+        var barrier = manager.DrainCommandsAsync();
+        Assert.False(barrier.IsCompleted);
+        await barrier.WaitAsync(TimeSpan.FromSeconds(5));
+        lock (fake.Writes)
+        {
+            Assert.Equal(2, fake.Writes.Count);
+            Assert.Equal(CommandBuilders.MotorSetpoint(300).ToJson(), fake.Writes[0]);
+            Assert.Equal(CommandBuilders.MotorSetpoint(500).ToJson(), fake.Writes[1]);
+        }
+    }
+
+    [Fact]
+    public async Task Drain_barrier_on_disconnected_link_fails_without_silently_dropping_commands()
+    {
+        var fake = new FakeTransport();
+        await using var manager = new ConnectionManager(FastOptions(), transportFactory: _ => fake);
+        manager.SendCommand(CommandBuilders.MotorSetpoint(300));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.DrainCommandsAsync());
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        Assert.True(await WaitForAsync(() => { lock (fake.Writes) return fake.Writes.Count > 0; }));
+        lock (fake.Writes) Assert.Equal(CommandBuilders.MotorSetpoint(300).ToJson(), fake.Writes[0]);
+    }
+
+    [Fact]
     public async Task Connects_and_reports_connected()
     {
         var fake = new FakeTransport();

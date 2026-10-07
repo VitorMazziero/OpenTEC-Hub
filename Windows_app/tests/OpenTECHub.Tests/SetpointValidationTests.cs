@@ -1,3 +1,4 @@
+using System.IO;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
@@ -62,6 +63,12 @@ internal sealed class RecordingDeviceService : IDeviceService
         {
             CommandSent?.Invoke(json);
         }
+    }
+
+    public Task DrainCommandsAsync(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        return RaiseCommandSentOnSend ? Task.CompletedTask : Task.FromException(new IOException("Simulated stalled transport."));
     }
 
     public void ZeroSessionTime() => ZeroSessionTimeCalls++;

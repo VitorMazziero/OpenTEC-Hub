@@ -405,6 +405,16 @@ public sealed class ConnectionManager : IAsyncDisposable
         Post(new FlushRequest());
     }
 
+    /// <summary>Completes after all buffered frames are written, without claiming physical application.</summary>
+    public Task DrainCommandsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_requests.Writer.TryWrite(new DrainCommandsRequest(completion, cancellationToken)))
+            throw new ObjectDisposedException(nameof(ConnectionManager));
+        return completion.Task.WaitAsync(cancellationToken);
+    }
+
     /// <summary>Applies new calibration and filter tuning.</summary>
     public void Reconfigure(ParserConfig parserConfig) => _parser.Reconfigure(parserConfig);
 
@@ -493,6 +503,33 @@ public sealed class ConnectionManager : IAsyncDisposable
 
             case FlushRequest when State == ConnectionState.Connected:
                 await FlushCommandsAsync(token).ConfigureAwait(false);
+                break;
+
+            case DrainCommandsRequest drain:
+                // A barrier failure is reported to its caller; it must not terminate the link worker.
+                using (var linked = CancellationTokenSource.CreateLinkedTokenSource(token, drain.Cancellation))
+                {
+                    try
+                    {
+                        while (true)
+                        {
+                            linked.Token.ThrowIfCancellationRequested();
+                            if (State != ConnectionState.Connected)
+                                throw new InvalidOperationException("Link indisponível durante barreira de comandos.");
+                            lock (_bufferLock)
+                            {
+                                if (_pending.IsEmpty && _frames.Count == 0) break;
+                            }
+                            var previousSent = Volatile.Read(ref _commandsSent);
+                            await FlushCommandsAsync(linked.Token).ConfigureAwait(false);
+                            if (Volatile.Read(ref _commandsSent) == previousSent)
+                                throw new IOException("Comando anterior não foi aceito pelo transporte.");
+                        }
+                        drain.Completion.TrySetResult();
+                    }
+                    catch (OperationCanceledException) { drain.Completion.TrySetCanceled(linked.Token); }
+                    catch (Exception error) { drain.Completion.TrySetException(error); }
+                }
                 break;
 
             case LinkLostRequest lost when State == ConnectionState.Connected:
@@ -1019,6 +1056,11 @@ public sealed class ConnectionManager : IAsyncDisposable
         {
             sent = await transport.WriteAsync(json, token).ConfigureAwait(false);
         }
+        catch (OperationCanceledException)
+        {
+            Requeue(payload, sequenced);
+            throw;
+        }
         catch (TransportFaultException ex)
         {
             _lastError = ex.Message;
@@ -1295,6 +1337,8 @@ public sealed class ConnectionManager : IAsyncDisposable
     private sealed record DisconnectRequest : Request;
 
     private sealed record FlushRequest : Request;
+
+    private sealed record DrainCommandsRequest(TaskCompletionSource Completion, CancellationToken Cancellation) : Request;
 
     private sealed record LinkLostRequest(string Reason) : Request;
 

@@ -152,7 +152,7 @@ public interface ICommandArbiter
 }
 
 /// <inheritdoc cref="ICommandArbiter"/>
-public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposable
+public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceService, IDisposable
 {
     /// <summary>How close the echoed flow setpoint must be to count as confirmed, in L/min.</summary>
     private const double FlowConfirmToleranceLpm = 0.1;
@@ -244,7 +244,8 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
     public CommandDispatchResult DispatchSeparateFrame(CommandOwner requester, OpenTECCommand command)
         => Dispatch(requester, command, separateFrame: true);
 
-    private CommandDispatchResult Dispatch(CommandOwner requester, OpenTECCommand command, bool separateFrame)
+    private CommandDispatchResult Dispatch(CommandOwner requester, OpenTECCommand command, bool separateFrame,
+        CommandAuthorityLease? authority = null)
     {
         ArgumentNullException.ThrowIfNull(command);
         if (command.IsEmpty)
@@ -260,7 +261,7 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
         lock (_gate)
         {
             var conflicts = actuators
-                .Where(a => _ownership.GetValueOrDefault(a, CommandOwner.Manual) != requester)
+                .Where(a => !CanDispatchUnderLock(requester, a, authority))
                 .Select(a => new ActuatorConflict(a, _ownership.GetValueOrDefault(a, CommandOwner.Manual)))
                 .ToArray();
 
@@ -273,6 +274,7 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
             }
             else
             {
+                if (authority is not null) _drainedReservations.Remove(authority.ReservationId);
                 var now = _time.GetUtcNow();
 
                 foreach (var actuator in CommandActuators.All.Where(actuators.Contains))
@@ -318,13 +320,17 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
             CommandTracked?.Invoke(entry);
         }
 
-        if (separateFrame)
+        // Ownership may change during callbacks above. Recheck at the actual enqueue boundary
+        // and serialize it with transfers: no old-owner frame may enter after a handoff.
+        lock (_gate)
         {
-            _inner.SendAfterCurrentFrame(command);
-        }
-        else
-        {
-            _inner.Send(command);
+            var lateConflicts = actuators.Where(a => !CanDispatchUnderLock(requester, a, authority)).ToArray();
+            if (lateConflicts.Length > 0)
+            {
+                return new CommandDispatchResult(false, lateConflicts, requester);
+            }
+            if (separateFrame) _inner.SendAfterCurrentFrame(command);
+            else _inner.Send(command);
         }
 
         return new CommandDispatchResult(true, [], requester);
@@ -428,11 +434,18 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
     }
 
     private OwnershipTransfer Transfer(
-        CommandOwner to, IReadOnlyList<ActuatorId> actuators, string reason, bool isSafeAbort)
+        CommandOwner to, IReadOnlyList<ActuatorId> actuators, string reason, bool isSafeAbort,
+        CommandAuthorityLease? authority = null)
     {
         List<CommandLifecycleEntry> lastDesired = [];
         lock (_gate)
         {
+            if (to != CommandOwner.Manual && actuators.Any(a => _reservedActuators.ContainsKey(a)) &&
+                (authority is null || !IsCurrentUnderLock(authority) || actuators.Any(a => !authority.Resources.Contains(a))))
+            {
+                throw new InvalidOperationException("Atuadores reservados por outro bloco; transferência não autorizada.");
+            }
+            if (to == CommandOwner.Manual) RevokeReservationsUnderLock(actuators);
             foreach (var actuator in actuators)
             {
                 _ownership[actuator] = to;
@@ -675,7 +688,11 @@ public sealed class CommandArbiter : ICommandArbiter, IDeviceService, IDisposabl
             return;
         }
 
-        _disposed = true;
+        lock (_gate)
+        {
+            _disposed = true;
+            RevokeReservationsUnderLock(CommandActuators.All);
+        }
         _inner.StateChanged -= OnInnerStateChanged;
         _inner.TelemetryReceived -= OnInnerTelemetry;
         _inner.DeviceLogReceived -= OnInnerDeviceLog;

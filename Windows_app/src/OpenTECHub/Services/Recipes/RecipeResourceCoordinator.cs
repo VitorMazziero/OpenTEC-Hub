@@ -91,6 +91,7 @@ public sealed class RecipeAssayResourceLease
     private bool _ended;
     private Guid? _snapshotId;
     private KlaReturnSnapshot? _capturedSnapshot;
+    private string? _verifiedPersistenceReceipt;
     private RecipeAssayRecoveryResult? _recoveryEvidence;
     private readonly Action<OwnershipTransfer> _onRevoked;
     private bool _emergencyStopped;
@@ -218,13 +219,41 @@ public sealed class RecipeAssayResourceLease
         }
     }
 
+    public async Task ReturnPersistedAsync(IKlaTestStore store, Guid requestId, string testFolder,
+        string runFolder, CancellationToken recoveryToken = default)
+    {
+        var checkpoint = store.ReadRecipeAttemptCheckpoint(testFolder, runFolder, requestId, KlaAttemptPersistencePhase.Terminal)
+            ?? throw new InvalidOperationException("Checkpoint terminal ausente.");
+        var receipt = store.ReadRecipeAttemptReceipt(testFolder, runFolder, requestId, KlaAttemptPersistencePhase.Terminal)
+            ?? throw new InvalidOperationException("Recibo terminal ausente.");
+        var before = store.ReadRecipeAttemptCheckpoint(testFolder, runFolder, requestId, KlaAttemptPersistencePhase.BeforeActuation)
+            ?? throw new InvalidOperationException("Preparação persistida ausente.");
+        checkpoint.Validate(); before.Validate();
+        lock (_sync)
+        {
+            if (!IsAssayAuthorityCurrent || checkpoint.Authority != Authority &&
+                (checkpoint.Authority.ReservationId != Authority.ReservationId || checkpoint.Authority.ExecutionId != Authority.ExecutionId ||
+                 checkpoint.Authority.BlockId != Authority.BlockId || checkpoint.Authority.Owner != Authority.Owner ||
+                 checkpoint.Authority.Generation != Authority.Generation || !checkpoint.Authority.Resources.SequenceEqual(Authority.Resources)) ||
+                before.Authority.ReservationId != Authority.ReservationId || before.TestId != checkpoint.TestId || before.RunId != checkpoint.RunId ||
+                System.Text.Json.JsonSerializer.Serialize(before.Request) != System.Text.Json.JsonSerializer.Serialize(checkpoint.Request) ||
+                checkpoint.Request.RequestId != requestId || receipt.RequestId != requestId || receipt.TestId != checkpoint.TestId ||
+                receipt.RunId != checkpoint.RunId || receipt.SnapshotId != _snapshotId ||
+                !MatchesCapturedSnapshot(checkpoint.Request.RecipePulse!.Invocation.Restoration.BeforeAssay))
+                throw new InvalidOperationException("Recibo não corresponde à cessão ativa.");
+            _verifiedPersistenceReceipt = receipt.ReceiptId;
+        }
+        await ReturnAsync(checkpoint.Result! with { PersistenceReceiptId = receipt.ReceiptId }, recoveryToken).ConfigureAwait(false);
+    }
+
     public async Task ReturnAsync(KlaAssayApiResult result, CancellationToken recoveryToken = default)
     {
         lock (_sync)
         {
             if (_ended || !_snapshotId.HasValue || _suspended.Any(p => !p.CanResume) || result.Outcome.Restoration != KlaRestorationState.Confirmed ||
                 result.ReturnSnapshotId != _snapshotId || string.IsNullOrWhiteSpace(result.PersistenceReceiptId) ||
-                _capturedSnapshot is not null && _recoveryEvidence?.Restoration != KlaRestorationState.Confirmed)
+                _capturedSnapshot is not null && (_recoveryEvidence?.Restoration != KlaRestorationState.Confirmed ||
+                    result.PersistenceReceiptId != _verifiedPersistenceReceipt))
                 throw new InvalidOperationException("Retomada exige retorno ao snapshot e persistência confirmados.");
         }
         await _arbiter.DrainReservedCommandsAsync(Authority, recoveryToken).ConfigureAwait(false);

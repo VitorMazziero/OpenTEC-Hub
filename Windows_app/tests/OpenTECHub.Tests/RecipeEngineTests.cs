@@ -71,8 +71,8 @@ public sealed class RecipeEngineTests
         var evidence = await recovering.WaitAsync(timeout.Token);
         Assert.Equal(KlaRestorationState.Confirmed, evidence.Restoration);
         Assert.Equal(before, engine.CascadeTermsFor("casc")); Assert.True(lease.ControllersPreserved(snapshot));
-        await lease.ReturnAsync(new(new() { Restoration = evidence.Restoration }, 40)
-            { ReturnSnapshotId = snapshot.SnapshotId, PersistenceReceiptId = "test-durable" });
+        await RecipeAssayRestorationTests.Fixture.ReturnWithStore(lease, contract, clock, new(new() { Restoration = evidence.Restoration }, 40)
+            { ReturnSnapshotId = snapshot.SnapshotId });
         Assert.True(lease.HasReturnedSuccessfully);
         await engine.StopAsync("test complete");
     }

@@ -11,7 +11,7 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeAssayRestorationTests
 {
-    private sealed class Fixture : IDisposable
+    internal sealed class Fixture : IDisposable
     {
         public readonly TestClock Clock = new(DateTimeOffset.Parse("2026-10-07T12:00:00Z"));
         public readonly RecordingDeviceService Device = new();
@@ -20,6 +20,40 @@ public sealed class RecipeAssayRestorationTests
         public KlaReturnSnapshot Snapshot = null!;
         public GasRigConfiguration Rig = new(GasInput.Input1);
         public Fixture() { Arbiter = new(Device, Clock); }
+        internal static async Task ReturnWithStore(RecipeAssayResourceLease lease, KlaRecipeRestorationContract contract, TestClock clock, KlaAssayApiResult result)
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "return-receipt-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var invocation = RecipeExecutionContractTests.Request();
+                invocation = invocation with
+                {
+                    Context = invocation.Context with { RecipeRunId = lease.Authority.ExecutionId, NodeId = lease.Authority.BlockId },
+                    AcquisitionDeadlineUtc = clock.GetUtcNow().AddMinutes(10),
+                    Restoration = contract,
+                    Definition = invocation.Definition with { Settings = invocation.Definition.Settings with
+                        { MaxDegassingTimeMinutes = .5, MaxPrestageSeconds = 15 } }
+                };
+                var request = KlaRecipePulseMapper.Create(invocation, "simulator-A", invocation.Definition.Conditions[0].ConditionId,
+                    1, 1, clock.GetUtcNow().AddMinutes(1));
+                var store = new KlaTestStore(directory);
+                Directory.CreateDirectory(Path.Combine(directory, "session", KlaTestFileContracts.RunsDirectoryName, "run"));
+                var checkpoint = new KlaAttemptPersistenceCheckpoint
+                {
+                    Request = request, Authority = lease.Authority, TestId = Guid.NewGuid(), RunId = Guid.NewGuid(),
+                    TestFolder = "session", RunFolder = "run", Phase = KlaAttemptPersistencePhase.BeforeActuation
+                };
+                await store.PersistRecipeAttemptAsync(checkpoint);
+                File.WriteAllText(store.GetRunRawDataPath("session", "run"), "time,oxygen\n0,40\n");
+                await store.PersistRecipeAttemptAsync(checkpoint with
+                {
+                    Phase = KlaAttemptPersistencePhase.Terminal, DecisionJson = "{\"author\":\"AutomaticPolicy\"}",
+                    Result = result with { TestFolder = "session", RunFolder = "run", PersistenceReceiptId = null }
+                });
+                await lease.ReturnPersistedAsync(store, request.RequestId, "session", "run");
+            }
+            finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        }
         public async Task Initialize(double rpm = 300, double flow = 2, GasRoute route = GasRoute.Reactor, bool modbus = true)
         {
             Arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen], "start");
@@ -116,8 +150,8 @@ public sealed class RecipeAssayRestorationTests
         var apiResult = new KlaAssayApiResult(new() { Restoration = result.Restoration }, 40)
             { ReturnSnapshotId = result.SnapshotId };
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Lease.ReturnAsync(apiResult));
-        // Controlled persistence receipt for coordination testing; production receipt is R3.1.
-        await fixture.Lease.ReturnAsync(apiResult with { PersistenceReceiptId = "test-durable-receipt" });
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Lease.ReturnAsync(apiResult with { PersistenceReceiptId = "fabricated" }));
+        await Fixture.ReturnWithStore(fixture.Lease, fixture.Contract(), fixture.Clock, apiResult);
         Assert.Equal(CommandOwner.Recipe, fixture.Arbiter.OwnerOf(ActuatorId.Agitation));
     }
 
@@ -286,8 +320,8 @@ public sealed class RecipeAssayRestorationTests
             runner.RecordRecipeRecovery(result);
             Assert.Equal(KlaRestorationState.Confirmed, runner.CurrentRun.Outcome!.Restoration);
             Assert.Throws<InvalidOperationException>(runner.ConfirmRecipeReturn);
-            await fixture.Lease.ReturnAsync(new(new() { Restoration = result.Restoration }, 40)
-                { ReturnSnapshotId = result.SnapshotId, PersistenceReceiptId = "test-durable-receipt" });
+            await Fixture.ReturnWithStore(fixture.Lease, fixture.Contract(), fixture.Clock, new(new() { Restoration = result.Restoration }, 40)
+                { ReturnSnapshotId = result.SnapshotId });
             runner.ConfirmRecipeReturn();
             Assert.Equal(CommandOwner.Recipe, fixture.Arbiter.OwnerOf(ActuatorId.Agitation));
             Assert.True(File.Exists(Path.Combine(directory, document.FolderName, "Corridas", runner.CurrentRun.FolderName, "estado-fisico.json")));

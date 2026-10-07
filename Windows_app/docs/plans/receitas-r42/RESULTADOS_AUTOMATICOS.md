@@ -1,0 +1,17 @@
+# R4.2 — Resultados automáticos no visualizador comum
+
+O manifesto comum registra a solicitação automática congelada: receita/execução/bloco/cultivo, perfil e política, condições, snapshot e vínculo ao disparo periódico. A serialização desse campo preserva valores nulos explícitos; o formato legado omite nulos e reaplicava `SequenceLimits` ao reabrir. A leitura do resultado terminal confere a origem do manifesto com a solicitação efetivamente executada.
+
+O visualizador comum apresenta todas as tentativas, inclusive recusadas, repetidas e incompletas, com qualidade independente de kLa e OUR, unidades, motivos, autoria automática, restauração e gravação. OUR é não aplicável no abiótico; concentração molar ausente não é inventada. A réplica prioriza a seleção automática válida; sessões manuais conservam a seleção legada. Abrir uma tentativa carrega seus dados brutos e análise histórica. Sessões automáticas são de leitura: aprovar/rejeitar, alterar configuração, remover condições e recalcular não substituem a decisão gravada.
+
+`resumo-receita-tentativas.csv` é gerado automaticamente junto ao resumo comum e confirmado pelas barreiras de gravação existentes. Há exportação de todas as tentativas no visualizador. O CSV contém contexto, IDs, réplica/tentativa, condições N/Q, decisões, duas qualidades, números e intervalos disponíveis, retorno, persistência, instante e motivos. Valores de uma análise posterior não substituem os números da decisão automática.
+
+Testes focados do visualizador: 61 aprovados, zero falhas (`evidence/recipes-r42-results-editor-final2.trx`). O teste de execução real do provedor confirma reabertura do contexto e CSV para ensaio único/múltiplo abiótico/biótico. Os testes do orquestrador verificam CSV e contrato em sucesso, limite, repetição e cancelamento.
+
+A primeira regressão completa (`evidence/recipes-r42-results-full.trx`) teve 2305 aprovados e 2 falhas. Um teste estático de RPM exige a expressão anterior de `ShellViewModel`, enquanto o checkout recebeu alteração externa para registrar o comando da cascata. Essa alteração foi preservada. A outra falha expôs concorrência entre watchdog e encerramento por prazo: o bloqueio dos comandos ocorria antes de adquirir a trava do runner. O encerramento, watchdog e aborto agora compartilham a trava; telemetria pendente verifica novamente se a aquisição está selada antes de comandar. Um aborto tardio após a selagem é inerte. A correção recebe recibo separado.
+
+Comando base: `dotnet test Windows_app/tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj -p:SelfContained=false -p:EnableSourceLink=false --no-restore`. Evidência é de software isolado, sem confirmação física ou verificação visual.
+
+Regressão final após as correções: **2307 aprovados, zero falhas e zero ignorados**, em `evidence/recipes-r42-results-validated.trx`. A verificação do CSV agora confere especificamente a coluna de kLa; procurar um número no arquivo inteiro também atingia IDs aleatórios. O teste de procedência de RPM foi reconciliado com o comando efetivamente aceito da cascata, mantendo o fallback manual. As correções de controle, gráficos e banho recebidas do autor são preservadas em commits próprios.
+
+Pendências de R4.2: progresso ao vivo, navegação receita→sessão, ligação do provedor/catálogo ao aplicativo, configuração de instalação/cultivo, pausa independente e verificação visual. R4.2 continua em implementação.

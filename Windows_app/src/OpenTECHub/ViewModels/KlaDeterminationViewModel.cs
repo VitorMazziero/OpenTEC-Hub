@@ -102,6 +102,7 @@ public sealed partial class KlaMatrixRowViewModel : ObservableObject
     }
 
     private RunPhase? _loadedRunPhase;
+    public string? AutomaticDecisionLabel { get; set; }
     public RunPhase? LoadedRunPhase
     {
         get => _loadedRunPhase;
@@ -114,7 +115,7 @@ public sealed partial class KlaMatrixRowViewModel : ObservableObject
         }
     }
 
-    public string DisplayStatus => LoadedRunPhase switch
+    public string DisplayStatus => AutomaticDecisionLabel ?? (LoadedRunPhase switch
     {
         RunPhase.Accepted => "Concluído",
         RunPhase.Rejected => "Rejeitado",
@@ -127,7 +128,7 @@ public sealed partial class KlaMatrixRowViewModel : ObservableObject
             ConditionStatus.Skipped => "Ignorado",
             _ => Status.ToString()
         }
-    };
+    });
 
     private double? _klaPerHour;
     public double? KlaPerHour
@@ -613,7 +614,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     public bool HasActiveTest => CurrentTest is not null;
     public bool IsRunning => _runner.IsRunning;
     public bool IsIdle => !IsRunning && !IsReviewOpen;
-    public bool CanStartSequence => HasActiveTest && IsIdle && !IsLegacyRigTest &&
+    public bool CanStartSequence => HasActiveTest && IsIdle && !IsLegacyRigTest && !IsAutomaticSession &&
         CurrentTest!.Status != KlaTestStatus.Completed &&
         !CurrentTest.Runs.Any(r => r.EffectiveOutcome.Restoration is KlaRestorationState.Pending or KlaRestorationState.Failed);
 
@@ -960,6 +961,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
+        LoadStoredRun(run, row);
+    }
+
+    private void LoadStoredRun(KlaTestRunSummary run, KlaMatrixRowViewModel? row)
+    {
+        if (CurrentTest is null || IsRunning) return;
+        _currentlyEditingRow = row;
         _currentlyEditingRun = run;
 
         // 2. Load Raw Data Points from CSV
@@ -980,13 +988,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         var analysis = _store.LoadRunAnalysis(CurrentTest.FolderName, run.FolderName);
         if (analysis is not null) LoadReviewAnalysis(analysis);
         else OpenReviewDrawer();
-        StatusMessage = $"Ensaio carregado: #{row.OrderIndex} - {row.AgitationRpm:F0} rpm · {row.AirflowLpm:F2} L/min (Réplica {row.ReplicateIndex})";
+        StatusMessage = $"Corrida carregada: {run.AgitationRpm:F0} rpm · {run.AirflowLpm:F2} L/min · réplica {run.ReplicateNumber} · tentativa {run.AttemptNumber}";
     }
 
     [RelayCommand]
     public void AddManualCondition()
     {
-        if (CurrentTest is null || IsRunning || CurrentTest.EffectiveCaptureMode == KlaCaptureMode.Single)
+        if (CurrentTest is null || IsRunning || IsAutomaticSession || CurrentTest.EffectiveCaptureMode == KlaCaptureMode.Single)
         {
             return;
         }
@@ -1020,7 +1028,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void RemoveMatrixRow(KlaMatrixRowViewModel? row)
     {
-        if (row is null || CurrentTest is null)
+        if (row is null || CurrentTest is null || IsAutomaticSession)
         {
             return;
         }
@@ -1318,7 +1326,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void ApplyLiveSettings()
     {
-        if (CurrentTest is null)
+        if (CurrentTest is null || IsAutomaticSession)
         {
             return;
         }
@@ -1386,7 +1394,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     partial void OnAutoAcceptRunsChanged(bool value)
     {
-        if (CurrentTest is not null && !_isLoadingSettings && !IsCreateDialogOpen && CurrentTest.ProtocolSettings is null)
+        if (CurrentTest is not null && !IsAutomaticSession && !_isLoadingSettings && !IsCreateDialogOpen && CurrentTest.ProtocolSettings is null)
         {
             CurrentTest.Settings = CurrentTest.Settings with { AutoAcceptRuns = value };
             _runner.UpdateLiveSettings(CurrentTest.Settings);
@@ -1479,6 +1487,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void SaveAdvancedSettings()
     {
+        if (IsAutomaticSession) return;
         if (!TryBuildSettings(out var settings, out var error))
         {
             StatusMessage = error;
@@ -1501,6 +1510,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void RecomputeReviewAnalysis()
     {
+        if (IsAutomaticSession) { ReviewMessage = "A sessão automática preserva a análise e a decisão gravadas."; return; }
         if (_isRecomputing) return;
         _isRecomputing = true;
         try { if (TryRecomputeDeterministic()) return; }
@@ -2166,8 +2176,18 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
                 row.RunFolderName = run?.FolderName;
                 row.LoadedRunPhase = run?.Phase;
+                row.AutomaticDecisionLabel = run?.AutomaticDecision is not null
+                    ? new KlaRecordedAttemptViewModel(run, CurrentTest.EffectiveProtocol).Decision : null;
                 if (run is not null)
                 {
+                    if (run.AutomaticDecision is { } automatic)
+                    {
+                        row.KlaPerHour = automatic.KlaPerHour;
+                        row.AnalysisR2 = run.AnalysisR2;
+                        row.Status = KlaSequence.IsAccepted(run) ? ConditionStatus.Completed : ConditionStatus.Pending;
+                        row.NotifyChanged();
+                        continue;
+                    }
                     var analysis = LoadRunAnalysisCached(CurrentTest.FolderName, run);
                     if (analysis is not null && analysis.Quality != DecisionQuality.Inconclusive)
                     {
@@ -2215,7 +2235,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     {
         return runs
             .Where(r => r.ConditionId == conditionId && (!replicateNumber.HasValue || r.ReplicateNumber == replicateNumber.Value))
-            .OrderByDescending(r => r.Phase == RunPhase.Accepted && r.KlaPerHour.HasValue)
+            .OrderByDescending(r => r.KlaPerHour.HasValue &&
+                (r.AutomaticDecision is not null ? KlaSequence.IsAccepted(r) : r.Phase == RunPhase.Accepted))
             .ThenByDescending(r => r.CompletedUtc ?? r.StartedUtc)
             .FirstOrDefault();
     }

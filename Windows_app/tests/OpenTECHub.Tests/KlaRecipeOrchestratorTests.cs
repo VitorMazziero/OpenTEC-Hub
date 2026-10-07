@@ -172,6 +172,10 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
             if (writeFailure) { Assert.True(injected); Assert.Null(reopened); }
             else Assert.Equal(result.Status, reopened.Status);
             var common = new KlaTestStore(_root).LoadTest(document.FolderName)!;
+            Assert.Equal(RecipeContractSerializer.Fingerprint(request), RecipeContractSerializer.Fingerprint(common.RecipeRequest!));
+            if (!writeFailure)
+                Assert.Equal(common.Runs.Count + 1,
+                    File.ReadAllLines(Path.Combine(_root, document.FolderName, KlaAutomaticResultsSummary.FileName)).Length);
             Assert.Equal(result.Attempts.Count(a => a.Decision == KlaAutomaticDecision.Selected), common.Conditions.Sum(c => c.AcceptedReplicates));
             Assert.All(common.Runs, r => Assert.Equal(KlaOperatorDecision.Pending, r.EffectiveOutcome.OperatorDecision));
             await Assert.ThrowsAsync<InvalidOperationException>(() => orchestrator.ExecuteAsync(request, document));

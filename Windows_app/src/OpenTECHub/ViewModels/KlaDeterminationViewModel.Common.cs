@@ -78,11 +78,11 @@ public sealed partial class KlaDeterminationViewModel
     public ObservableCollection<KlaPhaseRange> ReviewPhases { get; } = [];
     public bool IsAbiotic { get => !IsBiotic; set { if (value) IsBiotic = false; } }
     public bool IsMultipleCapture { get => !IsSingleCapture; set { if (value) IsSingleCapture = false; } }
-    public bool CanEditPreparation => !IsRunning && !IsReviewOpen;
+    public bool CanEditPreparation => !IsRunning && !IsReviewOpen && !IsAutomaticSession;
     public bool ShowPreparation => !IsReviewOpen;
-    public bool CanEditProtocol => !IsRunning;
+    public bool CanEditProtocol => !IsRunning && !IsAutomaticSession;
     public bool CanRunSingle => CanStartSequence && IsSingleCapture && CurrentTest?.Runs.Count == 0;
-    public bool CanDecideRun => IsReviewOpen && (CurrentTest?.EffectiveProtocol != KlaAssayProtocol.Biotic ||
+    public bool CanDecideRun => IsReviewOpen && !IsAutomaticSession && (CurrentTest?.EffectiveProtocol != KlaAssayProtocol.Biotic ||
         (_currentlyEditingRun?.EffectiveOutcome.Restoration ?? CurrentRun?.Outcome?.Restoration) == KlaRestorationState.Confirmed);
     public bool CanAcceptAnalysis => CanDecideRun && CurrentAnalysis is { Quality: not DecisionQuality.Inconclusive };
     public bool CanRepeatLiveRun => CanDecideRun && _runner.IsInReview && _currentlyEditingRun is null;

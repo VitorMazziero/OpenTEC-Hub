@@ -280,6 +280,9 @@ public sealed record KlaTestRunSummary
 
 public sealed class KlaTestDocument
 {
+    /// <summary>Frozen automatic origin and policy; null for historical/operator sessions.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(KlaRecipeRequestManifestConverter))]
+    public KlaRecipeRequest? RecipeRequest { get; set; }
     public KlaMeasurementContext? Context { get; set; }
     public KlaSequenceLimits? SequenceLimits { get; set; }
     /// <summary>

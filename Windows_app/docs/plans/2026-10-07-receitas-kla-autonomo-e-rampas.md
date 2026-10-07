@@ -5,6 +5,8 @@ Estado: R0.1, R0.2, R1.1, R1.2, R1.3, R3.1, R2.1, R2.2 e R4.1 entregues para sof
 
 ## 1. Situação atual e escopo
 
+Entrega adicional solicitada pelo autor: commits separados por escopo, push para GitHub em `main`, resolução de conflitos antes de finalizar e compilação Release final. Preservar as correções concomitantes do aplicativo e registrar sua reconciliação em pacote próprio quando necessário. Essas obrigações acompanham as 14 etapas e não substituem os critérios de qualificação física.
+
 Há uma base reutilizável independente da tela: `IKlaTestRunner`, `IKlaTestStore`, `IKlaDeterministicAnalysisEngine` e definições de ensaio que separam protocolo (`Abiotic`/`Biotic`) de captura (`Single`/`Multiple`). Ambos os modos usam a mesma unidade de corrida. O modo único exige uma condição e uma réplica planejada.
 
 E5 agora fornece fila de condições/réplicas, contadores e limites em `KlaSequence`; E6 fornece `IKlaAssayApi`/`KlaAssayApi`, diário persistente, idempotência, limites cumulativos e recuperação de solicitações interrompidas. A API E6 aceita somente uma condição/uma réplica por solicitação: múltiplos exigem orquestração acima dela. `IKlaAssayExecution` ainda não tem adaptador de produção registrado. O runner chega a `Reviewing`, expõe aceitar/rejeitar/repetir, e `KlaAssayCoordinator.Validate` rejeita posse `Recipe`. Não existe `KlaAssay` no catálogo ou no executor de receitas.

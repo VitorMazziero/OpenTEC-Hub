@@ -145,6 +145,7 @@ public static class KlaTestFileContracts
             throw new JsonException("Protocolo ou modo de captura desconhecido.");
         }
         // Legacy defaults are computed, not persisted as if they had been recorded at acquisition.
+        doc.RecipeRequest?.Validate();
         return doc;
     }
 

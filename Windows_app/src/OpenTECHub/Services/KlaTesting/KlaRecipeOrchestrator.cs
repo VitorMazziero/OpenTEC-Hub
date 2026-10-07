@@ -28,7 +28,13 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
         if (document.NitrogenSourceConfirmedUtc is null ||
             template.Definition.Protocol == KlaAssayProtocol.Biotic && document.NitrogenIsolationConfirmedUtc is null)
             throw new ArgumentException("Confirmações de montagem devem existir antes da execução autônoma.");
+        if (document.RecipeRequest is not null &&
+            RecipeContractSerializer.Fingerprint(document.RecipeRequest) != RecipeContractSerializer.Fingerprint(template))
+            throw new ArgumentException("Sessão pertence a outra solicitação automática.");
         if (Interlocked.Exchange(ref _started, 1) != 0) throw new InvalidOperationException("Orquestrador de invocação já utilizado.");
+        document.RecipeRequest = template;
+        store.SaveTestManifest(document);
+        await store.FlushAsync().ConfigureAwait(false);
         var began = time.GetTimestamp();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(template.Retry.MaximumBlockSeconds), time);
         using var acquisition = CancellationTokenSource.CreateLinkedTokenSource(cancellation, deadline.Token);

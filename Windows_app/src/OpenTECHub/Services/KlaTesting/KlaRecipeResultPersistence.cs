@@ -59,6 +59,10 @@ public sealed partial class KlaTestStore
         var manifest = Path.Combine(RootDirectory, envelope.Result.SessionFolder, KlaTestFileContracts.TestManifestFileName);
         if (!File.Exists(manifest) || KlaTestFileContracts.DeserializeTestDocument(File.ReadAllText(manifest))?.TestId != envelope.Result.SessionId)
             throw new InvalidDataException("Resultado não corresponde à sessão comum.");
+        var document = KlaTestFileContracts.DeserializeTestDocument(File.ReadAllText(manifest))!;
+        if (document.RecipeRequest is not null &&
+            Recipes.RecipeContractSerializer.Fingerprint(document.RecipeRequest) != Recipes.RecipeContractSerializer.Fingerprint(envelope.Request))
+            throw new InvalidDataException("Origem automática do manifesto diverge da solicitação executada.");
         foreach (var attempt in envelope.Result.Attempts)
         {
             var saved = ReadRecipeSelection(envelope.Result.SessionFolder, attempt.RunFolder, attempt.AttemptId)

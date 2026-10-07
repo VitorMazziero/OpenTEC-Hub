@@ -887,6 +887,8 @@ public sealed partial class KlaTestStore : IKlaTestStore
 
             var filePath = Path.Combine(folderPath, KlaTestFileContracts.ResultsSummaryFileName);
             WriteAllTextAtomic(filePath, sb.ToString());
+            if (doc.RecipeRequest is not null || doc.Runs.Any(r => r.AutomaticDecision is not null))
+                WriteAllTextAtomic(Path.Combine(folderPath, KlaAutomaticResultsSummary.FileName), KlaAutomaticResultsSummary.Format(doc));
         }
     }
 

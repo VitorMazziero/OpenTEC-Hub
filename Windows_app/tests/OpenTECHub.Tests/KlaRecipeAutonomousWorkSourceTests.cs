@@ -104,7 +104,11 @@ public sealed class KlaRecipeAutonomousWorkSourceTests
                 result.Pulses.Select(p => p.RecipePulse!.Invocation.Restoration.BeforeAssay.AgitationSetpointRpm));
             Assert.Equal(result.Attempts.Length, producer.Resumes); Assert.False(producer.Suspended);
             Assert.Empty(source.ActiveInvocations);
-            Assert.NotNull(store.LoadTest(result.SessionFolder));
+            var reopened = store.LoadTest(result.SessionFolder);
+            Assert.NotNull(reopened);
+            Assert.Equal(result.Context, reopened.RecipeRequest!.Context);
+            Assert.Equal(result.Attempts.Length + 1,
+                File.ReadAllLines(Path.Combine(root, result.SessionFolder, KlaAutomaticResultsSummary.FileName)).Length);
         }
         finally
         {

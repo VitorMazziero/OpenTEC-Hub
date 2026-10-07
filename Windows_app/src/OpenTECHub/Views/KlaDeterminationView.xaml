@@ -33,6 +33,33 @@
    <Grid.ColumnDefinitions><ColumnDefinition Width="340"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0">
     <StackPanel>
+     <Border Style="{StaticResource Card}" Visibility="{Binding IsAutomaticSession, Converter={StaticResource BoolToVis}}">
+      <StackPanel>
+       <TextBlock Text="Resultados da receita" FontWeight="Bold"/>
+       <TextBlock Text="{Binding AutomaticSessionSummary}" Style="{StaticResource Label}"/>
+       <TextBlock Text="{Binding AutomaticTerminalStatus}" Style="{StaticResource Label}"/>
+       <Button Content="Exportar todas as tentativas (CSV)" Command="{Binding ExportAutomaticAttemptsCommand}" Margin="0,8,0,4"/>
+       <Expander Header="Todas as tentativas · inclui recusadas" IsExpanded="False">
+        <ItemsControl ItemsSource="{Binding RecordedAutomaticAttempts}">
+         <ItemsControl.ItemTemplate><DataTemplate>
+          <Border Background="{DynamicResource SurfaceSunkenBrush}" Padding="8" Margin="0,6,0,0" CornerRadius="4">
+           <StackPanel>
+            <TextBlock Text="{Binding Identity}" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding Decision}" Style="{StaticResource Label}"/>
+            <TextBlock Text="{Binding Kla}" Style="{StaticResource Label}"/>
+            <TextBlock Text="{Binding Our}" Style="{StaticResource Label}"/>
+            <TextBlock Text="{Binding Restoration}" Style="{StaticResource Label}"/>
+            <TextBlock Text="{Binding Authorship}" Style="{StaticResource Label}"/>
+            <TextBlock Text="{Binding Reasons}" Style="{StaticResource Label}"/>
+            <TextBlock Text="{Binding SavedFolder}" Style="{StaticResource Label}"/>
+            <Button Content="Abrir tentativa" Command="{Binding DataContext.LoadRecordedAutomaticAttemptCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Margin="0,6,0,0"/>
+           </StackPanel>
+          </Border>
+         </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+       </Expander>
+      </StackPanel>
+     </Border>
      <Border Style="{StaticResource Card}" Padding="10" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
       <StackPanel>
        <TextBlock Text="{Binding DisplayPhase}" FontWeight="Bold" FontSize="13"/>

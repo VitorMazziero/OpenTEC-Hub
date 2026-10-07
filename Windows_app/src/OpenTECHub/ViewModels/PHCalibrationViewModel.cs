@@ -66,6 +66,10 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnStateChanged;
         _settings.Changed += OnSettingsChanged;
+        if (_device.State == ConnectionState.Connected && _device.Latest is { } latest)
+        {
+            OnTelemetryReceived(latest);
+        }
     }
 
     [ObservableProperty]
@@ -93,6 +97,9 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     public partial string InstructionText { get; set; } =
         "O controle de pH será desligado antes de retirar a sonda do reator.";
+
+    [ObservableProperty]
+    public partial string DataStatusText { get; set; } = "Aguardando dados do sensor.";
 
     [ObservableProperty]
     public partial string CurrentRawText { get; set; } = "—";
@@ -156,11 +163,14 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
         OnPropertyChanged(nameof(CanCancel));
         OnPropertyChanged(nameof(CanApplyProposal));
         OnPropertyChanged(nameof(StageText));
+        OnPropertyChanged(nameof(Workflow));
+        OnPropertyChanged(nameof(PrimaryActionCommand));
         StartOnePointCommand.NotifyCanExecuteChanged();
         StartTwoPointCommand.NotifyCanExecuteChanged();
         ConfirmPointCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
         ApplyProposalCommand.NotifyCanExecuteChanged();
+        StartProcedureCommand.NotifyCanExecuteChanged();
     }
 
     [ObservableProperty]
@@ -192,6 +202,7 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
     partial void OnIsTwoPointChanged(bool value)
     {
         SecondPointText = value ? "Não adquirido" : "Não usado (um ponto)";
+        OnPropertyChanged(nameof(Workflow));
     }
 
     [RelayCommand(CanExecute = nameof(CanStart))]
@@ -222,7 +233,7 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
             StatusText = $"Coletando janela de estabilidade no tampão pH {_reference2:F2}.";
         }
 
-        InstructionText = "Não mova a sonda. A aquisição usa cada quadro aceito uma única vez.";
+        InstructionText = "Mantenha a sonda neste tampão até concluir a aquisição.";
     }
 
     [RelayCommand(CanExecute = nameof(CanCancel))]
@@ -257,8 +268,8 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
         });
 
         Stage = PHCalibrationStage.Applied;
-        StatusText = "Coeficientes de pH aplicados ao parser e persistidos.";
-        InstructionText = "O próximo valor aceito será ecoado ao módulo como pHCal. Reative a dosagem somente após recolocar a sonda no reator.";
+        StatusText = "Curva atualizada nas configurações desta pasta.";
+        InstructionText = "Recoloque a sonda no reator antes de reativar a dosagem.";
     }
 
     private void Start(bool twoPoint)
@@ -275,6 +286,7 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
             return;
         }
 
+        IsTwoPoint = twoPoint;
         if (!TryParseReference(Reference1Text, out _reference1) ||
             (twoPoint && !TryParseReference(Reference2Text, out _reference2)))
         {
@@ -309,17 +321,30 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
 
         Stage = PHCalibrationStage.AwaitingFirstBuffer;
         StatusText = twoPoint ? "Calibração de dois pontos iniciada." : "Calibração de um ponto iniciada.";
-        InstructionText = $"Lave a sonda, coloque-a no tampão pH {_reference1:F2} e confirme o ponto.";
+        InstructionText = "Lave a sonda e coloque-a no tampão indicado antes de confirmar.";
     }
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
+        // Other channels are not a failed pH observation and must not reset its acquisition.
+        if (snapshot.SensorCommOk && !snapshot.PHFrameReceived) return;
         _lastSnapshot = snapshot;
+        DataStatusText = HasValidRaw(snapshot)
+            ? "Recebendo leituras aceitas do sensor."
+            : "Sem nova leitura aceita. Verifique a conexão do módulo e a sonda.";
         if (!HasValidRaw(snapshot))
         {
             CurrentRawText = "—";
+            CurrentCalibratedText = "—";
+            _stability.Clear();
+            _averaging.Clear();
+            CurrentStandardDeviationText = "—";
             if (IsAcquiring)
             {
+                Stage = Stage is PHCalibrationStage.StabilizingSecond or PHCalibrationStage.AveragingSecond
+                    ? PHCalibrationStage.StabilizingSecond
+                    : PHCalibrationStage.StabilizingFirst;
+                ProgressPercent = Stage == PHCalibrationStage.StabilizingSecond ? 50 : 0;
                 StatusText = "Aquisição pausada: leitura bruta de pH ausente ou inválida.";
             }
             return;
@@ -464,7 +489,7 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
             {
                 Stage = PHCalibrationStage.AwaitingSecondBuffer;
                 ProgressPercent = 50;
-                InstructionText = $"Lave a sonda, coloque-a no tampão pH {_reference2:F2} e confirme o segundo ponto.";
+                InstructionText = "Lave a sonda e coloque-a no novo tampão antes de confirmar.";
                 StatusText = "Primeiro ponto concluído; aguardando troca de tampão.";
                 return;
             }
@@ -503,7 +528,7 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
         ProgressPercent = 100;
         Stage = PHCalibrationStage.Proposed;
         StatusText = "Aquisição concluída. Revise a equação antes de aplicar.";
-        InstructionText = "Aplicar altera o parser do app; a curva ainda não foi modificada.";
+        InstructionText = "A curva atual será substituída somente ao salvar.";
     }
 
     private void Fail(string message)
@@ -524,6 +549,14 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
 
     private void OnStateChanged(ConnectionStateChange change)
     {
+        if (change.State != ConnectionState.Connected)
+        {
+            _lastSnapshot = null;
+            CurrentRawText = "—";
+            CurrentCalibratedText = "—";
+            DataStatusText = "Equipamento desconectado. Aguardando novos dados.";
+        }
+
         if (change.State != ConnectionState.Connected && (IsAcquiring || IsAwaitingOperator))
         {
             Fail("Conexão perdida; a aquisição foi cancelada sem alterar coeficientes.");
@@ -544,7 +577,7 @@ public sealed partial class PHCalibrationViewModel : ObservableObject, IDisposab
     }
 
     private static bool HasValidRaw(SensorSnapshot? snapshot)
-        => snapshot is { SensorCommOk: true } &&
+        => snapshot is { SensorCommOk: true, PHUpdated: true } &&
            double.IsFinite(snapshot.PHRaw) && snapshot.PHRaw > 0.1;
 
     private static bool TryParseReference(string? text, out double value)

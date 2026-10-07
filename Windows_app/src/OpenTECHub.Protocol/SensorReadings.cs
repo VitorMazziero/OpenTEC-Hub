@@ -43,12 +43,17 @@ public sealed class SensorReadings
 
     /// <summary>Accepted raw ADC count for oxygen, after spike filtering.</summary>
     public double OxygenRaw { get; set; } = NotReceived;
+    public bool OxygenUpdated { get; set; }
+    /// <summary>The current frame carries this channel, including invalid/sentinel values.</summary>
+    public bool OxygenFrameReceived { get; set; }
 
     /// <summary>Calibrated dissolved oxygen.</summary>
     public double OxygenCalibrated { get; set; } = NotReceived;
 
     /// <summary>Accepted raw ADC count for pH, after spike filtering.</summary>
     public double PHRaw { get; set; } = NotReceived;
+    public bool PHUpdated { get; set; }
+    public bool PHFrameReceived { get; set; }
 
     /// <summary>Calibrated pH in display units.</summary>
     public double PHCalibrated { get; set; } = NotReceived;
@@ -365,8 +370,12 @@ public sealed class SensorReadings
     {
         Temperature = Temperature,
         OxygenRaw = OxygenRaw,
+        OxygenUpdated = OxygenUpdated,
+        OxygenFrameReceived = OxygenFrameReceived,
         OxygenCalibrated = OxygenCalibrated,
         PHRaw = PHRaw,
+        PHUpdated = PHUpdated,
+        PHFrameReceived = PHFrameReceived,
         PHCalibrated = PHCalibrated,
         Pressure = Pressure,
         FlowRate = FlowRate,
@@ -542,8 +551,14 @@ public sealed record SensorSnapshot
 {
     public double Temperature { get; init; }
     public double OxygenRaw { get; init; }
+    /// <summary>Whether this frame supplied a new, accepted oxygen reading.</summary>
+    public bool OxygenUpdated { get; init; } = true;
+    public bool OxygenFrameReceived { get; init; } = true;
     public double OxygenCalibrated { get; init; }
     public double PHRaw { get; init; }
+    /// <summary>Whether this frame supplied a new, accepted pH reading.</summary>
+    public bool PHUpdated { get; init; } = true;
+    public bool PHFrameReceived { get; init; } = true;
     public double PHCalibrated { get; init; }
     public double Pressure { get; init; }
     public double FlowRate { get; init; }

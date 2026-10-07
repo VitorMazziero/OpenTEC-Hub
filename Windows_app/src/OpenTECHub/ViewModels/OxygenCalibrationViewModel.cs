@@ -60,6 +60,10 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnStateChanged;
         _settings.Changed += OnSettingsChanged;
+        if (_device.State == ConnectionState.Connected && _device.Latest is { } latest)
+        {
+            OnTelemetryReceived(latest);
+        }
     }
 
     [ObservableProperty]
@@ -113,6 +117,9 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
     [ObservableProperty]
     public partial string InstructionText { get; set; } =
         "Prepare as soluções padrão de calibração de oxigênio dissolvido.";
+
+    [ObservableProperty]
+    public partial string DataStatusText { get; set; } = "Aguardando dados do sensor.";
 
     [ObservableProperty]
     public partial string CurrentRawText { get; set; } = "—";
@@ -176,11 +183,14 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
         OnPropertyChanged(nameof(CanCancel));
         OnPropertyChanged(nameof(CanApplyProposal));
         OnPropertyChanged(nameof(StageText));
+        OnPropertyChanged(nameof(Workflow));
+        OnPropertyChanged(nameof(PrimaryActionCommand));
         StartOnePointCommand.NotifyCanExecuteChanged();
         StartTwoPointCommand.NotifyCanExecuteChanged();
         ConfirmPointCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
         ApplyProposalCommand.NotifyCanExecuteChanged();
+        StartProcedureCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsTwoPointChanged(bool value)
@@ -191,6 +201,7 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
         }
 
         SecondPointText = value ? "Não adquirido" : "Não usado (um ponto)";
+        OnPropertyChanged(nameof(Workflow));
     }
 
     [RelayCommand(CanExecute = nameof(CanStart))]
@@ -221,7 +232,7 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
             StatusText = $"Coletando janela de estabilidade no padrão {_reference2:F1}%.";
         }
 
-        InstructionText = "Não mova a sonda. Aguardando estabilização do sinal de O₂.";
+        InstructionText = "Mantenha a sonda neste padrão até concluir a aquisição.";
     }
 
     [RelayCommand(CanExecute = nameof(CanCancel))]
@@ -256,8 +267,8 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
         });
 
         Stage = OxygenCalibrationStage.Applied;
-        StatusText = "Coeficientes de oxigênio aplicados ao parser e persistidos.";
-        InstructionText = "Os novos coeficientes já estão em vigor para todas as leituras de O₂.";
+        StatusText = "Curva atualizada nas configurações desta pasta.";
+        InstructionText = "A nova curva será usada nas próximas leituras de O₂.";
     }
 
     private void Start(bool twoPoint)
@@ -274,6 +285,7 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
             return;
         }
 
+        IsTwoPoint = twoPoint;
         if (!TryParseReference(Reference1Text, out _reference1) ||
             (twoPoint && !TryParseReference(Reference2Text, out _reference2)))
         {
@@ -307,18 +319,30 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
 
         Stage = OxygenCalibrationStage.AwaitingFirstStandard;
         StatusText = twoPoint ? "Calibração de dois pontos iniciada." : "Calibração de um ponto iniciada.";
-        InstructionText = $"Coloque a sonda no padrão de {_reference1:F1}% O₂ e confirme o ponto.";
+        InstructionText = "Prepare a sonda no padrão indicado antes de confirmar.";
     }
 
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
+        // Other channels are not a failed oxygen observation and must not reset acquisition.
+        if (snapshot.SensorCommOk && !snapshot.OxygenFrameReceived) return;
         _lastSnapshot = snapshot;
+        DataStatusText = HasValidRaw(snapshot)
+            ? "Recebendo leituras aceitas do sensor."
+            : "Sem nova leitura aceita. Verifique a conexão do módulo e a sonda.";
         if (!HasValidRaw(snapshot))
         {
             CurrentRawText = "—";
             CurrentCalibratedText = "—";
+            _stability.Clear();
+            _averaging.Clear();
+            CurrentStandardDeviationText = "—";
             if (IsAcquiring)
             {
+                Stage = Stage is OxygenCalibrationStage.StabilizingSecond or OxygenCalibrationStage.AveragingSecond
+                    ? OxygenCalibrationStage.StabilizingSecond
+                    : OxygenCalibrationStage.StabilizingFirst;
+                ProgressPercent = Stage == OxygenCalibrationStage.StabilizingSecond ? 50 : 0;
                 StatusText = "Aquisição pausada: leitura bruta de oxigênio ausente ou inválida.";
             }
             return;
@@ -453,7 +477,7 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
             {
                 Stage = OxygenCalibrationStage.AwaitingSecondStandard;
                 ProgressPercent = 50;
-                InstructionText = $"Coloque a sonda no padrão de {_reference2:F1}% O₂ e confirme o segundo ponto.";
+                InstructionText = "Prepare a sonda no novo padrão antes de confirmar.";
                 StatusText = "Primeiro ponto concluído; aguardando troca de padrão.";
                 return;
             }
@@ -487,7 +511,7 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
         ProposedEquationText = string.Create(CultureInfo.CurrentCulture,
             $"O₂ = ({slope:G6} × raw) + ({intercept:G6})");
         StatusText = "Aquisição concluída. Revise a curva proposta antes de aplicar.";
-        InstructionText = "Clique em 'Aplicar no app' para salvar os novos coeficientes.";
+        InstructionText = "A curva atual será substituída somente ao salvar.";
     }
 
     private void Fail(string reason)
@@ -516,6 +540,14 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
 
     private void OnStateChanged(ConnectionStateChange change)
     {
+        if (change.State != ConnectionState.Connected)
+        {
+            _lastSnapshot = null;
+            CurrentRawText = "—";
+            CurrentCalibratedText = "—";
+            DataStatusText = "Equipamento desconectado. Aguardando novos dados.";
+        }
+
         if (change.State != ConnectionState.Connected && (IsAcquiring || IsAwaitingOperator))
         {
             Fail("Conexão perdida; a aquisição foi cancelada sem alterar coeficientes.");
@@ -525,9 +557,9 @@ public sealed partial class OxygenCalibrationViewModel : ObservableObject, IDisp
     private void OnSettingsChanged(AppSettings settings) => RefreshCurrentEquation(settings);
 
     private static bool HasValidRaw(SensorSnapshot? snapshot) =>
-        snapshot is not null &&
+        snapshot is { SensorCommOk: true, OxygenUpdated: true } &&
         double.IsFinite(snapshot.OxygenRaw) &&
-        snapshot.OxygenRaw > 0.0;
+        snapshot.OxygenRaw > 0.1;
 
     private static bool TryParseReference(string text, out double reference)
     {

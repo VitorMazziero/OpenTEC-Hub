@@ -1,0 +1,180 @@
+<UserControl x:Class="OpenTECHub.Views.SensorCalibrationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:OpenTECHub.Converters">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusMedium}" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="StepCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SurfaceSelectedBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsComplete}" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource StateOkBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PointCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,12,0,0">
+            <ItemsControl ItemsSource="{Binding Workflow.Steps}" Margin="0,0,-8,14">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource StepCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding State}" Style="{StaticResource Label}" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="0.8*" />
+                    <ColumnDefinition Width="1.2*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,6,0" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="Leitura ao vivo" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding DataStatusText}" Style="{StaticResource Label}" TextWrapping="Wrap" Margin="0,8,0,12" />
+                        <UniformGrid Columns="2" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Raw ADC" Style="{StaticResource Label}" />
+                                <TextBlock Text="{Binding CurrentRawText}" Style="{StaticResource NumericTextStyle}" FontSize="26" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Workflow.CalibratedLabel}" Style="{StaticResource Label}" />
+                                <TextBlock Text="{Binding CurrentCalibratedText}" Style="{StaticResource NumericTextStyle}" FontSize="26" />
+                            </StackPanel>
+                        </UniformGrid>
+                        <TextBlock Text="Desvio padrão (σ)" Style="{StaticResource Label}" />
+                        <TextBlock Text="{Binding CurrentStandardDeviationText}" Style="{StaticResource NumericTextStyle}" FontSize="24" />
+                        <Separator Margin="0,16,0,16" />
+                        <TextBlock Text="Curva em uso" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding CurrentEquationText}" FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" Margin="0,8,0,12" />
+                        <TextBlock Text="Configurações desta pasta" Style="{StaticResource Label}" />
+                        <TextBlock Text="{Binding SettingsPath}" ToolTip="{Binding SettingsPath}" TextTrimming="CharacterEllipsis" Style="{StaticResource CaptionTextStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource Card}" Margin="6,0,0,0" VerticalAlignment="Top">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" IsEnabled="{Binding Workflow.CanEditSetup}" Margin="0,0,0,12">
+                            <RadioButton Content="Dois pontos" IsChecked="{Binding IsTwoPoint, Mode=TwoWay}" Margin="0,0,16,0" />
+                            <RadioButton Content="Um ponto (só intercepto)" IsChecked="{Binding IsOnePoint, Mode=TwoWay}" />
+                        </StackPanel>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Margin="0,0,5,0">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource PointCard}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Workflow.IsPoint1Active}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <TextBlock Text="Ponto 1" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Workflow.ReferenceLabel}" Style="{StaticResource Label}" Margin="0,8,0,4" />
+                                    <TextBox Text="{Binding Reference1Text, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Workflow.CanEditSetup}" />
+                                    <TextBlock Text="{Binding Workflow.Point1State}" FontWeight="SemiBold" Margin="0,8,0,4" />
+                                    <TextBlock Text="{Binding FirstPointText}" Style="{StaticResource Label}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Margin="5,0,0,0">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource PointCard}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Workflow.IsPoint2Active}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsTwoPoint}" Value="False">
+                                                <Setter Property="Opacity" Value="0.5" />
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <TextBlock Text="Ponto 2" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Workflow.ReferenceLabel}" Style="{StaticResource Label}" Margin="0,8,0,4" />
+                                    <TextBox Text="{Binding Reference2Text, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding Workflow.CanEditSetup}" />
+                                    <TextBlock Text="{Binding Workflow.Point2State}" FontWeight="SemiBold" Margin="0,8,0,4" />
+                                    <TextBlock Text="{Binding SecondPointText}" Style="{StaticResource Label}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <Border Background="{DynamicResource SurfaceSelectedBrush}" BorderBrush="{DynamicResource AccentBorderBrush}"
+                                BorderThickness="1" CornerRadius="6" Padding="14">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Workflow.Title}" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding InstructionText}" TextWrapping="Wrap" Margin="0,6,0,10" />
+                                <TextBlock Text="{Binding StageText}" Style="{StaticResource Label}" />
+                                <ProgressBar Minimum="0" Maximum="100" Height="8" Value="{Binding ProgressPercent}" Margin="0,6,0,10" />
+                                <TextBlock Text="{Binding ProposedEquationText}" Visibility="{Binding Workflow.ShowProposal, Converter={StaticResource BoolToVis}}"
+                                           FontFamily="{DynamicResource FontNumeric}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding StatusText}" Style="{StaticResource Label}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                    <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <Button Content="Cancelar" Command="{Binding CancelCommand}" Visibility="{Binding CanCancel, Converter={StaticResource BoolToVis}}" Margin="0,0,8,0" />
+                                        <Button Content="{Binding Workflow.ActionText}" Command="{Binding PrimaryActionCommand}" Style="{StaticResource AccentButtonStyle}" />
+                                    </WrapPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <Expander Header="Critérios de aquisição (raw ADC)" Margin="0,14,0,0">
+                            <UniformGrid Columns="3" Margin="0,10,0,0">
+                                <StackPanel Margin="0,0,6,0">
+                                    <TextBlock Text="Janela" Style="{StaticResource Label}" />
+                                    <TextBox Text="{Binding StabilityWindowText, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Margin="3,0">
+                                    <TextBlock Text="σ máximo" Style="{StaticResource Label}" />
+                                    <TextBox Text="{Binding StabilityThresholdText, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Margin="6,0,0,0">
+                                    <TextBlock Text="Média final" Style="{StaticResource Label}" />
+                                    <TextBox Text="{Binding AverageSamplesText, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </UniformGrid>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -25,7 +25,7 @@ public interface ISettingsService
 }
 
 /// <summary>
-/// JSON-backed settings, written to <c>%APPDATA%\OpenTEC-Hub\settings.json</c>.
+/// JSON-backed settings, written to <c>Configuracoes\settings.json</c> in the selected workspace.
 /// </summary>
 /// <remarks>
 /// <para>

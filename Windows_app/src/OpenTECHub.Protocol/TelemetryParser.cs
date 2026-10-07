@@ -216,6 +216,10 @@ public sealed class TelemetryParser
         // instant, or two devices in the same frame disagree about what "now" is.
         var now = _time.GetUtcNow();
 
+        Readings.OxygenUpdated = false;
+        Readings.PHUpdated = false;
+        Readings.OxygenFrameReceived = root.TryGetProperty(TelemetryKeys.OxygenRaw, out _);
+        Readings.PHFrameReceived = root.TryGetProperty(TelemetryKeys.PHRaw, out _);
         ParseTemperature(root);
         ParseOxygen(root);
         ParsePH(root);
@@ -249,7 +253,7 @@ public sealed class TelemetryParser
 
     private void ParseOxygen(JsonElement root)
     {
-        if (!TryGetDouble(root, TelemetryKeys.OxygenRaw, out var raw) || raw <= 0.1)
+        if (!TryGetDouble(root, TelemetryKeys.OxygenRaw, out var raw) || !double.IsFinite(raw) || raw <= 0.1)
         {
             return; // sentinel: probe absent or not yet valid
         }
@@ -259,6 +263,7 @@ public sealed class TelemetryParser
             return;
         }
 
+        Readings.OxygenUpdated = accepted == raw;
         Readings.OxygenRaw = accepted;
         var calibrated = (_config.OxygenCalibrationA * accepted) + _config.OxygenCalibrationB;
         Readings.OxygenCalibrated = Math.Round(Math.Max(calibrated, 0.0), 4);
@@ -266,7 +271,7 @@ public sealed class TelemetryParser
 
     private void ParsePH(JsonElement root)
     {
-        if (!TryGetDouble(root, TelemetryKeys.PHRaw, out var raw) || raw <= 0.1)
+        if (!TryGetDouble(root, TelemetryKeys.PHRaw, out var raw) || !double.IsFinite(raw) || raw <= 0.1)
         {
             return;
         }
@@ -276,6 +281,7 @@ public sealed class TelemetryParser
             return;
         }
 
+        Readings.PHUpdated = acceptedRaw == raw;
         Readings.PHRaw = acceptedRaw;
 
         var calibrated = Math.Round((_config.PHSlope * acceptedRaw) + _config.PHIntercept, 2);

@@ -557,8 +557,8 @@ public static class DocumentationCatalog
                     F("Um ponto (só intercepto)", "Corrige o deslocamento mantendo a inclinação já conhecida. É adequado para uma conferência rápida, não para substituir uma calibração completa."),
                     F("Referência", "É o valor conhecido do padrão ou solução usada na calibração."),
                     F("Critério de aquisição", "Define quantas leituras serão observadas e quanta estabilidade é necessária para aceitar o ponto."),
-                    F("Iniciar · Confirmar · Cancelar", "Inicia a coleta, confirma um ponto estável ou abandona a coleta sem alterar a calibração."),
-                    F("Aplicar no app", "Substitui a calibração usada pelo aplicativo pela curva revisada."),
+                    F("Etapas de execução", "Preparar → Ponto 1 → Ponto 2 → Salvar. A etapa atual fica destacada e o botão principal mostra a próxima ação. Após o primeiro ponto, troque o tampão ou padrão e confirme que o segundo está pronto; nenhuma leitura é coletada para o ponto 2 antes dessa confirmação."),
+                    F("Aplicar no app · Salvar e usar curva", "Após revisar, salva os coeficientes em Configuracoes/settings.json da pasta de trabalho selecionada e passa a usar a nova curva. Ao reabrir essa pasta, o aplicativo carrega esses coeficientes automaticamente."),
                     N("Depois de aplicar, confira a leitura com uma referência independente. Se o resultado não fizer sentido, reverta ou repita a calibração antes de usar o sensor em um ensaio."),
                 ]),
                 new DocumentationSection("Calibração da vazão de ar", [

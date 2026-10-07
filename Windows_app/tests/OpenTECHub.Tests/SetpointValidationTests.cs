@@ -27,7 +27,7 @@ internal sealed class RecordingDeviceService : IDeviceService
 
     public string Endpoint => "FAKE";
 
-    public SensorSnapshot? Latest => null;
+    public SensorSnapshot? Latest { get; private set; }
 
     public LinkDiagnostics Diagnostics => new();
 
@@ -97,7 +97,11 @@ internal sealed class RecordingDeviceService : IDeviceService
         => Task.FromResult<string?>(null);
 
     /// <summary>Raises a telemetry frame, as the real service does on the UI thread.</summary>
-    public void PushTelemetry(SensorSnapshot snapshot) => TelemetryReceived?.Invoke(snapshot);
+    public void PushTelemetry(SensorSnapshot snapshot)
+    {
+        Latest = snapshot;
+        TelemetryReceived?.Invoke(snapshot);
+    }
 
     /// <summary>Raises a link transition and updates the state exposed to commands.</summary>
     public void PushState(

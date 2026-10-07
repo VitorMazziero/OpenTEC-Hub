@@ -52,6 +52,24 @@ Texto vazio, valor não numérico ou fora da faixa bloqueia o comando. O aplicat
 repete o comportamento antigo de substituir silenciosamente uma digitação inválida
 por pH 7.
 
+As abas de pH e oxigênio mostram a leitura bruta, o valor calibrado, o estado de
+recepção, a etapa atual e a instrução de preparo/confirmação do padrão. Ao abrir a
+página, a última leitura disponível é exibida; ela não é adicionada à aquisição.
+A desconexão limpa as leituras da página e exige um novo quadro para reiniciar.
+Ambos os sensores usam o mesmo componente de interface, com quatro etapas:
+**Preparar → Ponto 1 → Ponto 2 → Salvar**. A etapa e o ponto atuais são destacados.
+O botão principal inicia, confirma o tampão/padrão pronto ou salva a curva,
+conforme a etapa. Durante a coleta ele fica desabilitado. Ao concluir o ponto 1,
+a página mostra **Troque para o tampão/padrão...** e aguarda confirmação explícita
+antes de coletar o ponto 2. Em um ponto, a terceira etapa aparece como não usada.
+Os critérios de aquisição continuam editáveis dentro de uma seção recolhível.
+
+As curvas de pH e oxigênio ficam em **Configuracoes/settings.json** da pasta de
+trabalho selecionada, no objeto `Calibration`, e são carregadas na inicialização.
+A pasta `Calibracoes` não precisa conter um arquivo separado dessas curvas.
+A página mostra a equação em uso e o caminho das configurações; a proposta fica
+visível apenas na revisão. A conclusão aparece como **Curva salva e em uso**.
+
 ## 3. Calibração de pH
 
 ### 3.1 Pré-condições
@@ -68,7 +86,7 @@ por pH 7.
 - janela de estabilidade padrão: 20 quadros aceitos;
 - critério padrão: desvio-padrão amostral bruto menor que 5 contagens ADC;
 - média final: 20 quadros aceitos;
-- cada quadro de telemetria conta uma vez. Não são duplicados valores enquanto se
+- somente quadros com uma nova leitura aceita do canal e `SensorCommOK:true` contam. Não são duplicados valores enquanto se
   aguarda a próxima emissão do equipamento.
 
 Esses critérios e os filtros de spike usam contagens ADC brutas. Aplicar uma curva não
@@ -91,7 +109,7 @@ Na calibração de um ponto, a inclinação vigente é mantida:
 intercept = referência - slope_atual * média_bruta
 ```
 
-O resultado permanece **proposto** até o operador pressionar **Aplicar no app**. Só
+O resultado permanece **proposto** até o operador pressionar **Salvar e usar curva**. Só
 então os coeficientes são persistidos, o parser passa a usá-los e o fluxo normal de
 telemetria envia o próximo `pHCal` ao módulo.
 
@@ -104,14 +122,17 @@ v.6 expõe diretamente `a` e `b`; não há assistente dedicado no código de ref
 A interface nova apenas guia a obtenção desses mesmos dois coeficientes lineares:
 
 1. estabilizar no primeiro padrão (normalmente 0%);
-2. capturar a leitura bruta aceita;
+2. confirmar o padrão e aguardar a estabilidade e a média final;
 3. estabilizar no segundo padrão (normalmente 100%);
-4. capturar a leitura bruta aceita;
+4. confirmar o segundo padrão e aguardar a estabilidade e a média final;
 5. revisar e aplicar explicitamente.
 
-A captura é direta e usa o quadro aceito atual; v.6 não fornece um assistente de
-estabilidade de O2. A estabilização física do zero/span continua sendo responsabilidade
-explícita do operador e do padrão usado.
+O assistente usa uma janela de estabilidade e uma média final, como o pH (padrão:
+20 quadros, σ < 5 contagens ADC, média de 20 quadros). Os critérios podem ser
+ajustados durante a aquisição. Somente novas leituras aceitas contam; ausência,
+sentinelas, sinal retido pelo filtro ou módulo offline reiniciam a estabilidade
+do ponto atual. A estabilização física do zero/span continua sendo responsabilidade
+do operador e do padrão usado.
 
 Para referências `r1`, `r2` e leituras brutas `x1`, `x2`:
 

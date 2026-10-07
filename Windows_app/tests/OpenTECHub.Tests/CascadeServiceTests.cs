@@ -11,6 +11,70 @@ namespace OpenTECHub.Tests;
 /// </summary>
 public class CascadeServiceTests
 {
+    [Theory]
+    [InlineData(3.535679803241002, 3.55)]
+    [InlineData(3.534811063355768, 3.55)]
+    [InlineData(3.5338705503630163, 3.55)]
+    [InlineData(3.5249, 3.50)]
+    [InlineData(3.525, 3.55)]
+    [InlineData(3.575, 3.60)]
+    [InlineData(0, 0)]
+    public void Aeration_commands_use_steps_of_five_hundredths(double requested, double expected)
+        => Assert.Equal(expected, CascadeController.QuantizeAeration(requested));
+
+    [Fact]
+    public void Unchanged_commands_are_not_resent_and_reengaging_sends_the_first_command()
+    {
+        var (service, device, clock) = Build();
+        using (service)
+        {
+            service.SelectMode(CascadeMode.AerationOnly);
+            service.Engage(331, 3.535679803241002);
+            device.Sent.Clear();
+            PushOxygen(device, clock, 30);
+            Assert.Contains("\"flowSetpoint\":3.55", Assert.Single(device.Sent));
+            PushOxygen(device, clock, 30, frames: 5);
+            Assert.Single(device.Sent);
+            Assert.Equal(3.55, service.LastCommandedActuation!.AerationLpm);
+
+            service.Disengage("Fim");
+            service.Engage(331, 3.535679803241002);
+            device.Sent.Clear();
+            PushOxygen(device, clock, 30);
+            Assert.Single(device.Sent);
+        }
+    }
+
+    [Fact]
+    public void Quantization_never_exceeds_configured_flow_endpoints()
+    {
+        var controller = CascadeController.CreateDefault();
+        controller.SetAllocation(SingleActuatorAllocation.Aeration(0.12, 0.13, 331));
+        controller.Preload(0);
+        Assert.Equal(0.12, controller.Update(30, 2).AerationLpm);
+        controller.Preload(100);
+        Assert.Equal(0.13, controller.Update(30, 2).AerationLpm);
+        controller.SetAllocation(SingleActuatorAllocation.Agitation(200, 800, 3.535));
+        Assert.Equal(3.535, controller.Update(30, 2).AerationLpm);
+    }
+    [Fact]
+    public void Advisory_outputs_are_not_published_as_commands_and_disengage_clears_the_command()
+    {
+        var (service, device, clock) = Build();
+        using (service)
+        {
+            service.Arm();
+            PushOxygen(device, clock, 8);
+            Assert.NotNull(service.LastActuation);
+            Assert.Null(service.LastCommandedActuation);
+            service.Engage(50, 0.5);
+            PushOxygen(device, clock, 8);
+            Assert.Equal(service.LastActuation, service.LastCommandedActuation);
+            Assert.NotNull(service.LastCommandedActuation);
+            service.Disengage("Fim do teste");
+            Assert.Null(service.LastCommandedActuation);
+        }
+    }
     [Fact]
     public void E2_SuspensionHoldsControllerTermsDuringAssay()
     {

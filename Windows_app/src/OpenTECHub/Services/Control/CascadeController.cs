@@ -26,6 +26,13 @@ public sealed class CascadeController
 
     /// <summary>Actuator name for aeration.</summary>
     public const string AerationActuator = "aeration";
+    public const double AerationCommandStepLpm = 0.05;
+
+    internal static double QuantizeAeration(double flow)
+    {
+        var step = (decimal)AerationCommandStepLpm;
+        return (double)(Math.Round((decimal)flow / step, 0, MidpointRounding.AwayFromZero) * step);
+    }
 
     private readonly CascadeTwoLoopPidController _pid;
     private CascadeAllocation _allocation;
@@ -97,10 +104,14 @@ public sealed class CascadeController
             isCascadeMode: _allocation is WindowAllocation);
 
         var (rpm, flow) = _allocation.Allocate(terms.Output);
+        var minimumFlow = _allocation.Allocate(0).AerationLpm;
+        var maximumFlow = _allocation.Allocate(100).AerationLpm;
+        // Keep exact configured endpoints (and held flow) when they are not on the grid.
+        var commandedFlow = Math.Clamp(QuantizeAeration(flow), minimumFlow, maximumFlow);
 
         return new CascadeActuationResult(
             AgitationRpm: (int)Math.Round(rpm, MidpointRounding.AwayFromZero),
-            AerationLpm: flow,
+            AerationLpm: commandedFlow,
             OxygenSetpoint: _pid.Setpoint,
             Terms: terms);
     }

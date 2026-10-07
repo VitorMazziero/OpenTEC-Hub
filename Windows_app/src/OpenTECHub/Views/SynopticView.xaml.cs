@@ -301,6 +301,7 @@ public partial class SynopticView : UserControl
     {
         var series = viewModel.GetSeries(spec, MaxPointsPerPanel);
         var setpoint = viewModel.GetSetpointSeries(spec, MaxPointsPerPanel);
+        var phBand = viewModel.GetPHBandSeries(spec, MaxPointsPerPanel);
 
         host.Plot.Clear();
 
@@ -324,6 +325,18 @@ public partial class SynopticView : UserControl
             line.LineWidth = 1.6f;
             line.LinePattern = LinePattern.Dashed;
             line.Color = ToPlotColor(TryBrush(spec.SeriesBrushKey), MediaColors.SteelBlue).WithAlpha(0.55f);
+            drewData = true;
+        }
+
+        foreach (var (limit, label) in new[] { (phBand.Lower, "Histerese inferior"), (phBand.Upper, "Histerese superior") })
+        {
+            if (!HasFinite(limit)) continue;
+            var line = host.Plot.Add.Scatter(limit.Minutes, limit.Values);
+            line.MarkerSize = 0;
+            line.LineWidth = 1.2f;
+            line.LinePattern = LinePattern.Dotted;
+            line.LegendText = label;
+            line.Color = ToPlotColor(TryBrush(spec.SeriesBrushKey), MediaColors.SteelBlue).WithAlpha(0.45f);
             drewData = true;
         }
 

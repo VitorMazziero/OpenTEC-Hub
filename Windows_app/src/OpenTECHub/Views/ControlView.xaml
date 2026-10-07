@@ -602,7 +602,7 @@
                                                         <ToggleButton Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
                                                                       IsChecked="{Binding IsTempControlViaBath, Mode=TwoWay}"
                                                                       IsEnabled="{Binding CanChangeRoute}"
-                                                                      ToolTip="Desligado: o Hub envia o setpoint à placa original por UART. Ligado: o setpoint vira a referência do reator e a cascata do Hub comanda o banho externo C404. Exige o banho habilitado no Hub e online; trocar a via exige novo setpoint." />
+                                                                      ToolTip="Desligado: a temperatura segue pela placa original (UART). Ligado: ativa a comunicação com o banho C404 e a cascata do Hub assume o controle térmico." />
                                                         <TextBlock Text="Banho externo (Contemp C404, Wi-Fi)"
                                                                    Style="{StaticResource CaptionTextStyle}"
                                                                    FontWeight="SemiBold"
@@ -747,16 +747,6 @@
                                                        Foreground="{DynamicResource TextSecondaryBrush}" Style="{StaticResource CaptionTextStyle}"
                                                        TextWrapping="Wrap" Margin="0,6,0,0" />
 
-                                            <!-- Same place and wording as the servo drawer. -->
-                                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                                <TextBlock Text="Banho externo habilitado no Hub" Style="{StaticResource CaptionTextStyle}"
-                                                           VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                <ToggleButton VerticalAlignment="Center"
-                                                              Style="{StaticResource ConnectedExternalDeviceToggleStyle}"
-                                                              IsChecked="{Binding IsCommEnabled, Mode=TwoWay}"
-                                                              IsEnabled="{Binding CanChangeCommunication}"
-                                                              ToolTip="Interruptor do banho no Hub (bathComm): ligado, o Hub troca comandos com o nó do C404 e a cascata pode atuar; desligado, o Hub não envia nada ao banho. Com a cascata ativa, desligar equivale a Parar banho. É pré-requisito para escolher a via externa." />
-                                            </StackPanel>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
@@ -993,7 +983,7 @@
                                             <TextBlock Text="{Binding Subsystem.Unit}" Margin="4,0,0,0" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
                                         </StackPanel>
                                     </StackPanel>
-                                    <TextBlock Grid.Column="4" Text="—" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock Grid.Column="4" Text="{Binding FormattedOxygenSetpoint}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     
                                     <!-- The selector gets the full setpoint column so no mode label is cropped. -->
                                     <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
@@ -1017,12 +1007,12 @@
                                     <TextBlock Grid.Column="6" Text="{Binding Subsystem.Unit}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
                                     <TextBlock Grid.Column="7" Text="{Binding Subsystem.RangeHint}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Subsystem.RangeHint}" />
                                     <ToggleButton Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                  IsChecked="{Binding IsCascadeEngaged, Mode=TwoWay}"
-                                                  ToolTip="Ativa o controle automático de oxigênio (cascata).">
+                                                  IsChecked="{Binding IsCascadeEngaged, Mode=TwoWay}">
                                         <ToggleButton.Style>
                                             <Style TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
+                                                <Setter Property="ToolTip" Value="Ativa ou desativa o controle automático de oxigênio (cascata)." />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsOwnedByOther}" Value="True">
+                                                    <DataTrigger Binding="{Binding CanToggleCascade}" Value="False">
                                                         <Setter Property="IsEnabled" Value="False" />
                                                         <Setter Property="ToolTip" Value="{Binding OwnerLockReason}" />
                                                     </DataTrigger>
@@ -1316,17 +1306,12 @@
                                                   ToolTip="Opções do fluxômetro de massa (válvulas, N2, maxFlow)" />
                                     <ctl:StateDot Grid.Column="1" Size="8" VerticalAlignment="Center" Label="Vazão de Ar">
                                         <ctl:StateDot.State>
-                                            <!-- Same converter as the other external rows, so this dot cannot
-                                                 contradict the chip beside it. The trailing variable state is
-                                                 the flowmeter's alone: it is the one external device with a
-                                                 measured band, and that band still shows once the link is
-                                                 healthy. -->
+                                            <!-- Activation and link state follow the other external rows. -->
                                             <MultiBinding Converter="{StaticResource ExternalDeviceState}">
                                                 <Binding Path="EffectiveActive" />
                                                 <Binding Path="DataContext.FlowControl.Status.IsOffline" RelativeSource="{RelativeSource AncestorType=UserControl}" />
                                                 <Binding Path="DataContext.FlowControl.Status.ShowPendingChip" RelativeSource="{RelativeSource AncestorType=UserControl}" />
                                                 <Binding Path="DataContext.FlowControl.Status.ShowRoutingChipOnly" RelativeSource="{RelativeSource AncestorType=UserControl}" />
-                                                <Binding Path="Subsystem.Variable.State" />
                                             </MultiBinding>
                                         </ctl:StateDot.State>
                                     </ctl:StateDot>
@@ -1513,12 +1498,11 @@
                                                 </StackPanel>
                                             </Grid>
 
-                                            <!-- Avançado: the two inputs and the line shutoff, raw. Free operation has no
+                                            <!-- The two inputs and the line shutoff remain visible in the drawer. Free operation has no
                                                  interlock (plan §3.3): any combination is sent; the warning above is the
                                                  only word about it. -->
-                                            <Expander Header="Avançado" Margin="0,10,0,0" IsExpanded="False"
+                                                <Grid Margin="0,10,0,0"
                                                       ToolTip="Bancada: as entradas 1 e 2 uma a uma e o fechamento da linha. Qualquer combinação é enviada — as duas acionadas ou a linha sem saída só geram aviso.">
-                                                <Grid Margin="0,8,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="*" />
@@ -1566,10 +1550,8 @@
                                                                    Margin="0,4,0,0" />
                                                     </StackPanel>
                                                 </Grid>
-                                            </Expander>
-
-                                            <!-- Sintonia do controlador (Hub 10.2 / Nó v11) -->
-                                            <Expander Header="Sintonia do controlador" Margin="0,10,0,0" IsExpanded="False"
+                                            <!-- Opções avançadas do controlador (Hub 10.2 / Nó v11) -->
+                                            <Expander Header="Avançado" Margin="0,10,0,0" IsExpanded="False"
                                                       ToolTip="{Binding TuningUnavailableText}">
                                                 <StackPanel Margin="0,8,0,0">
                                                     <WrapPanel>

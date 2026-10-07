@@ -249,6 +249,19 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
     /// <summary>
     /// The dashed setpoint overlay for a channel, or an empty series when it has none.
     /// </summary>
+    public (ChannelSeries Lower, ChannelSeries Upper) GetPHBandSeries(ChartChannelOption option, int maxPoints)
+    {
+        // Imported legacy logs carry no pH-band settings: never invent their limits.
+        if (option.Channel != TelemetryChannel.PH || _loadedSession is not null)
+        {
+            return (ChannelSeries.Empty, ChannelSeries.Empty);
+        }
+
+        return (
+            ApplyViewFloor(History.GetSetpointSeries(TelemetryChannel.PHLowerLimit, SelectedWindow.Window, maxPoints)),
+            ApplyViewFloor(History.GetSetpointSeries(TelemetryChannel.PHUpperLimit, SelectedWindow.Window, maxPoints)));
+    }
+
     public ChannelSeries GetSetpointSeries(ChartChannelOption option, int maxPoints)
     {
         // Agitation's "setpoint" is the commanded rpm — a real series the charts already hold,

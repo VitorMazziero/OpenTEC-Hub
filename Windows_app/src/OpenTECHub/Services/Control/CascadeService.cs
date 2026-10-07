@@ -52,6 +52,8 @@ public interface ICascadeService
 
     /// <summary>The most recent actuation, or null when not computing.</summary>
     CascadeActuationResult? LastActuation { get; }
+    /// <summary>Last cascade output accepted for dispatch, distinct from advisory computation.</summary>
+    CascadeActuationResult? LastCommandedActuation => null;
 
     /// <summary>The dissolved-oxygen target, in percent.</summary>
     double OxygenSetpoint { get; }
@@ -233,6 +235,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
     public CascadeTerms Terms { get; private set; } = CascadeTerms.Empty;
 
     public CascadeActuationResult? LastActuation { get; private set; }
+    public CascadeActuationResult? LastCommandedActuation { get; private set; }
+    private string? _lastDispatchedCommandJson;
 
     public double OxygenSetpoint => _controller.OxygenSetpoint;
 
@@ -474,6 +478,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
         _journal?.Add(AuditSource.Application, AuditSeverity.Information, routeMsg);
         _staleOxygenFrames = 0;
         IsEngaged = true;
+        LastCommandedActuation = null;
+        _lastDispatchedCommandJson = null;
         Updated?.Invoke();
     }
 
@@ -488,6 +494,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         // mistaken for an external takeover.
         IsEngaged = false;
         ActiveKlaDemand = null;
+        LastCommandedActuation = null;
         _arbiter.Release(CommandOwner.Automatic, reason);
         _controller.SetAllocation(BuildWindowAllocation());
         Updated?.Invoke();
@@ -666,11 +673,20 @@ public sealed class CascadeService : ICascadeService, IDisposable
                 : null;
 
             var frame = CascadeController.BuildCommand(LastActuation, _rig());
-            var result = _arbiter.Dispatch(CommandOwner.Automatic, frame);
-            if (!result.Accepted)
+            var commandJson = frame.ToJson();
+            if (commandJson != _lastDispatchedCommandJson)
             {
-                // Ownership was taken from under us between frames; stop cleanly.
-                Disengage("aborto seguro: posse dos atuadores perdida");
+                var result = _arbiter.Dispatch(CommandOwner.Automatic, frame);
+                if (!result.Accepted)
+                {
+                    // Ownership was taken from under us between frames; stop cleanly.
+                    Disengage("aborto seguro: posse dos atuadores perdida");
+                }
+                else
+                {
+                    _lastDispatchedCommandJson = commandJson;
+                    LastCommandedActuation = LastActuation;
+                }
             }
         }
 
@@ -704,6 +720,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
         {
             IsEngaged = false;
             ActiveKlaDemand = null;
+            LastCommandedActuation = null;
             _controller.SetAllocation(BuildWindowAllocation());
             Updated?.Invoke();
         }

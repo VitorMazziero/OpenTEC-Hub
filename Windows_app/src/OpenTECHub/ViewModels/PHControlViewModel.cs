@@ -18,6 +18,7 @@ public sealed partial class PHControlViewModel : ObservableObject, IDisposable
     private readonly ISettingsService _settings;
     private bool _initialised;
     private PHControlSettings _committed;
+    public double AppliedInactiveBand => _committed.InactiveBand;
 
     public PHControlViewModel(
         IDeviceService device,

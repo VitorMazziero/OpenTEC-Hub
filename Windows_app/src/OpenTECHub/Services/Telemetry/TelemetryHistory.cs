@@ -85,6 +85,9 @@ public enum TelemetryChannel
     BathCommandConfirmed,
     BathSp,
     BathTarget,
+    // Applied pH deadband limits, stored per sample; preserve earlier channel ordinals.
+    PHLowerLimit,
+    PHUpperLimit,
 }
 
 /// <summary>Downsampled series ready for a chart.</summary>

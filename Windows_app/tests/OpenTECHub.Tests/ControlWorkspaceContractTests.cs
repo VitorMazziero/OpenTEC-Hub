@@ -1,4 +1,5 @@
 using System.IO;
+using System.Xml.Linq;
 using OpenTECHub.Services.Persistence;
 using Xunit;
 
@@ -9,6 +10,52 @@ public sealed class ControlWorkspaceContractTests
 {
     private static readonly string ViewPath = Path.Combine(
         TestPaths.RepositoryRoot, "src", "OpenTECHub", "Views", "ControlView.xaml");
+
+    [Fact]
+    public void Oxygen_toggle_uses_cascade_permission_instead_of_manual_actuator_lock()
+    {
+        XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var view = XDocument.Load(ViewPath);
+        var toggle = Assert.Single(view.Descendants(wpf + "ToggleButton")
+            .Where(element => (string?)element.Attribute("IsChecked") == "{Binding IsCascadeEngaged, Mode=TwoWay}"));
+        var trigger = Assert.Single(toggle.Descendants(wpf + "DataTrigger"));
+        Assert.Equal("{Binding CanToggleCascade}", (string?)trigger.Attribute("Binding"));
+        Assert.Equal("False", (string?)trigger.Attribute("Value"));
+        Assert.Contains(trigger.Elements(wpf + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "IsEnabled" &&
+            (string?)setter.Attribute("Value") == "False");
+    }
+
+    [Fact]
+    public void Flowmeter_valves_remain_visible_and_advanced_contains_controller_tuning()
+    {
+        XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var view = XDocument.Load(ViewPath);
+        foreach (var binding in new[] { "RequestedValve1", "RequestedValve2", "RequestedMainValveClosed" })
+        {
+            var toggle = Assert.Single(view.Descendants(wpf + "ToggleButton")
+                .Where(element => (string?)element.Attribute("IsChecked") == $"{{Binding {binding}, Mode=TwoWay}}"));
+            Assert.Empty(toggle.Ancestors(wpf + "Expander"));
+        }
+        var tuning = Assert.Single(view.Descendants(wpf + "Expander")
+            .Where(element => (string?)element.Attribute("ToolTip") == "{Binding TuningUnavailableText}"));
+        Assert.Equal("Avançado", (string?)tuning.Attribute("Header"));
+    }
+
+    [Fact]
+    public void Flowmeter_dot_uses_the_same_activation_and_link_state_as_other_external_devices()
+    {
+        XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace controls = "clr-namespace:OpenTECHub.Controls";
+        var view = XDocument.Load(ViewPath);
+        var dot = Assert.Single(view.Descendants(controls + "StateDot")
+            .Where(element => (string?)element.Attribute("Label") == "Vazão de Ar"));
+        var binding = Assert.Single(dot.Descendants(wpf + "MultiBinding"));
+        Assert.Equal("{StaticResource ExternalDeviceState}", (string?)binding.Attribute("Converter"));
+        Assert.Equal(new[] { "EffectiveActive", "DataContext.FlowControl.Status.IsOffline",
+            "DataContext.FlowControl.Status.ShowPendingChip", "DataContext.FlowControl.Status.ShowRoutingChipOnly" },
+            binding.Elements(wpf + "Binding").Select(element => (string?)element.Attribute("Path")));
+    }
 
     [Fact]
     public void Process_rows_and_external_devices_follow_the_requested_order()
@@ -109,7 +156,7 @@ public sealed class ControlWorkspaceContractTests
 
         Assert.Contains("Header=\"Configuração do nó\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"Offset (mm)\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Header=\"Sintonia do controlador\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Header=\"Avançado\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"Taxa de rampa\"", xaml, StringComparison.Ordinal);
     }
 
@@ -237,7 +284,7 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("Automação por espuma", xaml, StringComparison.Ordinal);
 
         // A/B/C rig (plan Etapa 6): the flow drawer picks the energised input, names the
-        // valves' fixed roles, and keeps the raw pins under Avançado — the old per-gas
+        // valves' fixed roles, and keeps the raw pins visible in the drawer — the old per-gas
         // toggles ("Válvula de N₂") are gone.
         Assert.Contains("Válvulas do fluxômetro", xaml, StringComparison.Ordinal);
         Assert.Contains("A = ar ao reator · B = N₂ ou nada · C = purga de ar", xaml, StringComparison.Ordinal);
@@ -283,8 +330,9 @@ public sealed class ControlWorkspaceContractTests
 
         // AUD-002: 12 provenance badges bound to OwnerBadgeText across all process rows and peripherals
         Assert.Equal(12, Count(xaml, "Text=\"{Binding OwnerBadgeText}\""));
-        // 22 data triggers bound to IsOwnedByOther disabling textboxes, combos, and toggles
-        Assert.Equal(22, Count(xaml, "Binding=\"{Binding IsOwnedByOther}\""));
+        // Manual actuator locks remain; the oxygen toggle has its own stop permission.
+        Assert.Equal(21, Count(xaml, "Binding=\"{Binding IsOwnedByOther}\""));
+        Assert.Equal(1, Count(xaml, "Binding=\"{Binding CanToggleCascade}\""));
         // 3 drawers gated by InverseBool (pH, Nutrientes, Antiespumante)
         Assert.Equal(3, Count(xaml, "Converter={StaticResource InverseBool}"));
     }

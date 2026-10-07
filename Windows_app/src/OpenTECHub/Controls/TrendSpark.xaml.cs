@@ -237,6 +237,20 @@ public partial class TrendSpark : UserControl
             line.LinePattern = LinePattern.Dashed;
         }
 
+        if (channel == TelemetryChannel.PH)
+        {
+            foreach (var limitChannel in new[] { TelemetryChannel.PHLowerLimit, TelemetryChannel.PHUpperLimit })
+            {
+                var limit = history.GetSetpointSeries(limitChannel, TimeSpan.FromMinutes(WindowMinutes), MaxPoints);
+                if (!limit.Values.Any(double.IsFinite)) continue;
+                var line = plot.Add.ScatterLine(limit.Minutes, limit.Values);
+                line.MarkerStyle.IsVisible = false;
+                line.LineWidth = 1.2f;
+                line.LinePattern = LinePattern.Dotted;
+                line.Color = Token("ChartSetpointBrush", new PlotColor(34, 164, 71)).WithAlpha(0.45f);
+            }
+        }
+
         plot.Axes.AutoScale();
         _plot.Refresh();
     }

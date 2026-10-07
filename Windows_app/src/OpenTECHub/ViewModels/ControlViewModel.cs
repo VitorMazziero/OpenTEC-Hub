@@ -67,6 +67,7 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(OwnerBadgeText))]
     [NotifyPropertyChangedFor(nameof(OwnerLockReason))]
     [NotifyPropertyChangedFor(nameof(CanEditOxygenMode))]
+    [NotifyPropertyChangedFor(nameof(CanToggleCascade))]
     [NotifyPropertyChangedFor(nameof(EffectiveActive))]
     [NotifyPropertyChangedFor(nameof(OwnerText))]
     public partial CommandOwner CurrentOwner { get; set; } = CommandOwner.Manual;
@@ -114,12 +115,23 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
         get => CascadeEngagedGetter?.Invoke() ?? false;
         set
         {
-            if (CurrentOwner is CommandOwner.Manual or CommandOwner.Automatic)
+            if (CanToggleCascade)
             {
                 CascadeEngageRequested?.Invoke(value);
             }
         }
     }
+
+    /// <summary>The operator may stop the automatic cascade, but cannot override a recipe or assay.</summary>
+    public bool CanToggleCascade => CurrentOwner is CommandOwner.Manual or CommandOwner.Automatic;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormattedOxygenSetpoint))]
+    public partial double? OxygenSetpoint { get; set; }
+
+    public string FormattedOxygenSetpoint => OxygenSetpoint is { } value
+        ? value.ToString("F1", System.Globalization.CultureInfo.CurrentCulture)
+        : "—";
 
     /// <summary>The mode may only change while the cascade is not engaged and not owned by another.</summary>
     public bool CanEditOxygenMode => !IsCascadeEngaged && !IsOwnedByOther;
@@ -145,6 +157,7 @@ public sealed partial class ControlParameterRowViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(EffectiveActive));
         OnPropertyChanged(nameof(IsCascadeEngaged));
+        OnPropertyChanged(nameof(CanToggleCascade));
         OnPropertyChanged(nameof(CanEditOxygenMode));
         OnPropertyChanged(nameof(IsOwnedByOther));
         OnPropertyChanged(nameof(HasOwnerBadge));
@@ -932,6 +945,7 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
         var aerationRow = Rows[3]; // Airflow
 
         var engaged = _cascade.IsEngaged;
+        oxygenRow.OxygenSetpoint = engaged ? _cascade.OxygenSetpoint : null;
         var mode = oxygenRow.SelectedOxygenCascadeMode;
 
         var drivesAgitation = mode is CascadeMode.AgitationOnly or CascadeMode.DualCascade or CascadeMode.KlaPath;
@@ -939,6 +953,10 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
 
         agitationRow.IsOverriddenByCascade = engaged && drivesAgitation;
         aerationRow.IsOverriddenByCascade = engaged && drivesAeration;
+        agitationRow.Subsystem.AutomationSetpoint = agitationRow.IsOverriddenByCascade
+            ? _cascade.LastCommandedActuation?.AgitationRpm : null;
+        aerationRow.Subsystem.AutomationSetpoint = aerationRow.IsOverriddenByCascade
+            ? _cascade.LastCommandedActuation?.AerationLpm : null;
     }
 
     /// <summary>

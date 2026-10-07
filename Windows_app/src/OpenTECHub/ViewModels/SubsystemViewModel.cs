@@ -206,14 +206,26 @@ public sealed partial class SubsystemViewModel : ObservableObject
     /// <summary>Last value the device confirmed, or null before any send.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FormattedAppliedSetpoint))]
+    [NotifyPropertyChangedFor(nameof(DisplayedSetpoint))]
     public partial double? AppliedSetpoint { get; set; }
+
+    /// <summary>Display-only command from the cascade; never overwrites the operator's stored settings.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormattedAppliedSetpoint))]
+    [NotifyPropertyChangedFor(nameof(DisplayedSetpoint))]
+    public partial double? AutomationSetpoint { get; set; }
+
+    public double? DisplayedSetpoint => AutomationSetpoint ?? AppliedSetpoint;
+
+    partial void OnAutomationSetpointChanged(double? value)
+        => Variable.Setpoint = DisplayedSetpoint;
 
     /// <summary>Whether the last command sent for this subsystem left it enabled.</summary>
     [ObservableProperty]
     public partial bool AppliedIsEnabled { get; set; }
 
     /// <summary>Acknowledged setpoint formatted for the all-parameters table.</summary>
-    public string FormattedAppliedSetpoint => AppliedSetpoint is { } value
+    public string FormattedAppliedSetpoint => DisplayedSetpoint is { } value
         ? Variable.ToDisplay(value).ToString(
             "F" + (_spec.IsInteger ? 0 : Variable.Decimals).ToString(CultureInfo.InvariantCulture),
             CultureInfo.CurrentCulture)

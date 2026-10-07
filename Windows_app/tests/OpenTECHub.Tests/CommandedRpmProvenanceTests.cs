@@ -102,7 +102,9 @@ public class CommandedRpmProvenanceTests
         var source = File.ReadAllText(Path.Combine(
             TestPaths.RepositoryRoot, "src", "OpenTECHub", "ViewModels", "ShellViewModel.cs"));
 
-        Assert.Contains("var commandedRpm = Motor.Setpoint ?? 0;", source, StringComparison.Ordinal);
+        Assert.Contains("var commandedRpm = _cascade.IsEngaged && _cascade.LastCommandedActuation is { } actuation", source, StringComparison.Ordinal);
+        Assert.Contains("? actuation.AgitationRpm", source, StringComparison.Ordinal);
+        Assert.Contains(": Motor.Setpoint ?? 0;", source, StringComparison.Ordinal);
         Assert.DoesNotContain("var commandedRpm = Motor.Value", source, StringComparison.Ordinal);
 
         // And that it is this figure - not the snapshot - that reaches both sinks.

@@ -180,11 +180,20 @@ public sealed class ControlViewModelTests
         var agitationRow = fixture.Control.Rows[1];
         var aerationRow = fixture.Control.Rows[3];
 
+        Assert.Null(oxygenRow.OxygenSetpoint);
+        Assert.Equal("—", oxygenRow.FormattedOxygenSetpoint);
         oxygenRow.SelectedOxygenMode = "Agitação";
+        Assert.True(oxygenRow.CanToggleCascade);
         oxygenRow.IsCascadeEngaged = true;
 
         Assert.True(fixture.Cascade.IsEngaged);
         Assert.True(oxygenRow.IsCascadeEngaged);
+        Assert.Equal(fixture.Cascade.OxygenSetpoint, oxygenRow.OxygenSetpoint);
+        Assert.NotEqual("—", oxygenRow.FormattedOxygenSetpoint);
+        fixture.Cascade.Configure(fixture.Settings.Current.Cascade with { OxygenSetpointPercent = 55 });
+        Assert.Equal(55, oxygenRow.OxygenSetpoint);
+        Assert.Equal(CommandOwner.Automatic, oxygenRow.CurrentOwner);
+        Assert.True(oxygenRow.CanToggleCascade);
         Assert.False(oxygenRow.CanEditOxygenMode);
         Assert.True(agitationRow.IsOverriddenByCascade);
         Assert.False(aerationRow.IsOverriddenByCascade);
@@ -194,8 +203,67 @@ public sealed class ControlViewModelTests
         oxygenRow.IsCascadeEngaged = false;
         Assert.False(fixture.Cascade.IsEngaged);
         Assert.False(oxygenRow.IsCascadeEngaged);
+        Assert.Null(oxygenRow.OxygenSetpoint);
+        Assert.Equal("—", oxygenRow.FormattedOxygenSetpoint);
+        Assert.Equal(CommandOwner.Manual, oxygenRow.CurrentOwner);
+        Assert.True(oxygenRow.CanToggleCascade);
         Assert.True(oxygenRow.CanEditOxygenMode);
         Assert.False(agitationRow.IsOverriddenByCascade);
+    }
+
+    [Fact]
+    public void Cascade_displays_live_commands_without_overwriting_manual_settings()
+    {
+        using var fixture = new ControlFixture();
+        var oxygen = fixture.Control.Rows[2];
+        var motor = fixture.Subsystems[1];
+        var flow = fixture.Subsystems[3];
+        motor.AppliedSetpoint = 50;
+        flow.AppliedSetpoint = 0.5;
+        oxygen.SelectedOxygenMode = "Cascata";
+        oxygen.IsCascadeEngaged = true;
+
+        fixture.Device.PushTelemetry(new SensorSnapshot
+        {
+            OxygenCalibrated = 8, FlowmeterOnline = true, FlowSetpoint = 3.54,
+        });
+
+        var commanded = Assert.IsType<CascadeActuationResult>(fixture.Cascade.LastCommandedActuation);
+        Assert.Equal((double)commanded.AgitationRpm, motor.AutomationSetpoint);
+        Assert.Equal((double)commanded.AgitationRpm, motor.Variable.Setpoint);
+        Assert.Equal(commanded.AerationLpm, flow.AutomationSetpoint);
+        Assert.Equal(50, motor.AppliedSetpoint);
+        Assert.Equal(0.5, flow.AppliedSetpoint);
+        Assert.NotEqual("50", motor.FormattedAppliedSetpoint);
+
+        oxygen.IsCascadeEngaged = false;
+        Assert.Null(motor.AutomationSetpoint);
+        Assert.Null(flow.AutomationSetpoint);
+        Assert.Equal("50", motor.FormattedAppliedSetpoint);
+        Assert.Equal(50, motor.Variable.Setpoint);
+    }
+
+    [Theory]
+    [InlineData(CommandOwner.Recipe)]
+    [InlineData(CommandOwner.KlaAssay)]
+    [InlineData(CommandOwner.PowerAssay)]
+    public void Oxygen_toggle_remains_locked_for_recipe_and_assay_owners(CommandOwner owner)
+    {
+        using var fixture = new ControlFixture();
+        var oxygenRow = fixture.Control.Rows[2];
+        var notifications = new List<string?>();
+        oxygenRow.PropertyChanged += (_, args) => notifications.Add(args.PropertyName);
+
+        fixture.Arbiter.Claim(owner, [ActuatorId.Oxygen], "Controle externo");
+
+        Assert.False(oxygenRow.CanToggleCascade);
+        Assert.Contains(nameof(oxygenRow.CanToggleCascade), notifications);
+        oxygenRow.IsCascadeEngaged = true;
+        Assert.False(fixture.Cascade.IsEngaged);
+        Assert.Equal(owner, oxygenRow.CurrentOwner);
+
+        fixture.Arbiter.Release(owner, "Fim do controle externo");
+        Assert.True(oxygenRow.CanToggleCascade);
     }
 
     [Fact]

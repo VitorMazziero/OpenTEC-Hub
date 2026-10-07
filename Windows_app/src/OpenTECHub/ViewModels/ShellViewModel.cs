@@ -1499,14 +1499,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // History first: the charts read from it, and a row written to the log should
         // never describe a frame the charts have not seen.
         //
-        // Read from the setpoint, not from the tile's value. They carry the same number
-        // today - SubsystemViewModel writes both from AppliedSetpoint - but only the
-        // setpoint keeps meaning "what was asked for" once the servo node starts
-        // reporting real RPM into the tile. Column 2 of the session log and
-        // TelemetryChannel.MotorRpm are a frozen contract that downstream analysis reads
-        // as the command; sourcing them from a tile that is about to show a measurement
-        // would change what they mean without changing their name.
-        var commandedRpm = Motor.Setpoint ?? 0;
+        // Keep commanded rpm separate from measured servo rpm. During O2 control,
+        // record the accepted cascade command instead of the operator's earlier setting.
+        var commandedRpm = _cascade.IsEngaged && _cascade.LastCommandedActuation is { } actuation
+            ? actuation.AgitationRpm
+            : Motor.Setpoint ?? 0;
         _history.Add(snapshot, commandedRpm);
         // Nutrient is commanded-only — record what was asked for so it can be charted: the
         // duty cycle while enabled, and a flat zero while off (a visible line, not a gap).
@@ -1541,6 +1538,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             Subsystems[4].AppliedIsEnabled ? Subsystems[4].AppliedSetpoint ?? double.NaN : double.NaN);
         _history.RecordSetpoint(TelemetryChannel.PH,
             PHControl.AppliedIsEnabled ? PHControl.AppliedSetpoint ?? double.NaN : double.NaN);
+        var phSetpoint = PHControl.AppliedIsEnabled ? PHControl.AppliedSetpoint : null;
+        _history.RecordSetpoint(TelemetryChannel.PHLowerLimit,
+            phSetpoint is { } phLower ? phLower - PHControl.AppliedInactiveBand : double.NaN);
+        _history.RecordSetpoint(TelemetryChannel.PHUpperLimit,
+            phSetpoint is { } phUpper ? phUpper + PHControl.AppliedInactiveBand : double.NaN);
         _history.RecordSetpoint(TelemetryChannel.Oxygen,
             IsOxygenControlActive ? _cascade.OxygenSetpoint : double.NaN);
         _history.RecordSetpoint(TelemetryChannel.Distance,

@@ -42,7 +42,7 @@ public sealed class KlaRecipeAssayExecutionTests
     [InlineData(KlaAssayProtocol.Biotic, false, false, true)]
     public async Task ApiPulseUsesCommonRecoveryAnalysisAndPersistence(KlaAssayProtocol protocol, bool deadline, bool failPersistence, bool completeNormally)
     {
-        using var fixture = new RecipeAssayRestorationTests.Fixture(); await fixture.Initialize();
+        using var fixture = new RecipeAssayRestorationTests.Fixture(virtualTimers: deadline); await fixture.Initialize();
         var directory = Path.Combine(Path.GetTempPath(), "recipe-execution-" + Guid.NewGuid().ToString("N"));
         KlaAssayApi? activeApi = null;
         Guid activeRequest = Guid.Empty;

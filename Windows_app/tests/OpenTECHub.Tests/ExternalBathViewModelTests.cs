@@ -287,4 +287,27 @@ public sealed class ExternalBathViewModelTests
             CultureInfo.CurrentCulture = previous;
         }
     }
+
+    [Fact]
+    public void Route_toggle_automatically_enables_communication_when_turning_on()
+    {
+        var device = new RecordingDeviceService();
+        var dispatcher = new StubDispatcher();
+        using var vm = new ExternalBathViewModel(device, new MemorySettingsService(), dispatcher);
+        device.PushTelemetry(new SensorSnapshot
+        {
+            HasBathTelemetry = true,
+            BathOnline = true,
+            BathCommEnabled = false,
+            TempControlViaBath = false,
+        });
+
+        Assert.False(vm.IsCommEnabled);
+        vm.IsTempControlViaBath = true;
+
+        Assert.True(vm.IsCommEnabled);
+        Assert.Equal(2, dispatcher.Sent.Count);
+        Assert.Contains(dispatcher.Sent, c => c.Contains("\"bathComm\":1", StringComparison.Ordinal));
+        Assert.Contains(dispatcher.Sent, c => c.Contains("\"tempControlMode\":1", StringComparison.Ordinal));
+    }
 }

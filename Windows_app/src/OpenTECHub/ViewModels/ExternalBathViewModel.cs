@@ -156,10 +156,8 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     public bool CanApplyNow => IsTempControlViaBath && _routeEnabledOnHub == true &&
                                 IsCommEnabled && Status.HasTelemetry &&
                                 Status.IsOnline && Status.CommEnabledOnHub == true;
-    private bool CanEnableExternalRoute => Status.HasTelemetry && Status.IsOnline && IsCommEnabled &&
-                                           Status.CommEnabledOnHub == true;
     private bool CanEnableCommunication => Status.HasTelemetry;
-    public bool CanChangeRoute => IsTempControlViaBath || CanEnableExternalRoute;
+    public bool CanChangeRoute => IsTempControlViaBath || Status.HasTelemetry;
     public bool CanChangeCommunication => IsCommEnabled || CanEnableCommunication;
     public bool CanChangeMode => CanApplyNow;
 
@@ -179,8 +177,8 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
         : _routeEnabledOnHub == true
             ? "Banho externo: o setpoint da linha é a referência do reator; o Hub calcula o SP do C404 pela cascata. Desligar a linha para a cascata e deixa o C404 em manual no último SP."
             : IsCommEnabled && Status.IsOnline
-                ? "Banho original: o Hub envia o setpoint à placa do módulo por UART. O banho externo está habilitado e online; a troca de via exige novo setpoint."
-                : "Banho original: o Hub envia o setpoint à placa do módulo por UART. Para usar o banho externo, habilite-o no Hub (abaixo) e aguarde o nó online.";
+                ? "Banho original: o Hub envia o setpoint à placa do módulo por UART. O banho externo está online; a troca de via assume a cascata térmica."
+                : "Banho original: o Hub envia o setpoint à placa do módulo por UART. Ao selecionar banho externo, o Hub habilita a comunicação e a cascata térmica.";
 
     /// <summary>Show the C404/cascade details only while the Hub routes temperature to the bath.</summary>
     public bool ShowBathDetails => _routeEnabledOnHub == true;
@@ -188,25 +186,78 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     partial void OnIsTempControlViaBathChanged(bool value)
     {
         if (!_initialised || _syncingTelemetry) return;
-        if (value && !CanEnableExternalRoute)
+        if (value && !Status.HasTelemetry)
         {
             RevertRoute(value);
-            LastActionText = "A via externa exige Hub compatível, comunicação confirmada e banho online.";
+            LastActionText = "A via externa exige telemetria de um Hub compatível.";
             return;
         }
-        var result = _dispatcher.DispatchSeparateFrame(CommandBuilders.TemperatureRoute(value));
-        if (!result.Accepted)
+
+        if (value)
         {
-            RevertRoute(value);
-            LastActionText = DispatchRefusal.Describe(result, _dispatcher);
-            return;
+            if (!IsCommEnabled)
+            {
+                IsCommEnabled = true;
+                if (!IsCommEnabled)
+                {
+                    RevertRoute(value);
+                    return;
+                }
+            }
+            else if (Status.CommEnabledOnHub != true)
+            {
+                var commResult = _dispatcher.DispatchSeparateFrame(CommandBuilders.BathCommunication(true));
+                if (!commResult.Accepted)
+                {
+                    RevertRoute(value);
+                    LastActionText = DispatchRefusal.Describe(commResult, _dispatcher);
+                    return;
+                }
+                _commRequest = (true, _time.GetUtcNow());
+                Status.IsCommRequested = true;
+            }
+
+            var routeResult = _dispatcher.DispatchSeparateFrame(CommandBuilders.TemperatureRoute(true));
+            if (!routeResult.Accepted)
+            {
+                RevertRoute(value);
+                LastActionText = DispatchRefusal.Describe(routeResult, _dispatcher);
+                return;
+            }
+            _routeRequest = (true, _time.GetUtcNow());
+            Status.MarkCommandDispatched();
+            PersistPreferences();
+            LastActionText = "Via externa solicitada; envie um novo setpoint do reator depois da confirmação.";
         }
-        _routeRequest = (value, _time.GetUtcNow());
-        Status.MarkCommandDispatched();
-        PersistPreferences();
-        LastActionText = value
-            ? "Via externa solicitada; envie um novo setpoint do reator depois da confirmação."
-            : "Via do módulo UART solicitada; o Hub para o banho (manual, último SP).";
+        else
+        {
+            var routeResult = _dispatcher.DispatchSeparateFrame(CommandBuilders.TemperatureRoute(false));
+            if (!routeResult.Accepted)
+            {
+                RevertRoute(value);
+                LastActionText = DispatchRefusal.Describe(routeResult, _dispatcher);
+                return;
+            }
+            _routeRequest = (false, _time.GetUtcNow());
+
+            if (IsCommEnabled)
+            {
+                IsCommEnabled = false;
+            }
+            else if (Status.CommEnabledOnHub == true)
+            {
+                var commResult = _dispatcher.DispatchSeparateFrame(CommandBuilders.BathCommunication(false));
+                if (commResult.Accepted)
+                {
+                    _commRequest = (false, _time.GetUtcNow());
+                    Status.IsCommRequested = false;
+                }
+            }
+
+            Status.MarkCommandDispatched();
+            PersistPreferences();
+            LastActionText = "Via do módulo UART solicitada; o Hub para o banho (manual, último SP).";
+        }
         RefreshCommands();
     }
 

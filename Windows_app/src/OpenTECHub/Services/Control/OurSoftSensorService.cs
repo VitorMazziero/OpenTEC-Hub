@@ -23,6 +23,8 @@ public interface IOurSoftSensor
 
     /// <summary>Zeroes the accepted-interval running total, keeping the live reading.</summary>
     void ResetTotals();
+    void SuspendForKlaAssay() => throw new NotSupportedException("Suspensão de OUR indisponível.");
+    void ResumeAfterKlaAssay() => throw new NotSupportedException("Retomada de OUR indisponível.");
 }
 
 /// <inheritdoc cref="IOurSoftSensor"/>
@@ -36,7 +38,20 @@ public sealed class OurSoftSensorService : IOurSoftSensor, IDisposable
 
     private OurSoftSensor _sensor;
     private double _commandedAgitationRpm;
-    private DateTimeOffset? _epoch;
+    private bool _klaSuspended;
+    private OurSensorConfig _sensorConfig;
+    public void SuspendForKlaAssay()
+    {
+        _klaSuspended = true;
+        _sensor.BreakContinuity();
+        Latest = Latest with { Accepted = false, ConditionalOurMmolPerLPerHour = null, Status = OurStatus.SuspendedForAssay };
+        Updated?.Invoke();
+    }
+    public void ResumeAfterKlaAssay()
+    {
+        _sensor.BreakContinuity();
+        _klaSuspended = false;
+    }
 
     private string? _surfaceFingerprint;
     private KlaSurface? _surface;
@@ -60,7 +75,8 @@ public sealed class OurSoftSensorService : IOurSoftSensor, IDisposable
         _engine = engine;
         _settings = settings;
         _time = time;
-        _sensor = new OurSoftSensor(ToConfig(settings.Current.Our));
+        _sensorConfig = ToConfig(settings.Current.Our);
+        _sensor = new OurSoftSensor(_sensorConfig);
         // Best-effort starting point for the commanded agitation; refined by every motor command.
         _commandedAgitationRpm = settings.Current.Setpoints.MotorRpm;
 
@@ -84,9 +100,15 @@ public sealed class OurSoftSensorService : IOurSoftSensor, IDisposable
 
     private void OnSettingsChanged(AppSettings settings)
     {
+        var config = ToConfig(settings.Our);
+        if (config == _sensorConfig)
+        {
+            return;
+        }
+        _sensorConfig = config;
         // Re-tuning the sensor restarts its running total: the old integral was accumulated
         // under different acceptance criteria, so carrying it forward would be dishonest.
-        _sensor = new OurSoftSensor(ToConfig(settings.Our));
+        _sensor = new OurSoftSensor(config);
         Latest = OurSample.Empty;
     }
 
@@ -110,15 +132,14 @@ public sealed class OurSoftSensorService : IOurSoftSensor, IDisposable
 
     private void OnTelemetry(SensorSnapshot snapshot)
     {
-        if (snapshot.OxygenCalibrated <= SensorReadings.NotReceived)
+        if (_klaSuspended || !snapshot.OxygenUpdated || !double.IsFinite(snapshot.OxygenCalibrated) ||
+            snapshot.OxygenCalibrated <= SensorReadings.NotReceived)
         {
             // No usable oxygen: hold the last reading rather than inventing one.
             return;
         }
 
-        var now = _time.GetUtcNow();
-        _epoch ??= now;
-        var timeSeconds = (now - _epoch.Value).TotalSeconds;
+        var timeSeconds = _time.GetTimestamp() / (double)_time.TimestampFrequency;
 
         var kla = ResolveKla(snapshot.FlowRate);
         Latest = _sensor.Update(timeSeconds, snapshot.OxygenCalibrated, _cascade.OxygenSetpoint, kla);

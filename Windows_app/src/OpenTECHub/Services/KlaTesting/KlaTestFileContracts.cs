@@ -34,6 +34,11 @@ public static class KlaTestFileContracts
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter() },
     };
+    public static string SerializeAcquisition(KlaAcquisitionMetadata metadata) => JsonSerializer.Serialize(metadata, JsonOptions);
+    public static string SerializePhysicalOutcome(KlaRunOutcome outcome) => JsonSerializer.Serialize(outcome, JsonOptions);
+    public static KlaRunOutcome? DeserializePhysicalOutcome(string json) => JsonSerializer.Deserialize<KlaRunOutcome>(json, JsonOptions);
+    public static string SerializeGasEvents(IReadOnlyList<KlaGasEvent> events) => JsonSerializer.Serialize(events, JsonOptions);
+    public static IReadOnlyList<KlaGasEvent> DeserializeGasEvents(string json) => JsonSerializer.Deserialize<List<KlaGasEvent>>(json, JsonOptions) ?? [];
 
     private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
     {

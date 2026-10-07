@@ -39,6 +39,9 @@ public enum RunPhase
     Completed,
     Aborting,
     Faulted,
+    DivertingAir,
+    MeasuringConsumption,
+    RestoringCultivation,
 }
 
 /// <summary>
@@ -204,6 +207,8 @@ public sealed class KlaAnalysisRevision
 
 public sealed class KlaTestRun
 {
+    public KlaAcquisitionMetadata? Acquisition { get; set; }
+    public List<KlaGasEvent> GasEvents { get; set; } = [];
     public KlaRunDefinition? Definition { get; set; }
     public KlaRunOutcome? Outcome { get; set; }
     public Guid RunId { get; set; } = Guid.NewGuid();

@@ -11,6 +11,20 @@ namespace OpenTECHub.Tests;
 /// </summary>
 public class CascadeServiceTests
 {
+    [Fact]
+    public void E2_SuspensionHoldsControllerTermsDuringAssay()
+    {
+        var (service, device, clock) = Build();
+        service.Arm();
+        PushOxygen(device, clock, 8, 5);
+        var before = service.Terms;
+        service.SuspendForKlaAssay();
+        PushOxygen(device, clock, 80, 50);
+        Assert.Equal(before, service.Terms);
+        service.ResumeAfterKlaAssay(false, 450, 3);
+        PushOxygen(device, clock, 80);
+        Assert.NotEqual(before, service.Terms);
+    }
     private static (CascadeService Service, RecordingDeviceService Device, TestClock Clock) Build(
         CascadeSettings? configuration = null)
     {

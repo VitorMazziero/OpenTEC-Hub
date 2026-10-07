@@ -9,6 +9,22 @@ namespace OpenTECHub.Tests;
 /// </summary>
 public sealed class OurSoftSensorTests
 {
+    [Fact]
+    public void E2_AssayBreakPreservesTotalsAndDoesNotIntegrateAcrossPerturbation()
+    {
+        var sensor = new OurSoftSensor(Config());
+        for (var t = 0; t <= 60; t += 10)
+        {
+            sensor.Update(t, 30, 30, 100);
+        }
+        var total = sensor.CumulativeMmolPerL;
+        Assert.True(total > 0);
+        sensor.BreakContinuity();
+        Assert.Equal(total, sensor.CumulativeMmolPerL);
+        var after = sensor.Update(70, 30, 30, 100);
+        Assert.False(after.Accepted);
+        Assert.Equal(total, after.CumulativeMmolPerL);
+    }
     private static OurSensorConfig Config() => new()
     {
         OxygenSaturationMmolPerL = 0.21,

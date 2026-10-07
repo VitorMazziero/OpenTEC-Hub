@@ -20,6 +20,7 @@ public enum OurStatus
 
     /// <summary>Quasi-steady and on-band: the estimate is trustworthy.</summary>
     Accepted,
+    SuspendedForAssay,
 }
 
 /// <summary>
@@ -142,6 +143,13 @@ public sealed class OurSoftSensor
     /// <summary>Mean conditional OUR over the accepted intervals, or null before any is accepted.</summary>
     public double? MeanMmolPerLPerHour =>
         _acceptedHours > 0 ? _cumulativeMmolPerL / _acceptedHours : null;
+
+    /// <summary>Break history/integration continuity while keeping the accepted total.</summary>
+    public void BreakContinuity()
+    {
+        _rate.Reset(); _gated = false;
+        _lastAcceptedTimeSeconds = null; _lastAcceptedOur = null;
+    }
 
     /// <summary>
     /// Advances the sensor by one telemetry frame.

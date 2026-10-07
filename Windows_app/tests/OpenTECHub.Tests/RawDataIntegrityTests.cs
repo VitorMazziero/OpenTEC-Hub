@@ -173,6 +173,7 @@ public sealed class RawDataIntegrityTests : IDisposable
 
         await runner.StartTestAsync(doc);
         await runner.StartRunAsync(condition, 1);
+        clock.Advance(TimeSpan.FromSeconds(1));
         device.PushTelemetry(RunningFrame(temperature: 30.5, servoRpm: 448.0));
 
         var runFolder = runner.CurrentRun!.FolderName;
@@ -214,6 +215,7 @@ public sealed class RawDataIntegrityTests : IDisposable
 
         await runner.StartTestAsync(doc);
         await runner.StartRunAsync(condition, 1);
+        clock.Advance(TimeSpan.FromSeconds(1));
         device.PushTelemetry(noServo);
 
         var rows = File.ReadAllLines(

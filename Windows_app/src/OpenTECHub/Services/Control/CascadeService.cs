@@ -100,6 +100,8 @@ public interface ICascadeService
 
     /// <summary>Clears the reported integral contribution while the loop keeps running.</summary>
     void ResetIntegral();
+    void SuspendForKlaAssay() => throw new NotSupportedException("Suspensão de cascata indisponível.");
+    void ResumeAfterKlaAssay(bool engage, double rpm, double flow) => throw new NotSupportedException("Retomada de cascata indisponível.");
 
     /// <summary>True when a gain schedule is driving the cascade gains (WP8).</summary>
     bool IsGainSchedulingEnabled { get; }
@@ -131,6 +133,22 @@ public interface ICascadeService
 /// <inheritdoc cref="ICascadeService"/>
 public sealed class CascadeService : ICascadeService, IDisposable
 {
+    private bool _klaSuspended;
+    public void SuspendForKlaAssay()
+    {
+        _klaSuspended = true;
+        Disengage("Suspensão para ensaio kLa");
+        _lastStepAt = null;
+    }
+    public void ResumeAfterKlaAssay(bool engage, double rpm, double flow)
+    {
+        _lastStepAt = null;
+        _klaSuspended = false;
+        if (engage)
+        {
+            Engage(rpm, flow);
+        }
+    }
     /// <summary>The actuators the combined cascade frame writes: motor, flow group and the O₂ monitor.</summary>
     private static readonly ActuatorId[] CascadeActuators =
         [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen];
@@ -600,6 +618,11 @@ public sealed class CascadeService : ICascadeService, IDisposable
         if (!IsArmed)
         {
             Updated?.Invoke();
+            return;
+        }
+
+        if (_klaSuspended)
+        {
             return;
         }
 

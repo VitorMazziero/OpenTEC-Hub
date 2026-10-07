@@ -50,6 +50,10 @@ public interface IKlaTestStore
     string InitializeRunFolder(string testFolderName, KlaTestRun run);
 
     KlaRunDefinition? LoadRunDefinition(string testFolderName, string runFolderName) => null;
+    void SaveRunAcquisition(string testFolderName, string runFolderName, KlaAcquisitionMetadata metadata) { }
+    void SaveRunPhysicalOutcome(string testFolderName, string runFolderName, KlaRunOutcome outcome) { }
+    void SaveRunGasEvents(string testFolderName, string runFolderName, IReadOnlyList<KlaGasEvent> events) { }
+    IReadOnlyList<KlaGasEvent> LoadRunGasEvents(string testFolderName, string runFolderName) => [];
 
     /// <summary>
     /// Rewrites the run's raw CSV in full and returns the SHA-256 the file has once written — the

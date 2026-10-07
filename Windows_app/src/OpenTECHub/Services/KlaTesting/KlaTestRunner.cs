@@ -12,7 +12,7 @@ using OpenTECHub.Services.Persistence;
 
 namespace OpenTECHub.Services.KlaTesting;
 
-public sealed class KlaTestRunner : IKlaTestRunner
+public sealed partial class KlaTestRunner : IKlaTestRunner
 {
     private readonly IDeviceService _device;
     private readonly ICommandArbiter _arbiter;
@@ -44,6 +44,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private (double Flow, bool V1, bool V2, bool VFlow) _targetGasState;
     private long _lastFlowCommandId;
     private long _minimumExpectedFlowCommandId;
+    private double _flowRequestedMonotonic;
+    private long _lastLoggedConfirmation = -1;
     private bool _startAtFloor;
     private bool _prestageConfirmed;
     private bool _completeAfterClosing;
@@ -63,7 +65,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
         IKlaAnalysisEngine analysisEngine,
         ISettingsService settings,
         TimeProvider? time = null,
-        ILogger<KlaTestRunner>? log = null)
+        ILogger<KlaTestRunner>? log = null,
+        ICascadeService? cascade = null, IOurSoftSensor? our = null)
     {
         _device = device ?? throw new ArgumentNullException(nameof(device));
         _arbiter = arbiter ?? throw new ArgumentNullException(nameof(arbiter));
@@ -74,6 +77,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         _time = time ?? TimeProvider.System;
         _log = log ?? NullLogger<KlaTestRunner>.Instance;
         _routeCoordinator = new MotorRouteCoordinator(_arbiter, _device, CommandOwner.KlaAssay);
+        _assayCoordinator = new(_arbiter, cascade, our);
 
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnDeviceStateChanged;
@@ -159,6 +163,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
     public void PrepareTest(KlaTestDocument doc)
     {
         ArgumentNullException.ThrowIfNull(doc);
+        if (_phase is RunPhase.DivertingAir or RunPhase.MeasuringConsumption or RunPhase.SwitchingToReactor or
+            RunPhase.RestoringCultivation or RunPhase.Reoxygenating or RunPhase.Deoxygenating or RunPhase.PrestagingAir)
+        {
+            throw new InvalidOperationException("Finalize a aquisição e a retomada antes de trocar a sessão.");
+        }
         lock (_gate)
         {
             _currentTest = doc;
@@ -190,6 +199,15 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     public Task StartTestAsync(KlaTestDocument doc, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+        if (doc.Runs.Any(r => r.Outcome?.Restoration is KlaRestorationState.Pending or KlaRestorationState.Failed))
+        {
+            throw new InvalidOperationException("Confirme a recuperação manual da sessão anterior antes de iniciar outra corrida.");
+        }
+        if (_currentRun is not null && _phase is not (RunPhase.Idle or RunPhase.Completed or RunPhase.Accepted or RunPhase.Rejected))
+        {
+            throw new InvalidOperationException("Conclua a corrida atual antes de iniciar outra sessão.");
+        }
         lock (_gate)
         {
             _currentTest = doc;
@@ -216,6 +234,27 @@ public sealed class KlaTestRunner : IKlaTestRunner
             throw new InvalidOperationException("Nenhum teste de kLa ativo.");
         }
 
+        ct.ThrowIfCancellationRequested();
+        if (_phase is not (RunPhase.Idle or RunPhase.Accepted or RunPhase.Rejected or RunPhase.Completed))
+        {
+            throw new InvalidOperationException("Conclua e classifique a corrida atual antes de iniciar outra.");
+        }
+        if (_currentRun?.Outcome?.Restoration is KlaRestorationState.Pending or KlaRestorationState.Failed)
+        {
+            throw new InvalidOperationException("Retomada anterior falhou. Confirme a recuperação manual antes de preparar outra sessão.");
+        }
+        _assayCoordinator.Validate();
+        if (_currentTest.Runs.Any(r => r.Outcome?.Restoration is KlaRestorationState.Pending or KlaRestorationState.Failed))
+        {
+            throw new InvalidOperationException("Há uma retomada pendente ou falha nesta sessão. Confira o estado físico antes de iniciar outra corrida.");
+        }
+        if (!IsBiotic && (_arbiter.OwnerOf(ActuatorId.Agitation) == CommandOwner.Automatic ||
+            _arbiter.OwnerOf(ActuatorId.Aeration) == CommandOwner.Automatic))
+        {
+            throw new InvalidOperationException("Ensaio abiótico requer controle manual; encerre a cascata antes de iniciar.");
+        }
+        var runDefinition = KlaRunDefinition.Create(_currentTest, condition, replicateNumber);
+
         if (_device.State != ConnectionState.Connected)
         {
             throw new InvalidOperationException("O biorreator não está conectado.");
@@ -229,11 +268,20 @@ public sealed class KlaTestRunner : IKlaTestRunner
         {
             throw new InvalidOperationException("O fluxômetro está offline.");
         }
-        if (!double.IsFinite(_currentDO) || _currentDO is < 0 or > 200)
+        if (!double.IsFinite(_currentDO) || _currentDO < 0)
         {
             throw new InvalidOperationException("Leitura de oxigênio inválida.");
         }
         ValidateSettings(_currentTest.Settings);
+        if (!_hasOxygenSample || _lastOxygenRejected || GetMonotonicSeconds() - _lastOxygenMonotonic >
+            (_currentTest.ProtocolSettings?.OxygenSampleTimeoutSeconds ?? 10))
+        {
+            throw new InvalidOperationException("Sem amostra nova e válida de oxigênio. Aguarde OD antes de iniciar.");
+        }
+        if (IsBiotic)
+        {
+            ValidateBioticPreflight(condition);
+        }
         if (_currentTest.IsLegacyRig)
         {
             throw new InvalidOperationException(
@@ -246,7 +294,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 $"O arranjo configurado ({rig.Describe()}) difere do gravado neste ensaio ({recordedRig.ToConfiguration().Describe()}). " +
                 "Consulte Documentação › Gás e válvulas ou crie um ensaio novo.");
         }
-        if (condition.AgitationRpm <= 0 || condition.AirflowLpm <= 0 || replicateNumber < 1)
+        if (!double.IsFinite(condition.AgitationRpm) || !double.IsFinite(condition.AirflowLpm) ||
+            condition.AgitationRpm <= 0 || condition.AirflowLpm <= 0 || condition.AirflowLpm > MaxFlow || replicateNumber < 1)
         {
             throw new InvalidOperationException("Condição inválida: rotação, vazão e replicata devem ser positivas.");
         }
@@ -254,7 +303,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         // A run that begins at the floor never opens the N₂; every other run does, and the
         // source is the operator's hand — the preflight confirmation is the only evidence.
         var startAtFloor = _currentDO <= _currentTest.Settings.DOMinPercent + Math.Max(0.0, _currentTest.Settings.AirPrestageLeadPercent);
-        if (!startAtFloor && _currentTest.NitrogenSourceConfirmedUtc is null)
+        if (!IsBiotic && !startAtFloor && _currentTest.NitrogenSourceConfirmedUtc is null)
         {
             throw new InvalidOperationException(
                 "Confirme no pré-voo que o N₂ está aberto na fonte antes de iniciar a desoxigenação.");
@@ -277,10 +326,17 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
             _runPoints.Clear();
             ResetStabilityDetection();
+            _completeAfterClosing = false;
+            _abortAfterClosing = false;
+            _terminalReason = "";
             _startAtFloor = startAtFloor;
 
             _currentRun = new KlaTestRun
             {
+                Definition = runDefinition,
+                Acquisition = new(_settings.Current.Calibration.OxygenA, _settings.Current.Calibration.OxygenB,
+                    _time.GetUtcNow(), OperationalSettings.OxygenSampleTimeoutSeconds,
+                    IsBiotic ? InitialReturnRpm : null, IsBiotic ? _device.Latest!.FlowSetpoint : null),
                 TestId = _currentTest.TestId,
                 ConditionId = condition.ConditionId,
                 ReplicateNumber = replicateNumber,
@@ -293,6 +349,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
             var runFolder = _store.InitializeRunFolder(_currentTest.FolderName, _currentRun);
             _currentRun.FolderName = runFolder;
+            _store.SaveRunAcquisition(_currentTest.FolderName, runFolder, _currentRun.Acquisition);
 
             _phase = RunPhase.Preflight;
             _phaseStartMonotonic = GetMonotonicSeconds();
@@ -305,14 +362,12 @@ public sealed class KlaTestRunner : IKlaTestRunner
             "RunStarted",
             $"Iniciando corrida {_currentRun.FolderName} (N={condition.AgitationRpm} rpm, Q={condition.AirflowLpm} L/min, Rep={replicateNumber}). " +
             $"Arranjo: {rig.Describe()}. DO inicial {_currentDO:F1}%" +
-            (startAtFloor ? " — já no piso, sem fase de N₂." : $" — N₂ aberto na fonte confirmado em {_currentTest.NitrogenSourceConfirmedUtc:HH:mm:ss} UTC."));
+            (IsBiotic ? " — respiração; ar no escape e N₂ isolado."
+                : startAtFloor ? " — já no piso, sem fase de N₂." : $" — N₂ aberto na fonte confirmado em {_currentTest.NitrogenSourceConfirmedUtc:HH:mm:ss} UTC."));
         RaiseStateChanged();
 
         // 1. Claim ownership of Agitation and Aeration
-        _arbiter.Claim(
-            CommandOwner.KlaAssay,
-            [ActuatorId.Agitation, ActuatorId.Aeration],
-            $"Ensaio kLa: {_currentRun.FolderName}");
+        _assayCoordinator.Acquire($"Ensaio kLa: {_currentRun.FolderName}");
 
         if (_arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.KlaAssay ||
             _arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.KlaAssay)
@@ -321,25 +376,43 @@ public sealed class KlaTestRunner : IKlaTestRunner
             return;
         }
 
-        _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
-        if (!_routeCoordinator.RouteRequestAccepted) { await AbortTestAsync(routeMsg); return; }
-        LogEvent("MotorRoute", routeMsg);
-
-        if (_routeCoordinator.IsUartFallback && condition.AgitationRpm > MotorRouteCoordinator.UartFallbackMaxRpm)
+        try
         {
-            await AbortTestAsync(
-                $"Em modo de fallback UART, a rotação máxima é de {MotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. " +
-                $"A condição de {condition.AgitationRpm:F0} rpm requer comunicação Modbus com o servo drive.");
-            return;
-        }
+            _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
+            if (!_routeCoordinator.RouteRequestAccepted) { await AbortTestAsync(routeMsg); return; }
+            LogEvent("MotorRoute", routeMsg);
 
-        // 2. Initial Gas State: Close all gases first
-        SetPhase(RunPhase.ClosingAllGas, "Intertravamento: fechando todas as válvulas...");
-        DispatchFlowOrAbort(CommandBuilders.FlowSafeStop(MaxFlow), "fechar todas as válvulas");
+            if (_routeCoordinator.IsUartFallback && condition.AgitationRpm > MotorRouteCoordinator.UartFallbackMaxRpm)
+            {
+                await AbortTestAsync(
+                    $"Em modo de fallback UART, a rotação máxima é de {MotorRouteCoordinator.UartFallbackMaxRpm:F0} rpm. " +
+                    $"A condição de {condition.AgitationRpm:F0} rpm requer comunicação Modbus com o servo drive.");
+                return;
+            }
+
+            // 2. Initial Gas State: Close all gases first
+            if (IsBiotic)
+            {
+                BeginBioticRemoval();
+                return;
+            }
+            SetPhase(RunPhase.ClosingAllGas, "Intertravamento: fechando todas as válvulas...");
+            DispatchFlowOrAbort(CommandBuilders.FlowSafeStop(MaxFlow), "fechar todas as válvulas");
+        }
+        catch (Exception error)
+        {
+            await AbortTestAsync($"Falha no início da corrida: {error.Message}");
+            throw;
+        }
     }
 
     public Task StopRunAndReviewAsync(string reason = "Parada pelo operador")
     {
+        if (IsBiotic)
+        {
+            BeginCultivationRestoration(reason);
+            return Task.CompletedTask;
+        }
         if (_phase is not (RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.PrestagingAir or
             RunPhase.SwitchingToReactor or RunPhase.Reoxygenating))
         {
@@ -355,6 +428,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     public Task AcceptRunAsync(KlaAnalysisRevision analysis)
     {
+        EnsureBioticReviewReady();
+        analysis = KlaTestFileContracts.DeserializeAnalysis(KlaTestFileContracts.SerializeAnalysis(analysis))!;
         if (_currentTest is null || _currentRun is null || _currentCondition is null)
         {
             throw new InvalidOperationException("Nenhuma corrida ativa para aceitar.");
@@ -362,19 +437,27 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
         lock (_gate)
         {
-            if (analysis.Quality == DecisionQuality.Inconclusive)
+            if (analysis.Quality == DecisionQuality.Inconclusive ||
+                analysis.Outcome?.KlaQuality is KlaScientificQuality.Inconclusive or
+                    KlaScientificQuality.NotEvaluated or KlaScientificQuality.NotApplicable)
             {
                 throw new InvalidOperationException("Uma análise inconclusiva não pode ser aceita. Ajuste a região/Ceq ou rejeite a corrida.");
             }
             analysis.RevisionNumber = _currentRun.AnalysisHistory.Count + 1;
+            analysis.Outcome = (analysis.Outcome ?? KlaRunOutcome.FromLegacy(analysis.Quality)) with
+            {
+                OperatorDecision = KlaOperatorDecision.Accepted,
+                Restoration = _currentRun.Outcome?.Restoration ?? analysis.EffectiveOutcome.Restoration,
+            };
+            _currentRun.Outcome = analysis.Outcome;
             _currentRun.LatestAnalysis = analysis;
-            _currentRun.AnalysisHistory.Add(analysis);
             _currentRun.CompletedUtc = _time.GetUtcNow();
             _currentRun.CurrentPhase = RunPhase.Accepted;
 
             // Save raw data and analysis. The store returns the hash the file will carry, so the
             // seal does not wait for the queued write.
             analysis.RawDataSha256 = _store.SaveRunRawData(_currentTest.FolderName, _currentRun.FolderName, _runPoints);
+            _currentRun.AnalysisHistory.Add(KlaTestFileContracts.DeserializeAnalysis(KlaTestFileContracts.SerializeAnalysis(analysis))!);
 
             _store.SaveRunAnalysis(_currentTest.FolderName, _currentRun.FolderName, analysis);
             _store.SaveRunResult(_currentTest.FolderName, _currentRun.FolderName, _currentRun, analysis);
@@ -397,6 +480,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 AgitationRpm = _currentRun.AgitationRpm,
                 AirflowLpm = _currentRun.AirflowLpm,
                 Phase = RunPhase.Accepted,
+                Definition = _currentRun.Definition,
+                Outcome = analysis.Outcome,
                 Decision = analysis.Quality,
                 KlaPerHour = analysis.KlaPerHour,
                 AnalysisR2 = analysis.AnalysisR2,
@@ -424,6 +509,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     public Task RejectRunAsync(string reason)
     {
+        EnsureBioticReviewReady();
         if (_currentTest is null || _currentRun is null || _currentCondition is null)
         {
             throw new InvalidOperationException("Nenhuma corrida ativa para rejeitar.");
@@ -431,7 +517,9 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
         lock (_gate)
         {
-            var analysis = _currentRun.LatestAnalysis ?? new KlaAnalysisRevision
+            var analysis = _currentRun.LatestAnalysis is { } latest
+                ? KlaTestFileContracts.DeserializeAnalysis(KlaTestFileContracts.SerializeAnalysis(latest))!
+                : new KlaAnalysisRevision
             {
                 Quality = DecisionQuality.Inconclusive,
                 RejectionReason = reason,
@@ -440,13 +528,20 @@ public sealed class KlaTestRunner : IKlaTestRunner
             };
 
             analysis.Quality = DecisionQuality.Inconclusive;
+            analysis.RevisionNumber = _currentRun.AnalysisHistory.Count + 1;
             analysis.RejectionReason = reason;
+            analysis.Outcome = (analysis.Outcome ?? KlaRunOutcome.FromLegacy(analysis.Quality)) with
+            {
+                OperatorDecision = KlaOperatorDecision.Rejected,
+                Restoration = _currentRun.Outcome?.Restoration ?? analysis.EffectiveOutcome.Restoration,
+            };
+            _currentRun.Outcome = analysis.Outcome;
             _currentRun.LatestAnalysis = analysis;
-            _currentRun.AnalysisHistory.Add(analysis);
             _currentRun.CompletedUtc = _time.GetUtcNow();
             _currentRun.CurrentPhase = RunPhase.Rejected;
 
             analysis.RawDataSha256 = _store.SaveRunRawData(_currentTest.FolderName, _currentRun.FolderName, _runPoints);
+            _currentRun.AnalysisHistory.Add(KlaTestFileContracts.DeserializeAnalysis(KlaTestFileContracts.SerializeAnalysis(analysis))!);
 
             _store.SaveRunAnalysis(_currentTest.FolderName, _currentRun.FolderName, analysis);
             _store.SaveRunResult(_currentTest.FolderName, _currentRun.FolderName, _currentRun, analysis);
@@ -464,6 +559,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 AgitationRpm = _currentRun.AgitationRpm,
                 AirflowLpm = _currentRun.AirflowLpm,
                 Phase = RunPhase.Rejected,
+                Definition = _currentRun.Definition,
+                Outcome = analysis.Outcome,
                 Decision = DecisionQuality.Inconclusive,
                 KlaPerHour = null,
                 AnalysisR2 = null,
@@ -487,24 +584,55 @@ public sealed class KlaTestRunner : IKlaTestRunner
         return Task.CompletedTask;
     }
 
-    public Task RepeatRunAsync()
+    public async Task RepeatRunAsync()
     {
         if (_currentCondition is null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var sameReplicate = _currentRun?.ReplicateNumber ?? Math.Max(1, _currentCondition.CompletedReplicates + 1);
-        return StartRunAsync(_currentCondition, sameReplicate);
+        if (_phase == RunPhase.Reviewing)
+        {
+            await RejectRunAsync("Repetição solicitada pelo operador");
+        }
+        await StartRunAsync(_currentCondition, sameReplicate);
     }
 
     public Task CompleteTestAsync()
     {
+        if (IsBiotic)
+        {
+            if (_currentRun is null)
+            {
+                _currentTest!.Status = KlaTestStatus.Completed;
+                _currentTest.CompletedUtc = _time.GetUtcNow();
+                _store.SaveTestManifest(_currentTest);
+                SetPhase(RunPhase.Completed, "Sessão concluída sem corrida; cultivo não perturbado.");
+                return Task.CompletedTask;
+            }
+            _completeAfterClosing = true;
+            _abortAfterClosing = false;
+            BeginCultivationRestoration("Teste concluído");
+            return Task.CompletedTask;
+        }
         lock (_gate)
         {
             if (_currentTest is null)
             {
                 return Task.CompletedTask;
+            }
+
+            if (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.KlaAssay ||
+                _arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.KlaAssay)
+            {
+                _assayCoordinator.Validate();
+                if (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.Manual ||
+                    _arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.Manual)
+                {
+                    throw new InvalidOperationException("Conclua o controle concorrente antes de encerrar o ensaio abiótico.");
+                }
+                _assayCoordinator.Acquire("Encerramento do ensaio abiótico");
             }
 
             _completeAfterClosing = true;
@@ -519,6 +647,18 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     public Task AbortTestAsync(string reason)
     {
+        if (IsBiotic)
+        {
+            _abortAfterClosing = true;
+            _completeAfterClosing = false;
+            if (_currentTest is not null)
+            {
+                _currentTest.Status = KlaTestStatus.Interrupted;
+                _currentTest.InterruptionReason = reason;
+            }
+            BeginCultivationRestoration(reason);
+            return Task.CompletedTask;
+        }
         lock (_gate)
         {
             if (_currentTest is not null)
@@ -550,7 +690,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             }
             else
             {
-                _arbiter.Release(CommandOwner.KlaAssay, $"Abortado sem confirmação por perda de comunicação: {reason}");
+                _assayCoordinator.Release(false, 0, 0, $"Abortado sem confirmação por perda de comunicação: {reason}");
                 SetPhase(RunPhase.Faulted, $"Teste abortado sem confirmação de fechamento: {reason}");
             }
         }
@@ -589,6 +729,10 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     public void SetDegassingAgitation(double rpm)
     {
+        if (!double.IsFinite(rpm) || rpm <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rpm));
+        }
         lock (_gate)
         {
             if (_currentTest is null)
@@ -597,6 +741,10 @@ public sealed class KlaTestRunner : IKlaTestRunner
             }
 
             _currentTest.Settings = _currentTest.Settings with { DegassingAgitationRpm = rpm };
+            if (_currentTest.ProtocolSettings is { } protocol)
+            {
+                _currentTest.ProtocolSettings = protocol with { OxygenRemovalAgitationRpm = rpm };
+            }
             _store.SaveTestManifest(_currentTest);
 
             if (_phase is RunPhase.Deoxygenating or RunPhase.PrestagingAir)
@@ -642,16 +790,32 @@ public sealed class KlaTestRunner : IKlaTestRunner
     /// </summary>
     private OpenTECCommand RouteFrame(double flow, GasRoute route)
     {
-        var (v1, v2) = GasRouting.Resolve(route, Rig);
+        var rig = _currentTest?.GasRig?.ToConfiguration() ?? Rig;
+        var (v1, v2) = GasRouting.Resolve(route, rig);
         _targetGasState = (flow, v1, v2, flow <= 0.0);
-        return CommandBuilders.FlowRoute(flow, MaxFlow, route, Rig);
+        return CommandBuilders.FlowRoute(flow, MaxFlow, route, rig);
     }
 
     private void OnTelemetryReceived(SensorSnapshot s)
     {
         _lastTelemetryMonotonic = GetMonotonicSeconds();
-        _currentDO = s.OxygenCalibrated;
-        _currentDORaw = s.OxygenRaw;
+        if (s.OxygenUpdated)
+        {
+            _lastOxygenRejected = !double.IsFinite(s.OxygenCalibrated) || s.OxygenCalibrated < 0 ||
+                !double.IsFinite(s.OxygenRaw) || s.OxygenRaw < 0;
+        }
+        var newOxygen = s.OxygenUpdated && double.IsFinite(s.OxygenCalibrated) && s.OxygenCalibrated >= 0 &&
+            double.IsFinite(s.OxygenRaw) && s.OxygenRaw >= 0 &&
+            (!_hasOxygenSample || _lastOxygenMonotonic < _lastTelemetryMonotonic);
+        if (newOxygen)
+        {
+            _hasOxygenSample = true;
+            _lastOxygenMonotonic = _lastTelemetryMonotonic;
+            _currentDO = s.OxygenCalibrated;
+            _currentDORaw = s.OxygenRaw;
+            _initialOxygenHistory.Add((_lastOxygenMonotonic, _currentDO));
+            _initialOxygenHistory.RemoveAll(x => _lastTelemetryMonotonic - x.Time > 120);
+        }
         _currentFlowMeasured = s.FlowRate;
         _lastFlowmeterOnline = s.FlowmeterOnline;
         _lastFlowCommandId = s.FlowCommandId;
@@ -670,15 +834,23 @@ public sealed class KlaTestRunner : IKlaTestRunner
         lock (_gate)
         {
             var nowUtc = _time.GetUtcNow();
+            if (_currentRun?.Acquisition is { } acquisition &&
+                (_settings.Current.Calibration.OxygenA != acquisition.OxygenCalibrationA ||
+                 _settings.Current.Calibration.OxygenB != acquisition.OxygenCalibrationB))
+            {
+                _ = AbortTestAsync("Calibração de oxigênio mudou durante a corrida.");
+                return;
+            }
             var relSec = Math.Max(0, GetMonotonicSeconds() - _runStartMonotonic);
             var monoSec = GetMonotonicSeconds();
 
             var v1 = s.FlowValve1 != 0;
             var v2 = s.FlowValve2 != 0;
             var vFlow = s.FlowValveMain != 0;
-            var agitationSetpoint = _phase is RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.PrestagingAir
-                ? _currentTest.Settings.DegassingAgitationRpm
-                : _currentCondition?.AgitationRpm ?? 0;
+            var agitationSetpoint = _phase is RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.PrestagingAir or
+                RunPhase.DivertingAir or RunPhase.MeasuringConsumption
+                ? RemovalRpm
+                : _phase == RunPhase.RestoringCultivation ? ReturnRpm : _currentCondition?.AgitationRpm ?? 0;
 
             var temperature = OptionalReading(s.Temperature);
             var rpmMeasured = MeasuredRpm(s);
@@ -701,7 +873,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             var capturesRunData = _phase is RunPhase.Preflight or RunPhase.ClosingAllGas or
                 RunPhase.OpeningNitrogen or RunPhase.Deoxygenating or RunPhase.PrestagingAir or
                 RunPhase.SwitchingToReactor or RunPhase.Reoxygenating or RunPhase.StoppingRun or RunPhase.Aborting;
-            if (capturesRunData)
+            if ((capturesRunData || _phase is RunPhase.DivertingAir or RunPhase.MeasuringConsumption or RunPhase.RestoringCultivation) && newOxygen)
             {
                 _runPoints.Add(rawPt);
                 if (_currentRun is not null)
@@ -738,8 +910,38 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 TemperatureC: temperature,
                 RpmMeasured: rpmMeasured);
 
-            _globalSamples.Add(sample);
-            _store.AppendGlobalSeriesSample(_currentTest.FolderName, sample);
+            if (newOxygen)
+            {
+                _globalSamples.Add(sample);
+                _store.AppendGlobalSeriesSample(_currentTest.FolderName, sample);
+            }
+            else
+            {
+                LogEvent("TelemetryWithoutNewOxygen", $"Sem OD novo; fase {_phase}; Q={s.FlowRate}; cmd={s.FlowCommandId}; ack={s.FlowCommandAck}.");
+            }
+
+            if (IsBiotic)
+            {
+                try
+                {
+                    if (_phase is RunPhase.DivertingAir or RunPhase.MeasuringConsumption or RunPhase.SwitchingToReactor or RunPhase.Reoxygenating or RunPhase.RestoringCultivation &&
+                        (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.KlaAssay ||
+                         _arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.KlaAssay))
+                    {
+                        FailCultivationRestoration("Posse dos atuadores perdida durante a aquisição.");
+                    }
+                    else
+                    {
+                        EvaluateBioticTelemetry(s, newOxygen, monoSec, relSec);
+                    }
+                }
+                catch (Exception error)
+                {
+                    BeginCultivationRestoration($"Falha de comando: {error.Message}");
+                }
+                RaiseStateChanged();
+                return;
+            }
 
             // Phase State Transitions
             if (_phase == RunPhase.ClosingAllGas && IsGasStateConfirmed(s, (0, false, false, true)))
@@ -755,6 +957,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             }
             else if (_phase == RunPhase.StoppingRun && IsGasStateConfirmed(s, (0, false, false, true)))
             {
+                _assayCoordinator.Release(true, 0, 0, "Revisão abiótica após fechamento confirmado");
                 SetPhase(RunPhase.Reviewing, "Válvulas fechadas. Revise e classifique a corrida.");
             }
             else if (_phase == RunPhase.Aborting && IsGasStateConfirmed(s, (0, false, false, true)))
@@ -763,9 +966,10 @@ public sealed class KlaTestRunner : IKlaTestRunner
             }
             else if (_phase == RunPhase.OpeningNitrogen && IsGasStateConfirmed(s, _targetGasState))
             {
+                RecordGasEvent(relSec, KlaGasEventKind.GasOffConfirmed, $"N2 route; cmd={s.FlowCommandAck}");
                 SetPhase(RunPhase.Deoxygenating, $"Desoxigenação com N₂ em andamento (DO = {s.OxygenCalibrated:F1}%)...");
             }
-            else if (_phase == RunPhase.PrestagingAir)
+            else if (_phase == RunPhase.PrestagingAir && newOxygen)
             {
                 EvaluateAirPrestage(s, monoSec);
             }
@@ -773,11 +977,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
             {
                 ConfirmSwitchToReactor(s, relSec);
             }
-            else if (_phase == RunPhase.Deoxygenating && s.OxygenCalibrated <= PrestageTriggerPercent)
+            else if (_phase == RunPhase.Deoxygenating && newOxygen && s.OxygenCalibrated <= PrestageTriggerPercent)
             {
                 BeginAirPrestage();
             }
-            else if (_phase == RunPhase.Reoxygenating && s.OxygenCalibrated >= _currentTest.Settings.DOMaxPercent)
+            else if (_phase == RunPhase.Reoxygenating && newOxygen && s.OxygenCalibrated >= _currentTest.Settings.DOMaxPercent)
             {
                 StopRunAndReviewAsync("DO máxima atingida com sucesso");
             }
@@ -825,7 +1029,14 @@ public sealed class KlaTestRunner : IKlaTestRunner
                     s.FlowCommandId >= _minimumExpectedFlowCommandId &&
                     s.FlowCommandAck == s.FlowCommandId;
 
-        return flowOk && v1Ok && v2Ok && vFlowOk && ackOk;
+        var confirmed = flowOk && v1Ok && v2Ok && vFlowOk && ackOk;
+        if (confirmed && s.FlowCommandId != _lastLoggedConfirmation)
+        {
+            _lastLoggedConfirmation = s.FlowCommandId;
+            LogEvent("GasCommandConfirmed", $"cmd={s.FlowCommandId}; latency={GetMonotonicSeconds() - _flowRequestedMonotonic:F3}s; " +
+                $"t={GetMonotonicSeconds() - _runStartMonotonic:F3}s.");
+        }
+        return confirmed;
     }
 
     private bool _lastFlowmeterOnline;
@@ -835,7 +1046,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         // N₂ enters through B, which shares its output with C: setpoint 0 keeps the air shut.
         var frame = RouteFrame(0, GasRoute.VentAndNitrogen);
         SetPhase(RunPhase.OpeningNitrogen, $"Abrindo N₂ — {GasRouting.Describe(GasRoute.VentAndNitrogen, Rig)}...");
-        DispatchMotorOrAbort((int)_currentTest!.Settings.DegassingAgitationRpm, "ajustar agitação de desoxigenação");
+        DispatchMotorOrAbort((int)RemovalRpm, "ajustar agitação de desoxigenação");
         DispatchFlowOrAbort(frame, "abrir nitrogênio");
     }
 
@@ -857,7 +1068,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
                 : $"DO atingiu {_currentDO:F1}% (gatilho {PrestageTriggerPercent:F1}%). ") +
             $"Pedindo {targetFlow:F2} L/min por C com o N₂ ainda aberto; o reator só recebe ar com a vazão e o piso assentados.");
         SetPhase(RunPhase.PrestagingAir, $"Ar por C a {targetFlow:F2} L/min · aguardando o eco do fluxômetro...");
-        DispatchMotorOrAbort((int)_currentTest!.Settings.DegassingAgitationRpm, "manter a agitação de desoxigenação");
+        DispatchMotorOrAbort((int)RemovalRpm, "manter a agitação de desoxigenação");
         DispatchFlowOrAbort(frame, "pré-estabilizar o ar por C");
     }
 
@@ -949,6 +1160,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
     /// <summary>The flowmeter echoed A open and B/C closed: this frame is <c>t = 0</c>.</summary>
     private void ConfirmSwitchToReactor(SensorSnapshot s, double relativeSeconds)
     {
+        RecordGasEvent(relativeSeconds, KlaGasEventKind.GasOnConfirmed, $"Reactor route; cmd={s.FlowCommandAck}");
         if (_currentRun is not null)
         {
             _currentRun.SwitchRelativeSeconds = relativeSeconds;
@@ -966,6 +1178,8 @@ public sealed class KlaTestRunner : IKlaTestRunner
     private void DispatchFlowOrAbort(OpenTECCommand command, string action)
     {
         _minimumExpectedFlowCommandId = _lastFlowCommandId + 1;
+        _flowRequestedMonotonic = GetMonotonicSeconds();
+        LogEvent("GasCommandRequested", $"{action}; minCmd={_minimumExpectedFlowCommandId}; t={_flowRequestedMonotonic - _runStartMonotonic:F3}s.");
         var result = _arbiter.Dispatch(CommandOwner.KlaAssay, command);
         if (!result.Accepted)
         {
@@ -1034,6 +1248,11 @@ public sealed class KlaTestRunner : IKlaTestRunner
 
     private void OnDeviceStateChanged(ConnectionStateChange change)
     {
+        if (change.State != ConnectionState.Connected && IsBiotic && _phase == RunPhase.RestoringCultivation)
+        {
+            FailCultivationRestoration("Comunicação perdida durante a retomada.");
+            return;
+        }
         if (change.State != ConnectionState.Connected && IsRunning)
         {
             _ = AbortTestAsync($"Conexão perdida com o biorreator ({change.State}).");
@@ -1047,18 +1266,57 @@ public sealed class KlaTestRunner : IKlaTestRunner
             return;
         }
         var now = GetMonotonicSeconds();
-        if (_lastTelemetryMonotonic > 0 && now - _lastTelemetryMonotonic > 5)
+        if (IsBiotic && _phase == RunPhase.RestoringCultivation)
         {
-            _ = AbortTestAsync("Telemetria ficou desatualizada por mais de 5 segundos.");
+            if (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.KlaAssay ||
+                _arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.KlaAssay)
+            {
+                FailCultivationRestoration("Posse dos atuadores perdida durante a retomada.");
+                return;
+            }
+            if (PhaseElapsedSeconds > OperationalSettings.AerationReturn.MaximumRecoverySeconds)
+            {
+                FailCultivationRestoration("Tempo limite de retomada excedido.");
+            }
             return;
         }
-        var awaitingEcho = _phase is RunPhase.ClosingAllGas or RunPhase.OpeningNitrogen or RunPhase.SwitchingToReactor or
-            RunPhase.StoppingRun or RunPhase.Aborting || (_phase == RunPhase.PrestagingAir && !_prestageConfirmed);
-        if (awaitingEcho && PhaseElapsedSeconds > 10)
+        if (IsBiotic && _phase is RunPhase.DivertingAir or RunPhase.MeasuringConsumption or RunPhase.SwitchingToReactor or RunPhase.Reoxygenating &&
+            (_arbiter.OwnerOf(ActuatorId.Aeration) != CommandOwner.KlaAssay ||
+             _arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.KlaAssay))
+        {
+            FailCultivationRestoration("Posse dos atuadores perdida durante a aquisição.");
+            return;
+        }
+        if (_phase is not (RunPhase.Aborting or RunPhase.StoppingRun) &&
+            _hasOxygenSample && now - _lastOxygenMonotonic > OperationalSettings.OxygenSampleTimeoutSeconds)
+        {
+            _ = AbortTestAsync("Canal de oxigênio sem amostra nova dentro do tempo configurado.");
+            return;
+        }
+        if (IsBiotic && _phase == RunPhase.MeasuringConsumption &&
+            now - _gasOffMonotonic >= OperationalSettings.AerationReturn.MaximumGasOffSeconds)
+        {
+            SwitchToReactor();
+            return;
+        }
+        if (_lastTelemetryMonotonic > 0 && now - _lastTelemetryMonotonic > 5)
         {
             if (_phase == RunPhase.Aborting)
             {
-                _arbiter.Release(CommandOwner.KlaAssay, "Tempo limite no fechamento; estado físico não confirmado");
+                _assayCoordinator.Release(false, 0, 0, "Sem telemetria para confirmar fechamento");
+                SetPhase(RunPhase.Faulted, "Fechamento não confirmado por falta de telemetria.");
+                return;
+            }
+            _ = AbortTestAsync("Telemetria ficou desatualizada por mais de 5 segundos.");
+            return;
+        }
+        var awaitingEcho = _phase is RunPhase.ClosingAllGas or RunPhase.OpeningNitrogen or RunPhase.SwitchingToReactor or RunPhase.DivertingAir or
+            RunPhase.StoppingRun or RunPhase.Aborting || (_phase == RunPhase.PrestagingAir && !_prestageConfirmed);
+        if (awaitingEcho && PhaseElapsedSeconds > OperationalSettings.CommandConfirmationTimeoutSeconds)
+        {
+            if (_phase == RunPhase.Aborting)
+            {
+                _assayCoordinator.Release(false, 0, 0, "Tempo limite no fechamento; estado físico não confirmado");
                 SetPhase(RunPhase.Faulted, "Falha: fechamento das válvulas não foi confirmado em 10 segundos.");
                 return;
             }
@@ -1091,7 +1349,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
             return;
         }
 
-        _arbiter.Release(CommandOwner.KlaAssay, _terminalReason);
+        _assayCoordinator.Release(true, 0, 0, _terminalReason);
         if (_completeAfterClosing)
         {
             _currentTest.Status = KlaTestStatus.Completed;
@@ -1128,6 +1386,7 @@ public sealed class KlaTestRunner : IKlaTestRunner
         {
             _currentRun.CurrentPhase = phase;
         }
+        LogEvent("PhaseChanged", $"{phase}; t={Math.Max(0, _phaseStartMonotonic - _runStartMonotonic):F3}s; {message}");
         RaiseStateChanged();
     }
 
@@ -1156,6 +1415,12 @@ public sealed class KlaTestRunner : IKlaTestRunner
             return;
         }
         _disposed = true;
+
+        if (IsBiotic && _currentRun?.Outcome?.Restoration == KlaRestorationState.Pending)
+        {
+            BeginCultivationRestoration("Aplicativo encerrando");
+            FailCultivationRestoration("Encerramento antes da confirmação física; conferir retomada manualmente.");
+        }
 
         _device.TelemetryReceived -= OnTelemetryReceived;
         _store.WriteFailed -= OnStoreWriteFailed;

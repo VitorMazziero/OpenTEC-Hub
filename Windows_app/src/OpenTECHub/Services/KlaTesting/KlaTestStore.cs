@@ -34,6 +34,22 @@ public sealed class KlaTestStore : IKlaTestStore
     public event Action<string, Exception>? WriteFailed;
 
     public Task FlushAsync() => _writer.FlushAsync();
+    public void SaveRunAcquisition(string testFolderName, string runFolderName, KlaAcquisitionMetadata metadata)
+        => WriteAllTextAtomic(Path.Combine(RootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName, runFolderName, "aquisicao.json"),
+            KlaTestFileContracts.SerializeAcquisition(metadata));
+    public void SaveRunPhysicalOutcome(string testFolderName, string runFolderName, KlaRunOutcome outcome)
+        => WriteAllTextAtomic(Path.Combine(RootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName, runFolderName, "estado-fisico.json"),
+            KlaTestFileContracts.SerializePhysicalOutcome(outcome));
+    public void SaveRunGasEvents(string testFolderName, string runFolderName, IReadOnlyList<KlaGasEvent> events)
+        => WriteAllTextAtomic(Path.Combine(RootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName, runFolderName, "transicoes-gas.json"),
+            KlaTestFileContracts.SerializeGasEvents(events));
+    public IReadOnlyList<KlaGasEvent> LoadRunGasEvents(string testFolderName, string runFolderName)
+    {
+        _writer.Flush();
+        var path = Path.Combine(RootDirectory, testFolderName, KlaTestFileContracts.RunsDirectoryName, runFolderName, "transicoes-gas.json");
+        return File.Exists(path) ? KlaTestFileContracts.DeserializeGasEvents(File.ReadAllText(path)) : [];
+    }
+
     public bool ValidateTestName(string name, out string? error) =>
         KlaTestFileContracts.ValidateTestName(name, out error);
 
@@ -359,7 +375,7 @@ public sealed class KlaTestStore : IKlaTestStore
                     : analysis is not null
                     ? (analysis.Quality == DecisionQuality.Inconclusive ? RunPhase.Rejected : RunPhase.Accepted)
                     : existing?.Phase ?? RunPhase.Reviewing,
-                Outcome = analysis?.Outcome ?? existing?.Outcome,
+                Outcome = MergePhysicalOutcome(runPath, analysis?.Outcome ?? existing?.Outcome),
                 Definition = LoadRunDefinition(doc.FolderName, runFolder) ?? existing?.Definition,
                 Decision = analysis?.Quality ?? existing?.Decision,
                 KlaPerHour = analysis?.KlaPerHour ?? existing?.KlaPerHour,
@@ -410,6 +426,18 @@ public sealed class KlaTestStore : IKlaTestStore
             SaveConditionsTable(doc.FolderName, doc.Conditions);
             SaveTestManifest(doc);
         }
+    }
+
+    private static KlaRunOutcome? MergePhysicalOutcome(string runPath, KlaRunOutcome? scientific)
+    {
+        var path = Path.Combine(runPath, "estado-fisico.json");
+        if (!File.Exists(path))
+        {
+            return scientific;
+        }
+        var physical = KlaTestFileContracts.DeserializePhysicalOutcome(File.ReadAllText(path));
+        return physical is null ? scientific : (scientific ?? new()) with
+        { Restoration = physical.Restoration, RestorationReason = physical.RestorationReason };
     }
 
     public KlaTestDocument CreateTest(

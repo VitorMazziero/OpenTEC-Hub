@@ -69,6 +69,43 @@ public sealed class KlaTestRunnerTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task BioticSession_DoesNotFallThroughToAbioticGasCommands()
+    {
+        var (doc, condition) = await StartTestAsync("Biotic E1", 10);
+        doc.Protocol = KlaAssayProtocol.Biotic;
+        var commandCount = _device.Sent.Count;
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _runner.StartRunAsync(condition, 1));
+        Assert.Contains("biótica", error.Message);
+        Assert.Equal(commandCount, _device.Sent.Count);
+        Assert.Null(_runner.CurrentRun);
+    }
+
+    [Fact]
+    public async Task SingleSession_UsesExistingRunPipelineAndPersistsFrozenDefinition()
+    {
+        var (doc, condition) = await StartTestAsync("Single E1", 10);
+        doc.CaptureMode = KlaCaptureMode.Single;
+        condition.RequestedReplicates = 1;
+        await _runner.StartRunAsync(condition, 1);
+        Assert.Equal(RunPhase.ClosingAllGas, _runner.Phase);
+        var run = _runner.CurrentRun!;
+        Assert.NotNull(run.Definition);
+        Assert.Equal(KlaCaptureMode.Single, run.Definition.CaptureMode);
+        Assert.Equal(run.Definition, _store.LoadRunDefinition(doc.FolderName, run.FolderName));
+        PushGas(10, 0, false, false, true, 1);
+        await _runner.StopRunAndReviewAsync();
+        PushGas(10, 0, false, false, true, 2);
+        var input = new KlaAnalysisRevision { Quality = DecisionQuality.Acceptable, KlaPerHour = 72 };
+        await _runner.AcceptRunAsync(input);
+        var historical = Assert.Single(run.AnalysisHistory);
+        Assert.NotEmpty(historical.RawDataSha256);
+        Assert.Equal(run.LatestAnalysis!.RawDataSha256, historical.RawDataSha256);
+        input.KlaPerHour = 999;
+        run.LatestAnalysis.KlaPerHour = 144;
+        Assert.Equal(72, historical.KlaPerHour);
+    }
+
     /// <summary>Short stability windows so a frame per second gets through the criteria quickly.</summary>
     private static KlaTestSettings FastSettings(double lead = 0.0) => new()
     {
@@ -117,7 +154,7 @@ public sealed class KlaTestRunnerTests : IDisposable
         bool mainClosed,
         int commandId,
         double? measured = null,
-        bool advanceClock = true)
+        bool advanceClock = true, bool oxygenUpdated = true, bool servo = false)
     {
         if (advanceClock)
         {
@@ -128,6 +165,9 @@ public sealed class KlaTestRunnerTests : IDisposable
         {
             OxygenCalibrated = dissolvedOxygen,
             OxygenRaw = dissolvedOxygen,
+            OxygenUpdated = oxygenUpdated,
+            FlowControlEnabled = true,
+            HasServoTelemetry = servo, HasServoSample = servo, ServoOnline = servo, ServoRpm = 450,
             FlowValve1 = valve1 ? 1 : 0,
             FlowValve2 = valve2 ? 1 : 0,
             FlowValveMain = mainClosed ? 1 : 0,
@@ -145,6 +185,158 @@ public sealed class KlaTestRunnerTests : IDisposable
         => PushGas(dissolvedOxygen, flow: 3.0, valve1: true, valve2: false, mainClosed: false, commandId, measuredFlow);
 
     private string LastFlowCommand() => _device.Sent.Last(j => j.Contains("flowSetpoint"));
+
+    private async Task<KlaTestDocument> StartBioticAsync()
+    {
+        var (doc, cond) = await StartTestAsync("Biotic E2", 80);
+        doc.Protocol = KlaAssayProtocol.Biotic;
+        doc.NitrogenIsolationConfirmedUtc = _clock.GetUtcNow();
+        doc.ProtocolSettings = new()
+        {
+            OperatingRange = KlaOperatingRange.CurrentCultivation,
+            RemovalTargetDoPercent = 10, ReturnAgitationRpm = 450,
+            InitialStabilitySeconds = 2, RecoveryStabilitySeconds = 2,
+            CommandConfirmationTimeoutSeconds = 2, OxygenSampleTimeoutSeconds = 4,
+            AerationReturn = new() { MaximumGasOffSeconds = 30, MaximumRecoverySeconds = 20 },
+        };
+        for (var i = 0; i < 3; i++)
+        {
+            PushGas(80, 3, false, true, false, 1, servo: true);
+        }
+        await _runner.StartRunAsync(cond, 1);
+        return doc;
+    }
+
+    [Fact]
+    public async Task E2_BioticKeepsFlowOnAndRestoresBeforeReview()
+    {
+        var doc = await StartBioticAsync();
+        Assert.Equal(RunPhase.DivertingAir, _runner.Phase);
+        Assert.Contains("\"v_Flow\":0", LastFlowCommand());
+        Assert.Contains("\"flowSetpoint\":3", LastFlowCommand());
+        PushGas(80, 3, true, false, false, 2, servo: true);
+        Assert.Equal(RunPhase.MeasuringConsumption, _runner.Phase);
+        PushGas(10, 3, true, false, false, 2, servo: true);
+        Assert.Equal(RunPhase.SwitchingToReactor, _runner.Phase);
+        PushGas(20, 3, false, true, false, 3, servo: true);
+        Assert.Equal(RunPhase.Reoxygenating, _runner.Phase);
+        await _runner.StopRunAndReviewAsync();
+        Assert.Equal(RunPhase.RestoringCultivation, _runner.Phase);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _runner.AcceptRunAsync(new()));
+        for (var i = 0; i < 7; i++)
+        {
+            PushGas(80, 3, false, true, false, 4, servo: true);
+        }
+        Assert.Equal(RunPhase.Reviewing, _runner.Phase);
+        Assert.Equal(KlaRestorationState.Confirmed, _runner.CurrentRun!.Outcome!.Restoration);
+        Assert.Equal(CommandOwner.Manual, _arbiter.OwnerOf(ActuatorId.Aeration));
+        Assert.True(File.Exists(Path.Combine(_store.RootDirectory, doc.FolderName, "Corridas", _runner.CurrentRun.FolderName, "aquisicao.json")));
+        Assert.DoesNotContain(_device.Sent.Where(x => x.Contains("flowSetpoint")), x => x.Contains("\"v_Flow\":1"));
+    }
+
+    [Fact]
+    public async Task E2_FramesWithoutNewOxygenDoNotAddPointsOrExtendOxygenDeadline()
+    {
+        await StartBioticAsync();
+        PushGas(80, 3, true, false, false, 2, servo: true);
+        var count = _runner.CurrentRunPoints.Count;
+        for (var i = 0; i < 5; i++)
+        {
+            PushGas(80, 3, true, false, false, 2, oxygenUpdated: false, servo: true);
+        }
+        Assert.Equal(count, _runner.CurrentRunPoints.Count);
+        _runner.CheckWatchdog();
+        Assert.Equal(RunPhase.RestoringCultivation, _runner.Phase);
+        Assert.Contains("oxigênio", _runner.StatusMessage);
+    }
+
+    [Fact]
+    public async Task E2_MissingRestorationEchoFailsExplicitlyAndBlocksNextRun()
+    {
+        var doc = await StartBioticAsync();
+        await _runner.AbortTestAsync("Cancelar");
+        Assert.Equal(RunPhase.RestoringCultivation, _runner.Phase);
+        _clock.Advance(TimeSpan.FromSeconds(21));
+        _runner.CheckWatchdog();
+        Assert.Equal(RunPhase.Faulted, _runner.Phase);
+        Assert.Equal(KlaRestorationState.Failed, _runner.CurrentRun!.Outcome!.Restoration);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _runner.StartRunAsync(doc.Conditions[0], 2));
+    }
+
+    [Fact]
+    public async Task E2_LinkLossNeverClaimsRestorationSucceeded()
+    {
+        await StartBioticAsync();
+        _device.PushState(ConnectionState.Disconnected);
+        Assert.Equal(RunPhase.Faulted, _runner.Phase);
+        Assert.Equal(KlaRestorationState.Failed, _runner.CurrentRun!.Outcome!.Restoration);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task E2_CancelAtEachBioticStageRequestsAirInsteadOfClosingFlow(int stage)
+    {
+        await StartBioticAsync();
+        if (stage >= 1)
+        {
+            PushGas(80, 3, true, false, false, 2, servo: true);
+        }
+        if (stage >= 2)
+        {
+            PushGas(10, 3, true, false, false, 2, servo: true);
+        }
+        if (stage >= 3)
+        {
+            PushGas(20, 3, false, true, false, 3, servo: true);
+        }
+        await _runner.AbortTestAsync("Cancelamento");
+        Assert.Equal(RunPhase.RestoringCultivation, _runner.Phase);
+        Assert.Contains("\"v_Flow\":0", LastFlowCommand());
+        Assert.Contains("\"valve_2\":1", LastFlowCommand());
+        for (var i = 0; i < 7; i++)
+        {
+            PushGas(80, 3, false, true, false, 4, servo: true);
+        }
+        Assert.Equal(RunPhase.Reviewing, _runner.Phase);
+        Assert.Equal(KlaRestorationState.Confirmed, _runner.CurrentRun!.Outcome!.Restoration);
+    }
+
+    [Fact]
+    public async Task E2_RestorationFailurePersistsAcrossReload()
+    {
+        var doc = await StartBioticAsync();
+        _device.PushState(ConnectionState.Disconnected);
+        await _store.FlushAsync();
+        var reloaded = _store.LoadTest(doc.FolderName)!;
+        Assert.Contains(reloaded.Runs, r => r.Outcome?.Restoration == KlaRestorationState.Failed);
+        _runner.PrepareTest(reloaded);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _runner.StartRunAsync(reloaded.Conditions[0], 2));
+    }
+
+    [Fact]
+    public async Task E2_RecipeOwnershipIsNotTakenOver()
+    {
+        var (_, cond) = await StartTestAsync("Recipe conflict", 80);
+        _arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Aeration], "Recipe");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _runner.StartRunAsync(cond, 1));
+        Assert.Equal(CommandOwner.Recipe, _arbiter.OwnerOf(ActuatorId.Aeration));
+        Assert.Null(_runner.CurrentRun);
+    }
+
+    [Fact]
+    public async Task E2_AbioticHonoursEditableRemovalAgitation()
+    {
+        var (doc, cond) = await StartTestAsync("Editable removal", 80);
+        doc.ProtocolSettings = new() { OxygenRemovalAgitationRpm = 123 };
+        await _runner.StartRunAsync(cond, 1);
+        PushGas(80, 0, false, false, true, 1);
+        Assert.Contains(CommandBuilders.MotorSetpoint(123).ToJson(), _device.Sent);
+        PushGas(60, 0, true, false, true, 2);
+        Assert.Equal(123, _runner.CurrentRunPoints[^1].AgitationSetpoint);
+    }
 
     [Fact]
     public async Task Full_run_strips_with_N2_prestages_air_on_C_and_switches_to_A_in_one_frame()

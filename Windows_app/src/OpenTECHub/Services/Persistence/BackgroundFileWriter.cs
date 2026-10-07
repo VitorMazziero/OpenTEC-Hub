@@ -43,6 +43,8 @@ public sealed class BackgroundFileWriter : IDisposable
     private readonly Dictionary<string, OpenWriter> _writers = new(StringComparer.OrdinalIgnoreCase);
     private long _lastFlushTimestamp;
     private bool _disposed;
+    private readonly Dictionary<string, Exception> _writeFailures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _writtenFiles = new(StringComparer.OrdinalIgnoreCase);
 
     public BackgroundFileWriter(bool synchronous = false, ILogger? logger = null)
     {
@@ -117,6 +119,38 @@ public sealed class BackgroundFileWriter : IDisposable
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Enqueue(new WorkItem(WorkKind.Flush, "", null, null, null, completion));
         return completion.Task;
+    }
+
+    /// <summary>Queue-ordered durable barrier for one directory. Earlier failures remain fatal for that scope.</summary>
+    public Task FlushDurableAsync(string directory)
+    {
+        var scope = Path.GetFullPath(directory);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Enqueue(new WorkItem(WorkKind.Durable, scope, null, null, null, completion));
+        return completion.Task;
+    }
+
+    private static bool InDirectory(string path, string directory)
+        => string.Equals(Path.GetFullPath(path), directory, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFullPath(path).StartsWith(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+    private void FlushDurable(string directory)
+    {
+        var failures = _writeFailures.Where(pair => InDirectory(pair.Key, directory)).Select(pair => pair.Value).ToArray();
+        if (failures.Length > 0) throw new AggregateException("Gravação anterior falhou nesta sessão; durabilidade não confirmada.", failures);
+        foreach (var path in _writers.Keys.Where(path => InDirectory(path, directory)).ToArray())
+        {
+            var open = _writers[path];
+            open.Writer.Flush();
+            ((FileStream)open.Writer.BaseStream).Flush(flushToDisk: true);
+            CloseWriter(path);
+        }
+        foreach (var path in _writtenFiles.Where(path => InDirectory(path, directory)))
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+            stream.Flush(flushToDisk: true);
+        }
     }
 
     public void Dispose()
@@ -226,10 +260,18 @@ public sealed class BackgroundFileWriter : IDisposable
                     CloseAllWriters();
                     item.Completion!.TrySetResult();
                     break;
+                case WorkKind.Durable:
+                    FlushDurable(item.Path);
+                    item.Completion!.TrySetResult();
+                    break;
             }
+            if (item.Kind is WorkKind.Append or WorkKind.WriteAtomic) _writtenFiles.Add(Path.GetFullPath(item.Path));
+            else if (item.Kind == WorkKind.Delete) _writtenFiles.Remove(Path.GetFullPath(item.Path));
         }
         catch (Exception ex)
         {
+            if (!string.IsNullOrEmpty(item.Path))
+                _writeFailures[Path.GetFullPath(item.Path)] = ex;
             item.Completion?.TrySetException(ex);
             _log?.LogError(ex, "Falha ao gravar {Path}", item.Path);
             try
@@ -331,15 +373,21 @@ public sealed class BackgroundFileWriter : IDisposable
 
     private void CloseAllWriters()
     {
-        foreach (var open in _writers.Values)
+        foreach (var entry in _writers)
         {
-            try { open.Writer.Dispose(); } catch { }
+            try { entry.Value.Writer.Dispose(); }
+            catch (Exception ex)
+            {
+                _writeFailures[Path.GetFullPath(entry.Key)] = ex;
+                _log?.LogError(ex, "Falha ao fechar {Path}", entry.Key);
+                try { WriteFailed?.Invoke(entry.Key, ex); } catch { }
+            }
         }
         _writers.Clear();
         _lastFlushTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
     }
 
-    private enum WorkKind { Append, WriteAtomic, Delete, Run, CloseWriters, Flush }
+    private enum WorkKind { Append, WriteAtomic, Delete, Run, CloseWriters, Flush, Durable }
 
     private sealed record WorkItem(WorkKind Kind, string Path, string? Text, string? Header, Action? Work, TaskCompletionSource? Completion);
 

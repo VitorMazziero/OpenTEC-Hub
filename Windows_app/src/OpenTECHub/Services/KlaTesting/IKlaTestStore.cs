@@ -12,6 +12,14 @@ public interface IKlaTestStore
     /// store, or when shutting down.
     /// </summary>
     Task FlushAsync() => Task.CompletedTask;
+    Task<KlaAttemptPersistenceReceipt> PersistRecipeAttemptAsync(KlaAttemptPersistenceCheckpoint checkpoint,
+        CancellationToken ct = default)
+        => Task.FromException<KlaAttemptPersistenceReceipt>(new NotSupportedException("Armazenamento sem recibo durável de tentativa."));
+
+    KlaAttemptPersistenceCheckpoint? ReadRecipeAttemptCheckpoint(string testFolder, string runFolder,
+        Guid requestId, KlaAttemptPersistencePhase phase) => null;
+    KlaAttemptPersistenceReceipt? ReadRecipeAttemptReceipt(string testFolder, string runFolder,
+        Guid requestId, KlaAttemptPersistencePhase phase) => null;
 
     /// <summary>A queued write failed: the path and the exception. The store keeps going; the runner decides what to tell the operator.</summary>
     event Action<string, Exception>? WriteFailed { add { } remove { } }

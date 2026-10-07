@@ -13,7 +13,7 @@ namespace OpenTECHub.Services.KlaTesting;
 /// that executes them in order off the UI thread (D-048); reads flush the writer first. Without an
 /// explicit writer the store writes inline (tests).
 /// </remarks>
-public sealed class KlaTestStore : IKlaTestStore
+public sealed partial class KlaTestStore : IKlaTestStore
 {
     private readonly string _rootDirectory;
     private readonly object _ioLock = new();

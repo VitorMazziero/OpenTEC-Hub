@@ -1,7 +1,7 @@
 # Receitas: determinação autônoma de kLa e rampas lineares
 
 Data: 07/10/2026. Segunda revisão após chegada de E5/E6/E7. Base inspecionada: `main`, HEAD `237c254`, com base E5/E6/E7 consolidada e entregas R0.2/R1.1/R1.2. Há imagens/evidências locais modificadas ou não rastreadas, inclusive duplicatas de sincronização; não as incorporar nem excluir automaticamente.
-Estado: R0.1, R0.2, R1.1 e R1.2 entregues para software conforme [registro de execução](EXECUCAO_RECEITAS.md). R1.3 e integrações seguintes pendentes. Esta revisão não libera atuação ou qualificação de bancada. Recibos E7 de outras revisões não identificam automaticamente este conjunto de fontes.
+Estado: R0.1, R0.2, R1.1, R1.2 e R1.3 entregues para software conforme [registro de execução](EXECUCAO_RECEITAS.md). R3.1 em implementação; integrações seguintes pendentes. Esta revisão não libera atuação ou qualificação de bancada. Recibos E7 de outras revisões não identificam automaticamente este conjunto de fontes.
 
 ## 1. Situação atual e escopo
 
@@ -244,7 +244,7 @@ Ordem executável revisada: **R0.1 → R0.2 → R1.1 → R1.2 → R1.3 → R3.1 
 
 ### 5.1 Etapas explícitas de execução
 
-As quatro primeiras etapas abaixo são entregas registradas, não tarefas a repetir. A próxima execução é R1.3. Cada etapa subsequente depende do aceite da anterior; uma falha de recuperação ou escrita nunca autoriza seguir para a próxima tentativa.
+As cinco primeiras etapas abaixo são entregas registradas, não tarefas a repetir. A execução atual é R3.1. Cada etapa subsequente depende do aceite da anterior; uma falha de recuperação ou escrita nunca autoriza seguir para a próxima tentativa.
 
 **R0.1 — Consolidar a base recebida (primeira etapa).** Inventariar alterações E5/E6/E7, identificar arquivos de conflito/screenshot duplicados sem excluir evidências automaticamente e consolidar fontes, contratos e testes correspondentes. Conferir vínculos dos recibos aos commits/builds de origem. Preservar as correções de quadros em `RecipeEngine.cs`, `RecipeEngine.Cascade.cs`, `TestClock.cs` e testes associados. Executar regressão de E5/E6, contratos R0, persistência e receitas; registrar baseline com commit e estado local. Aceite: checkout reproduzível, dependências presentes e falhas residuais discriminadas. Não usar `git add` global para misturar material paralelo.
 
@@ -299,9 +299,9 @@ As quatro primeiras etapas abaixo são entregas registradas, não tarefas a repe
 ### 5.3 Estado de partida e critério de conclusão
 
 - R0 original e extensão de periodicidade/handoff: commits `b8b5f2e` e `c51253f`; seus contratos não provam execução autônoma.
-- R0.1/R0.2/R1.1/R1.2: commits `be213dc`, `5669f3a`, `52cee5a`, `237c254`; gate integrado ao engine/PID. R1 completo permanece pendente de R1.3.
+- R0.1/R0.2/R1.1/R1.2: commits `be213dc`, `5669f3a`, `52cee5a`, `237c254`; gate integrado ao engine/PID. R1.3 foi validada em software; integração de produção depende de R3.1/R2.1/R4.1.
 - E5/E6/E7: reutilizar o que foi entregue; não refazer núcleo/diário/visualizador nem remover bloqueios para fazer o exemplo funcionar.
-- Próxima alteração de código: R1.3, seguida de R3.1 e do adaptador R2.1. Não iniciar pela conexão dos blocos ao catálogo.
+- Alteração de código atual: R3.1, seguida do adaptador R2.1. Não iniciar pela conexão dos blocos ao catálogo.
 - Pacote só termina com alterações, testes relevantes e recibo; aprovação simulada não fecha bancada. Rever este plano se o checkout receber nova alteração concorrente antes da etapa seguinte.
 
 Arquivos existentes envolvidos: `Services/KlaTesting/{IKlaTestRunner,KlaTestRunner,KlaTestRunner.Biotic,KlaAssayCoordinator,KlaSessionModels,IKlaTestStore,KlaTestStore}.cs`; `Services/Recipes/{RecipeEnums,RecipeNodeCatalog,RecipeSchema,RecipeValidator,RecipeSerializer,RecipeEngine,RecipeEngine.Flow,RecipeEngine.State,RecipeEngine.Safety,RecipeEngine.Actuation,RecipeEngine.Cascade}.cs`; editor/visualizadores de receitas e kLa. Novos serviços devem permanecer fora de ViewModels e compartilhar o núcleo científico atual.

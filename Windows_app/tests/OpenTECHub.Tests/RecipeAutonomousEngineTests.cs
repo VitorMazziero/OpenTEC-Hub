@@ -119,6 +119,38 @@ public sealed class RecipeAutonomousEngineTests
     }
 
     [Fact]
+    public async Task Async_application_disposal_awaits_in_flight_assay_recovery_before_releasing_dependencies()
+    {
+        var recipe = Recipe(false); var clock = new TestClock(DateTimeOffset.UnixEpoch);
+        var device = new RecordingDeviceService(); using var arbiter = new CommandArbiter(device, clock);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recovering = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recovered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new Source { Build = (document, id) => Plan(document, id, async (_, ct) =>
+        {
+            started.SetResult();
+            try { await Task.Delay(Timeout.Infinite, ct); }
+            catch (OperationCanceledException) { }
+            recovering.SetResult();
+            await recovered.Task;
+            return Result(document, id, null, KlaRecipeTerminalStatus.Cancelled);
+        }) };
+        var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(), clock, autonomousWorkSource: source);
+        await engine.StartAsync(recipe);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var disposal = engine.DisposeAsync().AsTask();
+        await recovering.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.False(disposal.IsCompleted);
+        Assert.False(engine.Completion.IsCompleted);
+        recovered.SetResult();
+        await disposal.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(engine.Completion.IsCompleted);
+        Assert.Single(engine.AutonomousResults);
+        Assert.Equal(RecipeRunState.Stopped, engine.State);
+        engine.Dispose();
+    }
+
+    [Fact]
     public async Task Periodic_branch_runs_at_two_six_ten_and_does_not_execute_target_after_exit()
     {
         var recipe = Recipe(true); var clock = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);

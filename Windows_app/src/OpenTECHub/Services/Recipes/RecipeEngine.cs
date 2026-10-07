@@ -11,7 +11,7 @@ namespace OpenTECHub.Services.Recipes;
 /// The recipe execution engine (Phase 3 WP4 part 2). Core lifecycle; the flow walk, per-block
 /// execution, actuation, cascade, safety and live tuning live in the sibling partials.
 /// </summary>
-public sealed partial class RecipeEngine : IRecipeEngine
+public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
 {
     private readonly ICommandArbiter _arbiter;
     private readonly IDeviceService _device;
@@ -309,6 +309,16 @@ public sealed partial class RecipeEngine : IRecipeEngine
         StatusReason = $"aborto seguro: {transfer.Reason}";
         _cts?.Cancel();
         _pauseGate.Set();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        // Application DI must keep devices, the writer and the assay journal alive until recovery ends.
+        if (!_run.IsCompleted) await StopAsync("encerramento do aplicativo").ConfigureAwait(false);
+        else await _run.ConfigureAwait(false);
+        Dispose();
+        _cts?.Dispose();
     }
 
     public void Dispose()

@@ -444,6 +444,8 @@ public sealed class RecipeAssayRestorationTests
             runner.SealRecipeAcquisitionForRecovery();
             fixture.Device.Sent.Clear();
             Push(1, 0, GasRoute.Closed, 10); runner.CheckWatchdog();
+            await runner.AbortTestAsync("Late abort after acquisition was sealed");
+            Assert.Equal(RunPhase.RestoringCultivation, runner.Phase);
             Assert.Throws<InvalidOperationException>(() => runner.SetDegassingAgitation(200));
             Assert.Empty(fixture.Device.Sent); // Even late operator/settings updates cannot enqueue through this runner.
             var task = fixture.Restore(protocol == KlaAssayProtocol.Biotic ? new() { MaximumTelemetryAgeSeconds = 5,

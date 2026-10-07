@@ -109,14 +109,14 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     /// <summary>Seals every runner enqueue before the independent recovery service starts writing.</summary>
     public void SealRecipeAcquisitionForRecovery()
     {
-        if (_recipeReturnSnapshot is null) throw new InvalidOperationException("Runner não pertence a uma receita.");
-        if (_recipeAcquisitionSealed) return;
-        ((ReservedKlaCommandArbiter)_arbiter).Seal();
-        _recipeAcquisitionSealed = true;
-        _device.TelemetryReceived -= OnTelemetryReceived;
-        _watchdog.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         lock (_gate)
         {
+            if (_recipeReturnSnapshot is null) throw new InvalidOperationException("Runner não pertence a uma receita.");
+            if (_recipeAcquisitionSealed) return;
+            ((ReservedKlaCommandArbiter)_arbiter).Seal();
+            _recipeAcquisitionSealed = true;
+            _device.TelemetryReceived -= OnTelemetryReceived;
+            _watchdog.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             if (_currentRun is null) return;
             _currentRun.Outcome = (_currentRun.Outcome ?? new()) with { Restoration = KlaRestorationState.Pending };
             PersistPhysicalOutcome();
@@ -762,6 +762,15 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public Task AbortTestAsync(string reason)
     {
+        lock (_gate)
+        {
+            if (_recipeAcquisitionSealed) return Task.CompletedTask;
+            return AbortTestCore(reason);
+        }
+    }
+
+    private Task AbortTestCore(string reason)
+    {
         if (IsBiotic)
         {
             _abortAfterClosing = true;
@@ -955,6 +964,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         lock (_gate)
         {
             var nowUtc = _time.GetUtcNow();
+            if (_recipeAcquisitionSealed) return;
             if (_currentRun?.Acquisition is { } acquisition &&
                 (_settings.Current.Calibration.OxygenA != acquisition.OxygenCalibrationA ||
                  _settings.Current.Calibration.OxygenB != acquisition.OxygenCalibrationB))
@@ -1382,6 +1392,11 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     }
 
     internal void CheckWatchdog()
+    {
+        lock (_gate) CheckWatchdogCore();
+    }
+
+    private void CheckWatchdogCore()
     {
         if (_recipeAcquisitionSealed || _preparationPending) return;
         if (!IsRunning || _phase == RunPhase.Reviewing)

@@ -138,12 +138,13 @@ public sealed class KlaRecipeAssayExecutionTests
                     }
                     Push(70, 2, GasRoute.Reactor, 3);
                     await Task.Delay(1);
+                    // Clear before equilibrium: the last stable samples may already start recovery.
+                    fixture.Device.Sent.Clear();
                     for (var index = 0; index < 4; index++)
                     {
                         Push(70, 2, GasRoute.Reactor, 3);
                         await Task.Delay(1);
                     }
-                    fixture.Device.Sent.Clear();
                     for (var index = 0; index < 6; index++)
                     {
                         Push(70, 2, GasRoute.Reactor, 4);

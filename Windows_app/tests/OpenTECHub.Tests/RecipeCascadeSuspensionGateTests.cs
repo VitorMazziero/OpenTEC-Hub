@@ -15,13 +15,15 @@ public sealed class RecipeCascadeSuspensionGateTests
         Assert.False(pause.IsCompleted);
         Assert.Null(gate.TryEnterStep());
         step.Dispose();
-        await pause.WaitAsync(TimeSpan.FromSeconds(1));
+        var receipt = await pause.WaitAsync(TimeSpan.FromSeconds(1));
         Assert.True(gate.IsPaused);
         var waiting = gate.WaitUntilResumedAsync();
         Assert.False(waiting.IsCompleted);
-        gate.Resume();
+        receipt.Resume();
         await waiting.WaitAsync(TimeSpan.FromSeconds(1));
-        Assert.NotNull(gate.TryEnterStep());
+        using var resumed = gate.TryEnterStep();
+        Assert.NotNull(resumed);
+        Assert.Equal(1, resumed.ResumeVersion);
     }
 
     [Fact]
@@ -34,19 +36,32 @@ public sealed class RecipeCascadeSuspensionGateTests
         cts.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pause);
         Assert.False(gate.IsPaused);
-        Assert.NotNull(gate.TryEnterStep());
+        using var resumed = gate.TryEnterStep();
+        Assert.NotNull(resumed);
     }
 
     [Fact]
     public async Task Stop_blocks_late_resume_and_new_step()
     {
         var gate = new RecipeCascadeSuspensionGate();
-        await gate.PauseAsync();
+        var receipt = await gate.PauseAsync();
         var waiting = gate.WaitUntilResumedAsync();
         gate.Stop();
-        gate.Resume();
+        receipt.Resume();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
         Assert.Null(gate.TryEnterStep());
         await Assert.ThrowsAsync<InvalidOperationException>(() => gate.PauseAsync());
+    }
+
+    [Fact]
+    public async Task Old_receipt_cannot_resume_a_new_pause()
+    {
+        using var gate = new RecipeCascadeSuspensionGate();
+        var first = await gate.PauseAsync(); first.Resume();
+        var second = await gate.PauseAsync();
+        Assert.Throws<InvalidOperationException>(() => first.Resume());
+        Assert.True(gate.IsPaused);
+        second.Resume();
+        Assert.False(gate.IsPaused);
     }
 }

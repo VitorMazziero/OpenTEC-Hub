@@ -1,7 +1,9 @@
 using System.Text.Json.Nodes;
+using System.Collections.Immutable;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Recipes;
 using Xunit;
 
@@ -28,6 +30,68 @@ public sealed class RecipeEngineTests
     /// <summary>Real but tiny delays: fast enough for a test, cooperative enough to observe cancellation.</summary>
     private static Task CappedDelay(TimeSpan requested, CancellationToken ct)
         => Task.Delay(TimeSpan.FromMilliseconds(Math.Clamp(requested.TotalMilliseconds, 0, 5)), ct);
+
+    [Fact]
+    public async Task Assay_suspension_preserves_cascade_state_and_resumes_without_integrating_the_gap()
+    {
+        var (engine, device, arbiter, clock) = Build();
+        using var run = engine;
+        await engine.StartAsync(CascadeWithGateRecipe(out _));
+        PushFrame(device, clock, oxygen: 25);
+        await WaitForCascadeStartedAsync(engine);
+        var template = RecipeExecutionContractTests.Request();
+        var context = template.Context with { RecipeRunId = engine.ExecutionId };
+        var lease = await engine.Resources!.ReserveForAssayAsync(context,
+            [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen], TimeSpan.FromSeconds(5));
+        var before = engine.CascadeTermsFor("casc")!.Value;
+        var count = device.Sent.Count;
+        var snapshot = template.Restoration.BeforeAssay with
+        {
+            Actuators = template.Restoration.BeforeAssay.Actuators.Select(a => a with
+                { OwnerExecutionId = context.RecipeRunId.ToString() }).Append(new ActuatorReturnSnapshot
+                { Actuator = ActuatorId.Oxygen, Owner = CommandOwner.Recipe,
+                    OwnerExecutionId = context.RecipeRunId.ToString(), DesiredCommandJson = "{\"oxygenMonitor\":30}",
+                    ConfirmationChannel = "transport-only" }).ToImmutableArray(),
+        };
+        lease.BeginAssay(snapshot);
+        clock.Advance(TimeSpan.FromHours(2));
+        for (var i = 0; i < 5; i++) PushFrame(device, clock, oxygen: 5);
+        Assert.False(engine.ApplyLiveTuning(engine.Current!.Node("casc")!));
+        Assert.Equal(before, engine.CascadeTermsFor("casc"));
+        Assert.Equal(count, device.Sent.Count);
+
+        await lease.ReturnAsync(new(new() { Restoration = KlaRestorationState.Confirmed }, 40)
+            { ReturnSnapshotId = snapshot.SnapshotId, PersistenceReceiptId = "simulation-receipt" });
+        var rebased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        engine.NodeStateChanged += id => { if (id == "casc") rebased.TrySetResult(); };
+        PushFrame(device, clock, oxygen: 25);
+        await rebased.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var after = engine.CascadeTermsFor("casc")!.Value;
+        Assert.Equal(before.Output, after.Output);
+        Assert.Equal(before.Integral, after.Integral);
+        Assert.Equal(0, after.Derivative); Assert.Equal(0, after.DeltaOutput);
+        Assert.Equal(count, device.Sent.Count); // rebase frame holds restored output
+        Assert.Equal(RecipeRunState.Running, engine.State);
+        await engine.StopAsync("test complete");
+    }
+
+    [Fact]
+    public async Task Suspended_cascade_still_observes_buffered_exit_condition_and_cannot_resume_after_end()
+    {
+        var (engine, device, _, clock) = Build(); using var run = engine;
+        await engine.StartAsync(CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 40));
+        PushFrame(device, clock, oxygen: 25, temperature: 30);
+        await WaitForCascadeStartedAsync(engine);
+        var context = RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId };
+        var lease = await engine.Resources!.ReserveForAssayAsync(context,
+            [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen], TimeSpan.FromSeconds(5));
+        for (var i = 0; i < 10; i++) PushFrame(device, clock, oxygen: 5, temperature: 30);
+        PushFrame(device, clock, oxygen: 5, temperature: 45);
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+        lease.AbortBeforeAssay();
+        Assert.Null(engine.CascadeTermsFor("casc"));
+    }
 
     [Fact]
     public async Task Starting_claims_every_actuator_so_manual_control_is_deactivated()

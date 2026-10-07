@@ -19,6 +19,8 @@ public sealed partial class RecipeEngine : IRecipeEngine
     private readonly TimeProvider _time;
     private readonly IEventJournal? _journal;
     private readonly IKlaProfileStore? _klaStore;
+    public RecipeResourceCoordinator? Resources { get; }
+    public Guid ExecutionId { get; private set; }
 
     /// <summary>How a block waits — injected so tests run without wall-clock sleeps.</summary>
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
@@ -67,6 +69,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         _journal = journal;
         _delay = delay ?? ((ts, ct) => Task.Delay(ts, ct));
         _klaStore = klaStore;
+        Resources = arbiter is ICommandAuthorityArbiter authority ? new RecipeResourceCoordinator(authority, time) : null;
         _routeCoordinator = new MotorRouteCoordinator(arbiter, device, CommandOwner.Recipe);
 
         _device.TelemetryReceived += OnTelemetry;
@@ -128,6 +131,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         await _run.ConfigureAwait(false);
 
         Current = recipe;
+        ExecutionId = Guid.NewGuid();
         ResetNodeStates(recipe);
         ResetFlowState();
         SetWaiting(null);

@@ -126,6 +126,8 @@ public sealed class CascadeController
     /// <summary>Clears the reported integral contribution without disturbing the probe history.</summary>
     public void ResetIntegral() => _pid.ResetIntegral();
 
+    public void ResumeFromSuspension(double dissolvedOxygenPercent) => _pid.ResumeFromSuspension(dissolvedOxygenPercent);
+
     /// <summary>Clears all loop state when the cascade is disarmed.</summary>
     public void Reset() => _pid.Reset();
 }

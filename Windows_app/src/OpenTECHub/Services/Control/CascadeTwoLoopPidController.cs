@@ -182,6 +182,21 @@ public sealed class CascadeTwoLoopPidController
         _errorWindow.Clear();
     }
 
+    /// <summary>Rebases probe/derivative history after a suspended interval, preserving output and integral window.</summary>
+    public void ResumeFromSuspension(double measurement)
+    {
+        if (!double.IsFinite(measurement)) throw new ArgumentOutOfRangeException(nameof(measurement));
+        _dotHistory.Clear();
+        _dotHistory.Enqueue(measurement);
+        _ePrev = 0;
+        _dfPrev = 0;
+        _hasPrevious = false;
+        LastTerms = LastTerms with { Error = Setpoint - measurement, Proportional = 0,
+            Integral = Tuning.Ki * _integral, Derivative = 0, DeltaOutput = 0,
+            Output = _output, PredictedMeasurement = measurement, MeasurementRate = 0,
+            RateSetpoint = Tuning.KDot * LastTerms.GainFactor * (Setpoint - measurement) };
+    }
+
     public void ResetIntegral()
     {
         _integral = 0.0;

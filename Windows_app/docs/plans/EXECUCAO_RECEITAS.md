@@ -7,7 +7,8 @@ Plano: [14 etapas](2026-10-07-receitas-kla-autonomo-e-rampas.md). Atualização:
 | R0.1 | Concluída para base de software | `be213dc`; [recibo](receitas-r01/EXECUCAO_R01.md); 1959 testes aprovados |
 | R0.2 | Implementada e validada | [recibo](receitas-r02/EXECUCAO_R02.md); 61 testes focados aprovados |
 | R1.1 | Implementada e validada | [recibo](receitas-r11/EXECUCAO_R11.md); 58 testes focados aprovados |
-| R1.2/R1.3 | Pendente | Integração da suspensão PID e restauração completa |
+| R1.2 | Implementada e validada | [recibo](receitas-r12/EXECUCAO_R12.md); suspensão integrada ao engine/PID; 1996 testes na regressão completa |
+| R1.3 | Próxima | Captura e restauração completas em ambos os protocolos |
 | R3.1 | Pendente | Recibos reais de persistência por tentativa |
 | R2.1/R2.2 | Pendente | Adaptador do runner, matriz e autoria automática |
 | R4.1/R4.2 | Pendente | Agenda, grupo paralelo, blocos/editor/resultados |

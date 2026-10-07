@@ -5,7 +5,7 @@ namespace OpenTECHub.Services.Recipes;
 /// controller.Update and command dispatch. Pause returns only when every lease has ended.
 /// This gate does not transfer actuator ownership or claim physical restoration.
 /// </summary>
-public sealed class RecipeCascadeSuspensionGate
+public sealed class RecipeCascadeSuspensionGate(Func<long>? latestObservationVersion = null) : IDisposable
 {
     private readonly object _sync = new();
     private int _activeSteps;
@@ -13,6 +13,11 @@ public sealed class RecipeCascadeSuspensionGate
     private bool _stopped;
     private TaskCompletionSource? _quiesced;
     private TaskCompletionSource? _resumed;
+    private PauseReceipt? _receipt;
+    private long _resumeVersion;
+    private long _ignoreFramesThrough = -1;
+    private readonly CancellationTokenSource _stop = new();
+    public CancellationToken StopToken => _stop.Token;
 
     public bool IsPaused
     {
@@ -26,19 +31,21 @@ public sealed class RecipeCascadeSuspensionGate
         {
             if (_paused || _stopped) return null;
             _activeSteps++;
-            return new StepLease(this);
+            return new StepLease(this, _resumeVersion, _ignoreFramesThrough);
         }
     }
 
     /// <summary>Seals the step boundary and waits for an in-flight dispatch to finish.</summary>
-    public async Task PauseAsync(CancellationToken cancellationToken = default)
+    public async Task<PauseReceipt> PauseAsync(CancellationToken cancellationToken = default)
     {
         Task pending;
+        PauseReceipt receipt;
         lock (_sync)
         {
             if (_stopped) throw new InvalidOperationException("A cascata já foi encerrada.");
             if (_paused) throw new InvalidOperationException("A cascata já está suspensa.");
             _paused = true;
+            receipt = _receipt = new PauseReceipt(this);
             _resumed = NewSignal();
             _quiesced = _activeSteps == 0 ? null : NewSignal();
             pending = _quiesced?.Task ?? Task.CompletedTask;
@@ -47,11 +54,17 @@ public sealed class RecipeCascadeSuspensionGate
         try
         {
             await pending.WaitAsync(cancellationToken).ConfigureAwait(false);
+            lock (_sync)
+            {
+                if (_stopped) throw new OperationCanceledException("A cascata foi encerrada.");
+                receipt.Ready = true;
+            }
+            return receipt;
         }
         catch (OperationCanceledException)
         {
             // No ownership transfer took place; release this reservation on timeout/cancellation.
-            Resume();
+            Unpause(receipt, requireQuiescence: false);
             throw;
         }
     }
@@ -67,13 +80,18 @@ public sealed class RecipeCascadeSuspensionGate
     }
 
     /// <summary>Called only after physical restoration and ownership return have been confirmed.</summary>
-    public void Resume()
+    private void Unpause(PauseReceipt receipt, bool requireQuiescence)
     {
         TaskCompletionSource? signal;
         lock (_sync)
         {
             if (_stopped || !_paused) return;
+            if (!ReferenceEquals(_receipt, receipt) || requireQuiescence && (!receipt.Ready || _activeSteps != 0))
+                throw new InvalidOperationException("Recibo de pausa antigo ou passo ainda ativo.");
             _paused = false;
+            _resumeVersion = checked(_resumeVersion + 1);
+            _ignoreFramesThrough = latestObservationVersion?.Invoke() ?? -1;
+            _receipt = null;
             signal = _resumed;
             _resumed = null;
             _quiesced = null;
@@ -98,6 +116,7 @@ public sealed class RecipeCascadeSuspensionGate
         }
         resumeSignal?.TrySetCanceled();
         pauseSignal?.TrySetCanceled();
+        _stop.Cancel();
     }
 
     private void ExitStep()
@@ -118,7 +137,25 @@ public sealed class RecipeCascadeSuspensionGate
     public sealed class StepLease : IDisposable
     {
         private RecipeCascadeSuspensionGate? _gate;
-        internal StepLease(RecipeCascadeSuspensionGate gate) => _gate = gate;
+        public long ResumeVersion { get; }
+        public long IgnoreFramesThrough { get; }
+        internal StepLease(RecipeCascadeSuspensionGate gate, long resumeVersion, long ignoreFramesThrough)
+        { _gate = gate; ResumeVersion = resumeVersion; IgnoreFramesThrough = ignoreFramesThrough; }
         public void Dispose() => Interlocked.Exchange(ref _gate, null)?.ExitStep();
     }
+
+    public sealed class PauseReceipt : IRecipeResourceSuspension
+    {
+        private readonly RecipeCascadeSuspensionGate _gate;
+        internal bool Ready;
+        internal PauseReceipt(RecipeCascadeSuspensionGate gate) => _gate = gate;
+        public bool CanResume
+        {
+            get { lock (_gate._sync) return !_gate._stopped && _gate._paused && ReferenceEquals(_gate._receipt, this) && Ready; }
+        }
+        public void Resume() => _gate.Unpause(this, requireQuiescence: true);
+        public void Stop() => _gate.Stop();
+    }
+
+    public void Dispose() { Stop(); _stop.Dispose(); }
 }

@@ -6,6 +6,7 @@ namespace OpenTECHub.Services.Recipes;
 
 public interface IRecipeResourceSuspension
 {
+    bool CanResume => true;
     void Resume();
     void Stop();
 }
@@ -100,13 +101,13 @@ public sealed class RecipeAssayResourceLease
     {
         lock (_sync)
         {
-        snapshot.Validate();
-        if (_ended || _snapshotId.HasValue || Authority.Owner != CommandOwner.Recipe ||
-            Authority.Resources.Any(a => !snapshot.Actuators.Any(s => s.Actuator == a &&
-                s.Owner == CommandOwner.Recipe && s.OwnerExecutionId == Authority.ExecutionId.ToString())))
-            throw new InvalidOperationException("Snapshot não corresponde à reserva da receita.");
-        Authority = _arbiter.TransferReserved(Authority, CommandOwner.KlaAssay, "início de kLa após pausa e barreira de transporte");
-        _snapshotId = snapshot.SnapshotId;
+            snapshot.Validate();
+            if (_ended || _snapshotId.HasValue || Authority.Owner != CommandOwner.Recipe || _suspended.Any(p => !p.CanResume) ||
+                Authority.Resources.Any(a => !snapshot.Actuators.Any(s => s.Actuator == a &&
+                    s.Owner == CommandOwner.Recipe && s.OwnerExecutionId == Authority.ExecutionId.ToString())))
+                throw new InvalidOperationException("Snapshot não corresponde à reserva da receita.");
+            Authority = _arbiter.TransferReserved(Authority, CommandOwner.KlaAssay, "início de kLa após pausa e barreira de transporte");
+            _snapshotId = snapshot.SnapshotId;
         }
     }
 
@@ -114,19 +115,19 @@ public sealed class RecipeAssayResourceLease
     {
         lock (_sync)
         {
-        if (_ended || !_snapshotId.HasValue || result.Outcome.Restoration != KlaRestorationState.Confirmed ||
-            result.ReturnSnapshotId != _snapshotId || string.IsNullOrWhiteSpace(result.PersistenceReceiptId))
-            throw new InvalidOperationException("Retomada exige retorno ao snapshot e persistência confirmados.");
+            if (_ended || !_snapshotId.HasValue || _suspended.Any(p => !p.CanResume) || result.Outcome.Restoration != KlaRestorationState.Confirmed ||
+                result.ReturnSnapshotId != _snapshotId || string.IsNullOrWhiteSpace(result.PersistenceReceiptId))
+                throw new InvalidOperationException("Retomada exige retorno ao snapshot e persistência confirmados.");
         }
         await _arbiter.DrainReservedCommandsAsync(Authority, recoveryToken).ConfigureAwait(false);
         lock (_sync)
         {
-        if (_ended) throw new InvalidOperationException("Cessão encerrada durante a recuperação.");
-        Authority = _arbiter.TransferReserved(Authority, CommandOwner.Recipe, "retorno confirmado ao estado anterior ao kLa");
-        _arbiter.ReleaseReservation(Authority);
-        _ended = true;
-        try { foreach (var producer in _suspended.AsEnumerable().Reverse()) producer.Resume(); }
-        finally { _releaseAssaySlot(); }
+            if (_ended || _suspended.Any(p => !p.CanResume)) throw new InvalidOperationException("Cessão ou produtor encerrado durante a recuperação.");
+            Authority = _arbiter.TransferReserved(Authority, CommandOwner.Recipe, "retorno confirmado ao estado anterior ao kLa");
+            _arbiter.ReleaseReservation(Authority);
+            _ended = true;
+            try { foreach (var producer in _suspended.AsEnumerable().Reverse()) producer.Resume(); }
+            finally { _releaseAssaySlot(); }
         }
     }
 
@@ -134,16 +135,16 @@ public sealed class RecipeAssayResourceLease
     {
         lock (_sync)
         {
-        if (_ended || _snapshotId.HasValue) throw new InvalidOperationException("Ensaio iniciado precisa de recuperação.");
-        var current = _arbiter.IsCurrent(Authority);
-        if (current) _arbiter.ReleaseReservation(Authority);
-        _ended = true;
-        try
-        {
-            foreach (var producer in _suspended.AsEnumerable().Reverse())
-                if (current) producer.Resume(); else producer.Stop();
-        }
-        finally { _releaseAssaySlot(); }
+            if (_ended || _snapshotId.HasValue) throw new InvalidOperationException("Ensaio iniciado precisa de recuperação.");
+            var current = _arbiter.IsCurrent(Authority);
+            if (current) _arbiter.ReleaseReservation(Authority);
+            _ended = true;
+            try
+            {
+                foreach (var producer in _suspended.AsEnumerable().Reverse())
+                    if (current) producer.Resume(); else producer.Stop();
+            }
+            finally { _releaseAssaySlot(); }
         }
     }
 
@@ -151,11 +152,11 @@ public sealed class RecipeAssayResourceLease
     {
         lock (_sync)
         {
-        if (_ended) return;
-        _ended = true;
-        try { foreach (var producer in _suspended) producer.Stop(); }
-        finally { _releaseAssaySlot(); }
-        // Keep the authority sealed. The recipe safety path revokes it and commands its explicit stop.
+            if (_ended) return;
+            _ended = true;
+            try { foreach (var producer in _suspended) producer.Stop(); }
+            finally { _releaseAssaySlot(); }
+            // Keep the authority sealed. The recipe safety path revokes it and commands its explicit stop.
         }
     }
 }

@@ -19,10 +19,24 @@ public sealed partial class RecipeEngine
 
     /// <summary>Live controllers, keyed by cascade block id, for the live-terms readout and tuning.</summary>
     private readonly Dictionary<string, CascadeController> _liveCascades = [];
+    private readonly Dictionary<string, RecipeCascadeSuspensionGate> _cascadeGates = [];
+
+    private sealed class CascadeResourceProducer(string nodeId, RecipeCascadeSuspensionGate gate) : IRecipeResourceProducer
+    {
+        public string NodeId => nodeId;
+        public IReadOnlyList<ActuatorId> Resources { get; } = [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen];
+        public async Task<IRecipeResourceSuspension> SuspendAsync(CancellationToken ct)
+            => await gate.PauseAsync(ct).ConfigureAwait(false);
+    }
 
     private async Task ExecuteCascadeAsync(RecipeNode node, CancellationToken ct)
     {
         CascadeController? controller = null;
+        using var suspension = new RecipeCascadeSuspensionGate(() => Volatile.Read(ref _frameVersion));
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct, suspension.StopToken);
+        Resources?.Register(new CascadeResourceProducer(node.Id, suspension));
+        lock (_lock) _cascadeGates.Add(node.Id, suspension);
+        long resumeVersion = 0;
 
         // The Condição de Saída port wires to the rule that ends the loop: a Monitor (exits when the
         // comparison becomes true), a Temporizador (exits once it elapses) or an Intervenção Manual
@@ -35,7 +49,7 @@ public sealed partial class RecipeEngine
         Log(RecipeLogSeverity.Info,
             $"Controle de O₂ [{ModeLabel(mode)}] iniciado (SP {node.Number("spO2"):0.#} %{DescribeCondition(condition, infinite)}).", node.Id);
 
-        DateTimeOffset? lastStep = null;
+        long? lastStep = null;
         var settled = 0;
         var loopStarted = _time.GetUtcNow();
 
@@ -81,7 +95,7 @@ public sealed partial class RecipeEngine
                     break;
                 }
 
-                var frame = await WaitCascadeFrameAsync(observedFrame, exitDeadline, ct).ConfigureAwait(false);
+                var frame = await WaitCascadeFrameAsync(observedFrame, exitDeadline, lifetime.Token).ConfigureAwait(false);
                 if (frame.Snapshot is null)
                 {
                     Log(RecipeLogSeverity.Info, "Controle de O₂ encerrado pelo prazo da condição de saída.", node.Id);
@@ -108,6 +122,10 @@ public sealed partial class RecipeEngine
                     continue; // flying blind without a usable O₂ reading; wait for the next frame
                 }
 
+                // The lease covers computation and enqueue. Exit rules above keep observing during suspension.
+                using var step = suspension.TryEnterStep();
+                if (step is null || frame.Version <= step.IgnoreFramesThrough) continue;
+
                 if (controller is null)
                 {
                     try
@@ -126,8 +144,17 @@ public sealed partial class RecipeEngine
                     }
                 }
 
-                var now = _time.GetUtcNow();
-                var dt = lastStep is { } last ? (now - last).TotalSeconds : node.Number("intervaloPidS");
+                var now = _time.GetTimestamp();
+                if (step.ResumeVersion != resumeVersion)
+                {
+                    lock (_lock) controller.ResumeFromSuspension(snapshot.OxygenCalibrated);
+                    lastStep = now;
+                    resumeVersion = step.ResumeVersion;
+                    settled = 0;
+                    NodeStateChanged?.Invoke(node.Id);
+                    continue; // Hold restored effort on the rebase frame; integrate only on a subsequent active sample.
+                }
+                var dt = lastStep is { } last ? _time.GetElapsedTime(last, now).TotalSeconds : node.Number("intervaloPidS");
                 if (dt <= 0)
                 {
                     dt = node.Number("intervaloPidS");
@@ -136,7 +163,8 @@ public sealed partial class RecipeEngine
                 lastStep = now;
 
                 // The one place the recipe cascade meets the wire, under Recipe ownership.
-                var result = controller.Update(snapshot.OxygenCalibrated, dt);
+                CascadeActuationResult result;
+                lock (_lock) result = controller.Update(snapshot.OxygenCalibrated, dt);
                 NodeStateChanged?.Invoke(node.Id); // refresh the live P/I/D/Saída terms
 
                 if (!_arbiter.Dispatch(CommandOwner.Recipe, CascadeController.BuildCommand(result, _settings.Current.GasRig.ToConfiguration())).Accepted)
@@ -161,11 +189,18 @@ public sealed partial class RecipeEngine
                 }
             }
         }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested && suspension.StopToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("Controle de O₂ encerrado por falha da cessão de atuadores.");
+        }
         finally
         {
+            suspension.Stop();
+            Resources?.Unregister(node.Id);
             lock (_lock)
             {
                 _liveCascades.Remove(node.Id);
+                _cascadeGates.Remove(node.Id);
             }
         }
     }

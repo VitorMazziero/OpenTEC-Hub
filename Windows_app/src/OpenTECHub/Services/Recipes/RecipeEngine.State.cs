@@ -22,6 +22,8 @@ public sealed partial class RecipeEngine
             case NodeType.CascadeControl:
                 lock (_lock)
                 {
+                    using var step = _cascadeGates.TryGetValue(node.Id, out var gate) ? gate.TryEnterStep() : null;
+                    if (step is null) return false;
                     if (_liveCascades.TryGetValue(node.Id, out var controller))
                     {
                         controller.Retune(BuildTuning(node));

@@ -214,7 +214,29 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new Journal(JournalVersion, _requests.Values.ToArray()), JsonOptions);
         using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
         { stream.Write(bytes); stream.Flush(flushToDisk: true); }
-        File.Move(temporary, _journalPath, overwrite: true);
+        ReplaceJournal(temporary);
+    }
+
+    private void ReplaceJournal(string temporary)
+    {
+        // Windows readers (including scanners) can briefly deny replacement of an otherwise
+        // writable file. Retry only that bounded case; directories/read-only targets and other
+        // storage errors remain immediate failures. Never advance before the move succeeds.
+        for (var attempt = 0; ; attempt++)
+        {
+            try { File.Move(temporary, _journalPath, overwrite: true); return; }
+            catch (Exception error) when (attempt < 3 && IsTransientReplacementFailure(error))
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(10 * (attempt + 1)));
+            }
+        }
+    }
+
+    private bool IsTransientReplacementFailure(Exception error)
+    {
+        if (error is IOException && (error.HResult & 0xffff) is 32 or 33) return true;
+        if (error is not UnauthorizedAccessException || Directory.Exists(_journalPath) || !File.Exists(_journalPath)) return false;
+        return (File.GetAttributes(_journalPath) & FileAttributes.ReadOnly) == 0;
     }
 
     private KlaAssayApiObservation[] ReadJournal()

@@ -23,6 +23,14 @@ public sealed partial class RecipeEngine
     /// </summary>
     private void SafeStopAndRelease(string reason)
     {
+        if (Resources?.HasUnreturnedAssayAuthority(ExecutionId) == true)
+        {
+            Log(RecipeLogSeverity.Error, "Retorno do ensaio não confirmado/gravado; aplicando parada de N/Q/O₂.");
+            var stop = CommandBuilders.MotorSetpoint(0)
+                .Merge(CommandBuilders.FlowSafeStop(_settings.Current.Setpoints.MaxFlowLitresPerMinute))
+                .Set(CommandKeys.OxygenMonitor, 0.0);
+            _arbiter.DispatchSafety(stop, reason);
+        }
         _arbiter.Release(CommandOwner.Recipe, reason);
     }
 }

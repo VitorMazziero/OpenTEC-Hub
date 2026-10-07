@@ -144,7 +144,7 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
         }
         try
         {
-            await Drive(execution, orchestrator, fixture, request, producer, scenario, cancellation, InjectFailure);
+            await Drive(execution, orchestrator, fixture, request, () => producer.Suspended, scenario, cancellation, InjectFailure);
             var result = await execution.WaitAsync(TimeSpan.FromSeconds(10));
             var succeeds = scenario is Scenario.Normal or Scenario.Retry or Scenario.DuplicateConditions;
             var writeFailure = scenario is Scenario.SelectionWriteFailure or Scenario.ResultWriteFailure;
@@ -179,14 +179,14 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
         finally
         {
             cancellation.Cancel();
-            if (!execution.IsCompleted) await Drive(execution, orchestrator, fixture, request, producer, Scenario.Normal, cancellation);
+            if (!execution.IsCompleted) await Drive(execution, orchestrator, fixture, request, () => producer.Suspended, Scenario.Normal, cancellation);
             try { await execution.WaitAsync(TimeSpan.FromSeconds(10)); } catch { }
             api.Dispose();
         }
     }
 
-    private static async Task Drive(Task execution, KlaRecipeOrchestrator orchestrator,
-        RecipeAssayRestorationTests.Fixture fixture, KlaRecipeRequest request, Producer producer, Scenario scenario,
+    internal static async Task Drive(Task execution, KlaRecipeOrchestrator orchestrator,
+        RecipeAssayRestorationTests.Fixture fixture, KlaRecipeRequest request, Func<bool> producerSuspended, Scenario scenario,
         CancellationTokenSource cancellation, Action<KlaRecipeOrchestrator>? onProgress = null)
     {
         var recovery = 0; var off = 0; Guid? previousSnapshot = null;
@@ -210,7 +210,7 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
             var route = GasRoute.Reactor;
             if (orchestrator.IsWaiting)
             {
-                Assert.False(producer.Suspended);
+                Assert.False(producerSuspended());
                 if (scenario == Scenario.CancelDuringWait) cancellation.Cancel();
                 fixture.Clock.Advance(TimeSpan.FromSeconds(.02));
             }

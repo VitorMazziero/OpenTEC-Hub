@@ -26,6 +26,14 @@ public sealed class RecipeResourceCoordinator(ICommandAuthorityArbiter arbiter, 
     private readonly Dictionary<string, IRecipeResourceProducer> _producers = new();
     // Assays all share N/Q. Keep their complete handshakes serialized; unrelated producers continue.
     private readonly SemaphoreSlim _assay = new(1, 1);
+    private readonly List<RecipeAssayResourceLease> _issued = [];
+
+    public bool HasUnreturnedAssayAuthority(Guid executionId)
+    {
+        lock (_sync)
+            return _issued.Any(lease => lease.Authority.ExecutionId == executionId &&
+                lease.Authority.Owner == CommandOwner.KlaAssay && arbiter.IsCurrent(lease.Authority));
+    }
 
     public void Register(IRecipeResourceProducer producer)
     {
@@ -64,7 +72,13 @@ public sealed class RecipeResourceCoordinator(ICommandAuthorityArbiter arbiter, 
             authority = await arbiter.ReserveAsync(CommandOwner.Recipe, context.RecipeRunId, context.NodeId,
                 resources, timeout, linked.Token).ConfigureAwait(false);
             await arbiter.DrainReservedCommandsAsync(authority, linked.Token).ConfigureAwait(false);
-            return new RecipeAssayResourceLease(arbiter, authority, suspended, () => _assay.Release());
+            var lease = new RecipeAssayResourceLease(arbiter, authority, suspended, () => _assay.Release());
+            lock (_sync)
+            {
+                _issued.RemoveAll(previous => !arbiter.IsCurrent(previous.Authority));
+                _issued.Add(lease);
+            }
+            return lease;
         }
         catch (Exception error)
         {

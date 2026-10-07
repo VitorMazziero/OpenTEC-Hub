@@ -48,7 +48,9 @@ public sealed partial class RecipeEngine
     {
         CascadeController? controller = null;
         using var suspension = new RecipeCascadeSuspensionGate(() => Volatile.Read(ref _frameVersion));
-        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct, suspension.StopToken);
+        RecipeCascadePeriodicGroup? periodic = null;
+        using var groupStopped = new CancellationTokenSource();
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct, suspension.StopToken, groupStopped.Token);
         Resources?.Register(new CascadeResourceProducer(node.Id, suspension, () =>
         {
             lock (_lock)
@@ -89,10 +91,12 @@ public sealed partial class RecipeEngine
 
         try
         {
+            periodic = StartPeriodicGroup(node.Id, ct);
+            using var groupStopRegistration = periodic?.StopToken.Register(() => groupStopped.Cancel());
             while (true)
             {
-                ct.ThrowIfCancellationRequested();
-                _pauseGate.Wait(ct);
+                lifetime.Token.ThrowIfCancellationRequested();
+                _pauseGate.Wait(lifetime.Token);
 
                 // Manual exit: the operator flipped the switch to Sair do Loop (Passar). Checked before
                 // the frame wait so leaving the loop takes effect promptly.
@@ -215,12 +219,21 @@ public sealed partial class RecipeEngine
         }
         finally
         {
-            suspension.Stop();
-            Resources?.Unregister(node.Id);
-            lock (_lock)
+            try
             {
-                _liveCascades.Remove(node.Id);
-                _cascadeGates.Remove(node.Id);
+                if (periodic is not null) await periodic.StopAndWaitAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (_lock) _periodicGroups.Remove(node.Id);
+                periodic?.Dispose();
+                suspension.Stop();
+                Resources?.Unregister(node.Id);
+                lock (_lock)
+                {
+                    _liveCascades.Remove(node.Id);
+                    _cascadeGates.Remove(node.Id);
+                }
             }
         }
     }

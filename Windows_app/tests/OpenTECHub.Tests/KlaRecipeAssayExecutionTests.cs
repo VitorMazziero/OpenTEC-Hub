@@ -130,11 +130,25 @@ public sealed class KlaRecipeAssayExecutionTests
                 else
                 {
                     Push(80, 2, GasRoute.VentAndNitrogen, 2);
-                    for (var index = 1; index <= 10; index++) Push(80 - index, 2, GasRoute.VentAndNitrogen, 2);
+                    await Task.Delay(1);
+                    for (var index = 1; index <= 10; index++)
+                    {
+                        Push(80 - index, 2, GasRoute.VentAndNitrogen, 2);
+                        await Task.Delay(1);
+                    }
                     Push(70, 2, GasRoute.Reactor, 3);
-                    for (var index = 0; index < 4; index++) Push(70, 2, GasRoute.Reactor, 3);
+                    await Task.Delay(1);
+                    for (var index = 0; index < 4; index++)
+                    {
+                        Push(70, 2, GasRoute.Reactor, 3);
+                        await Task.Delay(1);
+                    }
                     fixture.Device.Sent.Clear();
-                    for (var index = 0; index < 6; index++) Push(70, 2, GasRoute.Reactor, 4);
+                    for (var index = 0; index < 6; index++)
+                    {
+                        Push(70, 2, GasRoute.Reactor, 4);
+                        await Task.Delay(1);
+                    }
                 }
                 cancelling = api.WaitForCompletionAsync(request.RequestId);
             }

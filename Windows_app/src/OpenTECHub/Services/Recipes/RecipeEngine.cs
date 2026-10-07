@@ -55,7 +55,8 @@ public sealed partial class RecipeEngine : IRecipeEngine
         TimeProvider time,
         IEventJournal? journal = null,
         Func<TimeSpan, CancellationToken, Task>? delay = null,
-        IKlaProfileStore? klaStore = null)
+        IKlaProfileStore? klaStore = null,
+        IRecipePeriodicWorkSource? periodicWorkSource = null)
     {
         ArgumentNullException.ThrowIfNull(arbiter);
         ArgumentNullException.ThrowIfNull(device);
@@ -69,6 +70,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         _journal = journal;
         _delay = delay ?? ((ts, ct) => Task.Delay(ts, ct));
         _klaStore = klaStore;
+        _periodicWorkSource = periodicWorkSource;
         Resources = arbiter is ICommandAuthorityArbiter authority ? new RecipeResourceCoordinator(authority, time) : null;
         _routeCoordinator = new MotorRouteCoordinator(arbiter, device, CommandOwner.Recipe);
 
@@ -132,6 +134,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
 
         Current = recipe;
         ExecutionId = Guid.NewGuid();
+        PreparePeriodicWork(recipe);
         ResetNodeStates(recipe);
         ResetFlowState();
         SetWaiting(null);
@@ -172,6 +175,8 @@ public sealed partial class RecipeEngine : IRecipeEngine
         try
         {
             await ExecuteFlowAsync(recipe.Start, entryConnection: null, ct).ConfigureAwait(false);
+            if (Resources?.HasUnreturnedAssayAuthority(ExecutionId) == true)
+                throw new InvalidOperationException("Ensaio terminou sem devolução confirmada dos atuadores.");
             SetState(RecipeRunState.Completed);
             Log(RecipeLogSeverity.Info, "Receita concluída.");
         }
@@ -201,6 +206,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         }
 
         _pauseGate.Reset();
+        PausePeriodicGroups(true);
         SetState(RecipeRunState.Paused);
         Log(RecipeLogSeverity.Info, "Receita pausada.");
     }
@@ -214,6 +220,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
 
         _pauseGate.Set();
         SetState(RecipeRunState.Running);
+        PausePeriodicGroups(false);
         Log(RecipeLogSeverity.Info, "Receita retomada.");
     }
 

@@ -1,4 +1,5 @@
 using OpenTECHub.Services.Control;
+using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Recipes;
 using OpenTECHub.ViewModels;
 using Xunit;
@@ -14,6 +15,7 @@ public sealed class ReceitasViewModelTests
 {
     private sealed class FakeRecipeEngine : IRecipeEngine
     {
+        public IReadOnlyList<KlaRecipeResult> AutonomousResults { get; set; } = [];
         public RecipeRunState State => RecipeRunState.Idle;
         public string? StatusReason => null;
         public RecipeDeviceWait? Waiting => null;
@@ -31,7 +33,8 @@ public sealed class ReceitasViewModelTests
         public bool WasTraversed(RecipeConnection connection) => false;
         public CascadeTerms? CascadeTermsFor(string nodeId) => null;
         public event Action<string>? NodeStateChanged { add { } remove { } }
-        public event Action? StateChanged { add { } remove { } }
+        public event Action? StateChanged;
+        public void NotifyState() => StateChanged?.Invoke();
         public event Action? WaitingChanged { add { } remove { } }
         public event Action<RecipeLogEntry>? Logged { add { } remove { } }
         public void Dispose() { }
@@ -61,6 +64,36 @@ public sealed class ReceitasViewModelTests
     private static ReceitasViewModel Build() => new(new FakeRecipeEngine(), new FakeRecipeStore());
 
     private static RecipeTabViewModel Tab(ReceitasViewModel vm) => vm.SelectedTab!;
+
+    [Fact]
+    public void Automatic_session_navigation_keeps_failures_and_deduplicates_invocations()
+    {
+        var engine = new FakeRecipeEngine();
+        using var vm = new ReceitasViewModel(engine, new FakeRecipeStore());
+        var request = RecipeExecutionContractTests.Request();
+        var result = new KlaRecipeResult { Context = request.Context, SessionId = Guid.NewGuid(),
+            SessionFolder = "automatic-session", Status = KlaRecipeTerminalStatus.RestorationFailure,
+            Attempts = [], PreAssayStateRestored = false, PersistenceConfirmed = true, Reason = "Sem confirmação de retorno" };
+        result.Validate();
+        engine.AutonomousResults = [result];
+        engine.NotifyState(); engine.NotifyState();
+        var session = Assert.Single(vm.AutomaticSessions);
+        Assert.True(vm.HasAutomaticSessions);
+        Assert.Contains("Falha de restauração", session.Summary);
+        Assert.Contains("não confirmado", session.ReturnAndSave);
+        Assert.Equal(result.Reason, session.Reason);
+        string? opened = null;
+        vm.OpenAutomaticSessionRequested += folder => opened = folder;
+        vm.OpenAutomaticSessionCommand.Execute(new RecipeAutomaticSessionViewModel(result));
+        // Record equality alone must not prevent opening the same listed terminal result.
+        Assert.Equal(result.SessionFolder, opened);
+        opened = null;
+        vm.OpenAutomaticSessionCommand.Execute(new RecipeAutomaticSessionViewModel(result with { SessionFolder = "foreign" }));
+        Assert.Null(opened);
+        engine.AutonomousResults = [];
+        engine.NotifyState();
+        Assert.Empty(vm.AutomaticSessions); Assert.False(vm.HasAutomaticSessions);
+    }
 
     [Fact]
     public void Opens_a_valid_start_end_tab()

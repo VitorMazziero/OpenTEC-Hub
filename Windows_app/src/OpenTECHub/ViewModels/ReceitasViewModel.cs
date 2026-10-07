@@ -61,7 +61,11 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         _engine.WaitingChanged += OnEngineWaitingChanged;
 
         _elapsedTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
-        _elapsedTimer.Tick += (_, _) => ElapsedText = _engine.Elapsed.ToString(@"hh\:mm\:ss");
+        _elapsedTimer.Tick += (_, _) =>
+        {
+            ElapsedText = _engine.Elapsed.ToString(@"hh\:mm\:ss");
+            RefreshAutomaticSessions();
+        };
 
         RefreshLibrary();
         NewRecipe();
@@ -426,12 +430,14 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
 
     private void OnNodeStateChanged(string nodeId) => OnUi(() =>
     {
+        RefreshAutomaticSessions();
         _runningTab?.ApplyNodeState(nodeId, _engine.NodeStateOf(nodeId));
         _runningTab?.ApplyExecutedPath(_engine);
     });
 
     private void OnEngineStateChanged() => OnUi(() =>
     {
+        RefreshAutomaticSessions();
         RunState = _engine.State;
         StatusText = _engine.State switch
         {

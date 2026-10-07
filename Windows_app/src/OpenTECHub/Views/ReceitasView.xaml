@@ -142,6 +142,28 @@
         <Border Grid.Row="1" Padding="8,4" Background="{DynamicResource SurfaceSunkenBrush}"
                 BorderThickness="0,0,0,1" BorderBrush="{DynamicResource StrokeDefaultBrush}">
             <DockPanel>
+                <Expander DockPanel.Dock="Right" Header="Resultados kLa" Margin="8,0"
+                          Visibility="{Binding HasAutomaticSessions, Converter={StaticResource BoolToVis}}">
+                    <ScrollViewer MaxHeight="180" Width="420" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding AutomaticSessions}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="8" Margin="0,2" Background="{DynamicResource SurfaceCardBrush}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Origin}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding ReturnAndSave}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" />
+                                            <Button Content="Abrir sessão e tentativas" HorizontalAlignment="Left" Margin="0,4,0,0"
+                                                    Command="{Binding DataContext.OpenAutomaticSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" ToolTip="{Binding Folder}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Expander>
                 <ToggleButton DockPanel.Dock="Left" Content="Minhas Receitas"
                               IsChecked="{Binding IsLibrarySelected, Mode=OneWay}"
                               Command="{Binding OpenLibraryCommand}" Padding="14,5" Margin="0,0,6,0">

@@ -211,6 +211,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         PowerTest = powerTest;
         PowerMap = powerMap;
         Receitas = receitas;
+        Receitas.OpenAutomaticSessionRequested += OnOpenAutomaticSessionRequested;
         _recipeEngine = recipeEngine;
         _recipeEngine.StateChanged += OnRecipeStateChanged;
         _appliedUnits = settings.Current.Units;
@@ -1005,6 +1006,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     private void OnOpenGraphsRequested() => SelectedNavigationId = "dashboard";
 
+    private void OnOpenAutomaticSessionRequested(string folder)
+    {
+        KlaDetermination.LoadTest(folder);
+        if (KlaDetermination.CurrentTest?.FolderName == folder)
+            SelectedNavigationId = "kla-determination";
+    }
+
     partial void OnSelectedNavigationIdChanged(string value)
     {
         IsNavDrawerOpen = false;
@@ -1695,6 +1703,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _sessionLogger.StatusChanged -= OnSessionStatusChanged;
         _recipeEngine.StateChanged -= OnRecipeStateChanged;
         Historical.OpenGraphsRequested -= OnOpenGraphsRequested;
+        Receitas.OpenAutomaticSessionRequested -= OnOpenAutomaticSessionRequested;
         Settings.Dispose();
         Receitas.Dispose();
         Control.Dispose();

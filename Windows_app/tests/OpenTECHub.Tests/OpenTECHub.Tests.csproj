@@ -29,6 +29,8 @@
     <None Include="..\fixtures\kla-e0\**\*"
           Link="Fixtures\KlaE0\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\kla-e3-python-v1.json"
+          Link="Fixtures\kla-e3-python-v1.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

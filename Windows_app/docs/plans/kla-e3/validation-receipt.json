@@ -1,0 +1,58 @@
+{
+  "stage": "E3",
+  "validatedUtc": "2026-10-07T00:24:20.0677903Z",
+  "validationScope": "Software only; stages documented separately, final regression shared.",
+  "buildConfiguration": "KlaE2Validation",
+  "testEvidence": [
+    {
+      "file": "tests/OpenTECHub.Tests/TestResults/kla-e2.trx",
+      "sha256": "756d2f3a8d152d034fc3c5091f944f53a6bc8b6e7747d18ef74dfbf339aeaecc",
+      "total": 48,
+      "passed": 48,
+      "failed": 0
+    },
+    {
+      "file": "tests/OpenTECHub.Tests/TestResults/kla-e3.trx",
+      "sha256": "6dfc41404448455dbf36efae8ada01304eb8fd498edb24d756a8d74c9adafd61",
+      "total": 21,
+      "passed": 21,
+      "failed": 0
+    },
+    {
+      "file": "tests/OpenTECHub.Tests/TestResults/kla-e2-e3-regression.trx",
+      "sha256": "1031db364bb8afc24016444434c0d2b1bea33957f60111a731d206d8994b4eef",
+      "total": 306,
+      "passed": 306,
+      "failed": 0
+    },
+    {
+      "file": "tests/OpenTECHub.Tests/TestResults/kla-e2-e3-final.trx",
+      "sha256": "b8d52d3baeb1daaf3a803d66192caac8defc1ee52180bf3fdce4a9072dd4c51e",
+      "total": 77,
+      "passed": 77,
+      "failed": 0
+    }
+  ],
+  "e0Verification": {
+    "sourceHashesVerified": 19,
+    "corpusSplitEntries": 92,
+    "analyticalTruthCases": 3
+  },
+  "calibrationFilesModifiedByThisStage": false,
+  "physicalEquipmentValidation": false,
+  "currentUiUsesDeterministicCore": false,
+  "pending": [
+    "E4 shared interface and deterministic analysis integration",
+    "E5 result/map workflow",
+    "E6 recipes",
+    "E7 bench validation and release"
+  ],
+  "releaseExecutableUpdated": false,
+  "methodVersion": "OpenTecDeterministicKlaV1",
+  "pythonReference": {
+    "fixture": "tests/fixtures/kla-e3-python-v1.json",
+    "sha256": "050175374657bd61e08e7ffeb01e2e54ac30f123e61588fe84e675087b669f3c",
+    "sourceCommit": "7d91a7be107e9ce52347d8c69f63e8b341432c00",
+    "parityScope": "Original OLS, respiratory OUR and unsmoothed exponential equilibrium components; not full phase/window parity."
+  }
+}

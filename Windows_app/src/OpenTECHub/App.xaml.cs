@@ -323,6 +323,8 @@ public partial class App : Application
         services.AddSingleton<IKlaTestStore>(sp => new KlaTestStore(AppPaths.KlaTestsDirectory, sp.GetRequiredService<BackgroundFileWriter>()));
         services.AddSingleton<IKlaAnalysisEngine, KlaAnalysisEngine>();
         services.AddSingleton<IKlaTestRunner, KlaTestRunner>();
+        services.AddSingleton<IKlaDeterministicAnalysisEngine>(sp =>
+            (IKlaDeterministicAnalysisEngine)sp.GetRequiredService<IKlaAnalysisEngine>());
         services.AddSingleton<IPowerTestStore>(sp => new PowerTestStore(AppPaths.PowerTestsDirectory, sp.GetRequiredService<BackgroundFileWriter>()));
         services.AddSingleton<IPowerMapStore>(_ => new PowerMapStore(AppPaths.PowerMapsDirectory));
         services.AddSingleton<IPowerAnalysisEngine, PowerAnalysisEngine>();

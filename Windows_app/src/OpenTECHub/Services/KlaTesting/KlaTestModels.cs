@@ -171,6 +171,7 @@ public sealed class KlaTestCondition
 
 public sealed class KlaAnalysisRevision
 {
+    public KlaDeterministicResult? DeterministicResult { get; set; }
     public KlaRunOutcome? Outcome { get; set; }
     [System.Text.Json.Serialization.JsonIgnore]
     public KlaRunOutcome EffectiveOutcome => Outcome ?? KlaRunOutcome.FromLegacy(Quality);

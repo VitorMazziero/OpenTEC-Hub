@@ -4,8 +4,10 @@ using System.Linq;
 
 namespace OpenTECHub.Services.KlaTesting;
 
-public sealed class KlaAnalysisEngine : IKlaAnalysisEngine
+public sealed class KlaAnalysisEngine : IKlaAnalysisEngine, IKlaDeterministicAnalysisEngine
 {
+    public KlaDeterministicResult AnalyzeDeterministic(KlaDeterministicRequest request)
+        => KlaDeterministicAnalysis.Analyze(request);
     public CeqFitResult EstimateCeq(
         IReadOnlyList<double> timeSeconds,
         IReadOnlyList<double> doValues,

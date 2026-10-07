@@ -36,6 +36,7 @@ public abstract class CascadeAllocation
 
     /// <summary>The effort windows, for the workspace's stacked bar. Empty where it has none.</summary>
     public virtual IReadOnlyList<ActuatorWindow> Windows => [];
+    public virtual object CaptureConfiguration() => new { Kind = GetType().Name, Windows };
 
     /// <summary>The effort that reproduces a given agitation command — for bumpless arming.</summary>
     public double EffortForAgitation(double agitationRpm)
@@ -134,6 +135,11 @@ public sealed class SingleActuatorAllocation : CascadeAllocation
     }
 
     public override IReadOnlyList<ActuatorWindow> Windows => [_driven];
+    public override object CaptureConfiguration() => new
+    {
+        Kind = nameof(SingleActuatorAllocation), DriveAgitation = _driveAgitation, Driven = _driven,
+        HeldAgitationRpm = _heldAgitationRpm, HeldAerationLpm = _heldAerationLpm
+    };
 }
 
 /// <summary>
@@ -161,6 +167,7 @@ public sealed class KlaPathAllocation : CascadeAllocation
     public double MinimumKlaPerHour { get; }
 
     public double MaximumKlaPerHour { get; }
+    public override object CaptureConfiguration() => new { Kind = nameof(KlaPathAllocation), Table = _table.ToArray() };
 
     /// <summary>The kLa demand a given effort maps to, for display.</summary>
     public double KlaForEffort(double effortPercent)

@@ -70,6 +70,7 @@ internal sealed class RecordingDeviceService : IDeviceService
         ct.ThrowIfCancellationRequested();
         return RaiseCommandSentOnSend ? Task.CompletedTask : Task.FromException(new IOException("Simulated stalled transport."));
     }
+    public void PushCommandSent(string json) => CommandSent?.Invoke(json);
 
     public void ZeroSessionTime() => ZeroSessionTimeCalls++;
 

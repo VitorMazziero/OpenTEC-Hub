@@ -21,12 +21,27 @@ public sealed partial class RecipeEngine
     private readonly Dictionary<string, CascadeController> _liveCascades = [];
     private readonly Dictionary<string, RecipeCascadeSuspensionGate> _cascadeGates = [];
 
-    private sealed class CascadeResourceProducer(string nodeId, RecipeCascadeSuspensionGate gate) : IRecipeResourceProducer
+    private sealed class CascadeResourceProducer(string nodeId, RecipeCascadeSuspensionGate gate,
+        Func<ControllerReturnSnapshot> capture) : IRecipeResourceProducer
     {
         public string NodeId => nodeId;
         public IReadOnlyList<ActuatorId> Resources { get; } = [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen];
         public async Task<IRecipeResourceSuspension> SuspendAsync(CancellationToken ct)
-            => await gate.PauseAsync(ct).ConfigureAwait(false);
+            => new CascadeReturnSuspension(await gate.PauseAsync(ct).ConfigureAwait(false), capture);
+    }
+
+    private sealed class CascadeReturnSuspension(RecipeCascadeSuspensionGate.PauseReceipt pause,
+        Func<ControllerReturnSnapshot> capture) : IRecipeResourceSuspension
+    {
+        private ControllerReturnSnapshot? _captured;
+        public bool CanResume => pause.CanResume && (_captured is null || capture() == _captured);
+        public ControllerReturnSnapshot CaptureControllerState()
+        {
+            if (!CanResume) throw new InvalidOperationException("Cascata encerrada ou estado alterado durante cessão.");
+            return _captured ??= capture();
+        }
+        public void Resume() => pause.Resume();
+        public void Stop() => pause.Stop();
     }
 
     private async Task ExecuteCascadeAsync(RecipeNode node, CancellationToken ct)
@@ -34,7 +49,12 @@ public sealed partial class RecipeEngine
         CascadeController? controller = null;
         using var suspension = new RecipeCascadeSuspensionGate(() => Volatile.Read(ref _frameVersion));
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct, suspension.StopToken);
-        Resources?.Register(new CascadeResourceProducer(node.Id, suspension));
+        Resources?.Register(new CascadeResourceProducer(node.Id, suspension, () =>
+        {
+            lock (_lock)
+                return new ControllerReturnSnapshot { ControllerId = node.Id, WasActive = controller is not null,
+                    StateJson = controller?.CaptureStateJson() ?? "{}", StateVersion = "recipe-cascade-v1" };
+        }));
         lock (_lock) _cascadeGates.Add(node.Id, suspension);
         long resumeVersion = 0;
 

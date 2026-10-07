@@ -8,8 +8,8 @@ Plano: [14 etapas](2026-10-07-receitas-kla-autonomo-e-rampas.md). Atualização:
 | R0.2 | Implementada e validada | [recibo](receitas-r02/EXECUCAO_R02.md); 61 testes focados aprovados |
 | R1.1 | Implementada e validada | [recibo](receitas-r11/EXECUCAO_R11.md); 58 testes focados aprovados |
 | R1.2 | Implementada e validada | [recibo](receitas-r12/EXECUCAO_R12.md); suspensão integrada ao engine/PID; 1996 testes na regressão completa |
-| R1.3 | Próxima | Captura e restauração completas em ambos os protocolos |
-| R3.1 | Pendente | Recibos reais de persistência por tentativa |
+| R1.3 | Implementada e validada em software | [recibo](receitas-r13/EXECUCAO_R13.md); captura completa, recuperação reservada e prioridade de segurança; 2058 testes na regressão completa |
+| R3.1 | Próxima | Recibos reais de persistência por tentativa |
 | R2.1/R2.2 | Pendente | Adaptador do runner, matriz e autoria automática |
 | R4.1/R4.2 | Pendente | Agenda, grupo paralelo, blocos/editor/resultados |
 | R5.1/R5.2 | Pendente | Rampas e destinos no controle |

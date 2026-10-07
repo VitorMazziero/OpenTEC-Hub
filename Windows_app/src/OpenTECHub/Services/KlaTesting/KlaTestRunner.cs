@@ -9,6 +9,7 @@ using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.Control;
 using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.Recipes;
 
 namespace OpenTECHub.Services.KlaTesting;
 
@@ -23,6 +24,9 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     private readonly ILogger<KlaTestRunner> _log;
     private readonly ITimer _watchdog;
     private readonly MotorRouteCoordinator _routeCoordinator;
+    private readonly KlaReturnSnapshot? _recipeReturnSnapshot;
+    private readonly RecipeAssayResourceLease? _recipeLease;
+    private volatile bool _recipeAcquisitionSealed;
 
     private readonly object _gate = new();
     private readonly List<KlaRawDataPoint> _runPoints = [];
@@ -66,10 +70,20 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         ISettingsService settings,
         TimeProvider? time = null,
         ILogger<KlaTestRunner>? log = null,
-        ICascadeService? cascade = null, IOurSoftSensor? our = null, KlaActuationRelease? actuationRelease = null)
+        ICascadeService? cascade = null, IOurSoftSensor? our = null, KlaActuationRelease? actuationRelease = null,
+        RecipeAssayResourceLease? recipeLease = null, KlaReturnSnapshot? recipeReturnSnapshot = null)
     {
+        if ((recipeLease is null) != (recipeReturnSnapshot is null))
+            throw new ArgumentException("Runner de receita requer reserva e snapshot juntos.");
+        if (recipeLease is not null)
+        {
+            recipeLease.ValidateRecoverySnapshot(recipeReturnSnapshot!);
+            RecipeAssayReturnState.Validate(recipeReturnSnapshot!);
+        }
+        _recipeReturnSnapshot = recipeReturnSnapshot; _recipeLease = recipeLease;
         _device = device ?? throw new ArgumentNullException(nameof(device));
-        _arbiter = arbiter ?? throw new ArgumentNullException(nameof(arbiter));
+        ArgumentNullException.ThrowIfNull(arbiter);
+        _arbiter = recipeLease is null ? arbiter : new ReservedKlaCommandArbiter(arbiter, recipeLease);
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _store.WriteFailed += OnStoreWriteFailed;
         _analysisEngine = analysisEngine ?? throw new ArgumentNullException(nameof(analysisEngine));
@@ -77,7 +91,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         _time = time ?? TimeProvider.System;
         _log = log ?? NullLogger<KlaTestRunner>.Instance;
         _routeCoordinator = new MotorRouteCoordinator(_arbiter, _device, CommandOwner.KlaAssay);
-        _assayCoordinator = new(_arbiter, cascade, our);
+        _assayCoordinator = new(_arbiter, cascade, our, recipeLease);
         _actuationRelease = actuationRelease ?? new();
 
         _device.TelemetryReceived += OnTelemetryReceived;
@@ -86,6 +100,43 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     }
 
     public MotorRouteCoordinator RouteCoordinator => _routeCoordinator;
+    public bool RequiresRecipeSnapshotRestoration => _recipeReturnSnapshot is not null;
+
+    /// <summary>Seals every runner enqueue before the independent recovery service starts writing.</summary>
+    public void SealRecipeAcquisitionForRecovery()
+    {
+        if (_recipeReturnSnapshot is null) throw new InvalidOperationException("Runner não pertence a uma receita.");
+        ((ReservedKlaCommandArbiter)_arbiter).Seal();
+        _recipeAcquisitionSealed = true;
+        _device.TelemetryReceived -= OnTelemetryReceived;
+        _watchdog.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        lock (_gate)
+        {
+            if (_currentRun is null) return;
+            _currentRun.Outcome = (_currentRun.Outcome ?? new()) with { Restoration = KlaRestorationState.Pending };
+            PersistPhysicalOutcome();
+            SetPhase(RunPhase.RestoringCultivation, "Aquisição encerrada; restaurando snapshot da receita.");
+        }
+    }
+
+    public void ConfirmRecipeReturn() => _assayCoordinator.CompleteRecipeReturn();
+
+    /// <summary>Records physical return only. This does not release ownership, resume observers or imply durable storage.</summary>
+    public void RecordRecipeRecovery(RecipeAssayRecoveryResult result)
+    {
+        lock (_gate)
+        {
+            if (_recipeReturnSnapshot is null || !_recipeAcquisitionSealed || result.SnapshotId != _recipeReturnSnapshot.SnapshotId || _currentRun is null ||
+                result.Restoration is not (KlaRestorationState.Confirmed or KlaRestorationState.Failed) ||
+                result.Restoration == KlaRestorationState.Confirmed && _recipeLease?.IsAssayAuthorityCurrent != true)
+                throw new InvalidOperationException("Recuperação não corresponde ao runner/autoridade da receita.");
+            _currentRun.Outcome = (_currentRun.Outcome ?? new()) with
+            { Restoration = result.Restoration, RestorationReason = result.Reason };
+            PersistPhysicalOutcome();
+            SetPhase(result.Restoration == KlaRestorationState.Confirmed ? RunPhase.Reviewing : RunPhase.Faulted,
+                result.Restoration == KlaRestorationState.Confirmed ? "Snapshot restaurado; aguardando decisão automática e persistência." : $"Recuperação falhou: {result.Reason}");
+        }
+    }
     private readonly KlaActuationRelease _actuationRelease;
 
     public KlaTestDocument? CurrentTest => _currentTest;
@@ -201,6 +252,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public Task StartTestAsync(KlaTestDocument doc, CancellationToken ct = default)
     {
+        if (_recipeAcquisitionSealed) throw new InvalidOperationException("Runner de tentativa encerrado para recuperação.");
         ct.ThrowIfCancellationRequested();
         if (doc.Runs.Any(r => r.Outcome?.Restoration is KlaRestorationState.Pending or KlaRestorationState.Failed))
         {
@@ -231,6 +283,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public async Task StartRunAsync(KlaTestCondition condition, int replicateNumber, CancellationToken ct = default)
     {
+        if (_recipeAcquisitionSealed) throw new InvalidOperationException("Runner de tentativa encerrado para recuperação.");
         if (_currentTest is null)
         {
             throw new InvalidOperationException("Nenhum teste de kLa ativo.");
@@ -347,7 +400,8 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
                 Context = runDefinition.Context,
                 Acquisition = new(_settings.Current.Calibration.OxygenA, _settings.Current.Calibration.OxygenB,
                     _time.GetUtcNow(), OperationalSettings.OxygenSampleTimeoutSeconds,
-                    IsBiotic ? InitialReturnRpm : null, IsBiotic ? _device.Latest!.FlowSetpoint : null),
+                    _recipeReturnSnapshot?.AgitationSetpointRpm ?? (IsBiotic ? InitialReturnRpm : null),
+                    _recipeReturnSnapshot?.AirflowSetpointLpm ?? (IsBiotic ? _device.Latest!.FlowSetpoint : null)),
                 TestId = _currentTest.TestId,
                 ConditionId = condition.ConditionId,
                 ReplicateNumber = replicateNumber,
@@ -714,6 +768,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public void UpdateLiveSettings(KlaTestSettings settings)
     {
+        if (_recipeAcquisitionSealed) throw new InvalidOperationException("Configuração da tentativa encerrada é imutável.");
         ValidateSettings(settings);
         lock (_gate)
         {
@@ -742,6 +797,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public void SetDegassingAgitation(double rpm)
     {
+        if (_recipeAcquisitionSealed) throw new InvalidOperationException("Configuração da tentativa encerrada é imutável.");
         if (!double.IsFinite(rpm) || rpm <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(rpm));
@@ -811,6 +867,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     private void OnTelemetryReceived(SensorSnapshot s)
     {
+        if (_recipeAcquisitionSealed) return;
         _lastTelemetryMonotonic = GetMonotonicSeconds();
         if (s.OxygenUpdated)
         {
@@ -1003,7 +1060,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         }
     }
 
-    private static double? TryCalculateSlope(IReadOnlyList<(double Time, double DO)> points, double requestedSpan)
+    internal static double? TryCalculateSlope(IReadOnlyList<(double Time, double DO)> points, double requestedSpan)
     {
         if (points.Count < 2 || points[^1].Time - points[0].Time < requestedSpan * 0.8)
         {
@@ -1274,6 +1331,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     internal void CheckWatchdog()
     {
+        if (_recipeAcquisitionSealed) return;
         if (!IsRunning || _phase == RunPhase.Reviewing)
         {
             return;
@@ -1430,7 +1488,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         }
         _disposed = true;
 
-        if (IsBiotic && _currentRun?.Outcome?.Restoration == KlaRestorationState.Pending)
+        if (_recipeReturnSnapshot is null && IsBiotic && _currentRun?.Outcome?.Restoration == KlaRestorationState.Pending)
         {
             BeginCultivationRestoration("Aplicativo encerrando");
             FailCultivationRestoration("Encerramento antes da confirmação física; conferir retomada manualmente.");

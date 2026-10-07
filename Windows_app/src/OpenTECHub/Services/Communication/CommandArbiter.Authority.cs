@@ -16,7 +16,12 @@ public interface ICommandAuthorityArbiter : ICommandArbiter
     CommandAuthorityLease TransferReserved(CommandAuthorityLease authority, CommandOwner to, string reason);
     void ReleaseReservation(CommandAuthorityLease authority);
     Task DrainReservedCommandsAsync(CommandAuthorityLease authority, CancellationToken ct = default);
+    IReadOnlyList<ReservedDesiredState> CaptureReservedDesiredState(CommandAuthorityLease authority);
 }
+
+/// <summary>Requested state and transport evidence are separate; neither is a physical reading.</summary>
+public sealed record ReservedDesiredState(ActuatorId Actuator, CommandOwner Owner, string DesiredCommandJson,
+    string TransportAcceptedCommandJson, DateTimeOffset DesiredUpdatedUtc, DateTimeOffset TransportUpdatedUtc);
 
 public sealed partial class CommandArbiter
 {
@@ -79,6 +84,9 @@ public sealed partial class CommandArbiter
     public CommandDispatchResult DispatchReserved(CommandAuthorityLease authority, OpenTECCommand command, bool separateFrame = false)
     {
         ArgumentNullException.ThrowIfNull(authority);
+        ArgumentNullException.ThrowIfNull(command);
+        if (!IsCurrent(authority) || command.Keys.Any(key => CommandActuators.ForKey(key) is null))
+            return new(false, CommandActuators.ActuatorsIn(command).ToArray(), authority.Owner);
         return Dispatch(authority.Owner, command, separateFrame, authority);
     }
 

@@ -28,6 +28,7 @@ internal sealed class FakeTransport(TransportMedium medium = TransportMedium.Usb
 
     /// <summary>When false, <see cref="WriteAsync"/> reports the device rejected it.</summary>
     public bool WriteSucceeds { get; set; } = true;
+    public Func<string, CancellationToken, Task<bool>>? WriteBehavior { get; set; }
 
     /// <summary>Result of the liveness probe.</summary>
     public bool IsAlive { get; set; } = true;
@@ -112,7 +113,7 @@ internal sealed class FakeTransport(TransportMedium medium = TransportMedium.Usb
             Writes.Add(payload);
         }
 
-        return Task.FromResult(WriteSucceeds);
+        return WriteBehavior?.Invoke(payload, cancellationToken) ?? Task.FromResult(WriteSucceeds);
     }
 
     public Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)

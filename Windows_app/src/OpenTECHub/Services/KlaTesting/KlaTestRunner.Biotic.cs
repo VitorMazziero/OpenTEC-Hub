@@ -22,7 +22,8 @@ public sealed partial class KlaTestRunner
         ?? _currentTest?.Settings.DegassingAgitationRpm ?? 100;
     private double ReturnRpm => _currentRun?.Acquisition?.ReturnAgitationRpm
         ?? InitialReturnRpm;
-    private double InitialReturnRpm => OperationalSettings.ReturnAgitationRpm ?? _device.Latest?.ServoRpm ?? double.NaN;
+    private double InitialReturnRpm => _recipeReturnSnapshot?.AgitationSetpointRpm ??
+        OperationalSettings.ReturnAgitationRpm ?? _device.Latest?.ServoRpm ?? double.NaN;
 
     private void ValidateBioticPreflight(KlaTestCondition condition)
     {
@@ -151,7 +152,8 @@ public sealed partial class KlaTestRunner
                 FailCultivationRestoration("Ar/agitação confirmados, mas o controlador anterior não retomou.");
                 return;
             }
-            _currentRun!.Outcome = (_currentRun.Outcome ?? new()) with { Restoration = KlaRestorationState.Confirmed };
+            _currentRun!.Outcome = (_currentRun.Outcome ?? new()) with
+            { Restoration = _recipeReturnSnapshot is null ? KlaRestorationState.Confirmed : KlaRestorationState.Pending };
             PersistPhysicalOutcome();
             LogEvent("CultivationRestored", $"Ar, agitação e controle confirmados; t={relativeSeconds:F3}s.");
             if (_completeAfterClosing)

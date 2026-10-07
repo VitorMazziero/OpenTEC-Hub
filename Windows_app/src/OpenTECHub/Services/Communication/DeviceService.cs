@@ -79,6 +79,9 @@ public interface IDeviceService
     /// </remarks>
     void SendAfterCurrentFrame(OpenTECCommand command) => Send(command);
 
+    /// <summary>Immediate transports may send directly. Buffered transports must supersede pending actuator writes.</summary>
+    void SendSafetyFrame(OpenTECCommand command) => SendAfterCurrentFrame(command);
+
     Task DrainCommandsAsync(CancellationToken ct = default)
         => Task.FromException(new NotSupportedException("Dispositivo não oferece barreira de transporte."));
 
@@ -249,6 +252,7 @@ public sealed class DeviceService : IDeviceService, IAsyncDisposable
         => _manager.SendCommandAfterCurrentFrame(command);
 
     public Task DrainCommandsAsync(CancellationToken ct = default) => _manager.DrainCommandsAsync(ct);
+    public void SendSafetyFrame(OpenTECCommand command) => _manager.SendSafetyCommand(command);
 
     public void RequestNodeDiag(string device) => _manager.SendCommand(CommandBuilders.NodeDiag(device));
 

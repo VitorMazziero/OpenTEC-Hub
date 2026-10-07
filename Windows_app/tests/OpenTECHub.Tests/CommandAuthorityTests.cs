@@ -1,12 +1,83 @@
 using System.IO;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Recipes;
 using Xunit;
 
 namespace OpenTECHub.Tests;
 
 public sealed class CommandAuthorityTests
 {
+    [Fact]
+    public void Delayed_transport_completion_does_not_confirm_a_newer_reference()
+    {
+        var (arbiter, device) = Build(); using var owner = arbiter;
+        device.RaiseCommandSentOnSend = false;
+        arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.MotorSetpoint(300));
+        arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.MotorSetpoint(500));
+        device.PushCommandSent(CommandBuilders.MotorSetpoint(300).ToJson());
+        Assert.Equal(CommandPhase.Issued, Assert.Single(arbiter.Lifecycle).Phase);
+        device.PushCommandSent(CommandBuilders.MotorSetpoint(500).ToJson());
+        Assert.Equal(CommandPhase.TransportAccepted, Assert.Single(arbiter.Lifecycle).Phase);
+    }
+
+    [Fact]
+    public async Task Unknown_prior_configuration_cannot_be_filled_with_an_instantaneous_measurement()
+    {
+        var (arbiter, device) = Build(); using var owner = arbiter;
+        arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.MotorSetpoint(300));
+        arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.FlowRoute(2, 10, GasRoute.Reactor, GasRigConfiguration.Default));
+        device.PushTelemetry(new() { ServoRpm = 300, FlowSetpoint = 2, FlowRate = 2, MotorControlViaModbus = true });
+        var lease = await new RecipeResourceCoordinator(arbiter, TimeProvider.System).ReserveForAssayAsync(
+            RecipeExecutionContractTests.Request().Context, [ActuatorId.Agitation, ActuatorId.Aeration], TimeSpan.FromSeconds(1));
+        Assert.Throws<InvalidOperationException>(() => { lease.CaptureReturnSnapshot(GasRigConfiguration.Default, TimeProvider.System,
+            device.Latest, DateTimeOffset.UtcNow); });
+        lease.AbortBeforeAssay();
+        Assert.Equal(CommandOwner.Recipe, arbiter.OwnerOf(ActuatorId.Agitation));
+    }
+
+    [Fact]
+    public async Task Desired_capture_requires_a_drained_generation_and_contains_only_actual_authorized_enqueues()
+    {
+        var (arbiter, device) = Build(); using var owner = arbiter;
+        arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.MotorControlMode(false));
+        arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.MotorSetpoint(300));
+        var lease = await arbiter.ReserveAsync(CommandOwner.Recipe, Guid.NewGuid(), "kla", [ActuatorId.Agitation], TimeSpan.FromSeconds(1));
+        Assert.Throws<InvalidOperationException>(() => arbiter.CaptureReservedDesiredState(lease));
+        await arbiter.DrainReservedCommandsAsync(lease);
+        var captured = Assert.Single(arbiter.CaptureReservedDesiredState(lease));
+        Assert.Equal("0", OpenTECCommand.Parse(captured.DesiredCommandJson).GetRawValue(CommandKeys.MotorControlMode));
+        Assert.Equal("300", OpenTECCommand.Parse(captured.DesiredCommandJson).GetRawValue(CommandKeys.MotorSetpoint));
+        Assert.False(arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.MotorSetpoint(900)).Accepted);
+        Assert.Equal(captured, Assert.Single(arbiter.CaptureReservedDesiredState(lease)));
+        arbiter.DispatchReserved(lease, CommandBuilders.MotorSetpoint(450));
+        Assert.Throws<InvalidOperationException>(() => arbiter.CaptureReservedDesiredState(lease));
+        await arbiter.DrainReservedCommandsAsync(lease);
+        Assert.Equal("450", OpenTECCommand.Parse(Assert.Single(arbiter.CaptureReservedDesiredState(lease)).DesiredCommandJson).GetRawValue(CommandKeys.MotorSetpoint));
+        arbiter.ReturnToManual("stop", true);
+        Assert.Throws<InvalidOperationException>(() => arbiter.CaptureReservedDesiredState(lease));
+    }
+
+    [Theory]
+    [InlineData("{\"motorSetpoint\":300,\"motorSetpoint\":400}")]
+    [InlineData("{\"motorSetpoint\":[300]}")]
+    [InlineData("{\"motorSetpoint\":{\"value\":300}}")]
+    [InlineData("{\"motorSetpoint\":1e999}")]
+    [InlineData("{\"motorSetpoint\":null}")]
+    [InlineData("{\"motorSetpoint\":true}")]
+    public void Frozen_command_parser_rejects_ambiguous_or_non_wire_values(string json)
+        => Assert.Throws<ArgumentException>(() => OpenTECCommand.Parse(json));
+
+    [Fact]
+    public void Selected_command_fields_are_independent_of_the_mutable_builder()
+    {
+        var command = OpenTECCommand.Create().Set(CommandKeys.MotorSetpoint, 300).Set(CommandKeys.FlowSetpoint, 2.0);
+        var motor = command.SelectKeys(key => CommandActuators.ForKey(key) == ActuatorId.Agitation);
+        command.Set(CommandKeys.MotorSetpoint, 900);
+        Assert.Equal(CommandBuilders.MotorSetpoint(300).ToJson(), motor.ToJson());
+        Assert.Equal(command.ToJson(), OpenTECCommand.Parse(command.ToJson()).ToJson());
+    }
+
     private static readonly ActuatorId[] Resources = [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen];
     private static (CommandArbiter Arbiter, RecordingDeviceService Device) Build()
     {

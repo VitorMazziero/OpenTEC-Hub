@@ -192,6 +192,12 @@ public sealed record ActuatorReturnSnapshot
     // Includes loop enable, routing, pump configuration and references, not just a scalar setpoint.
     public required string DesiredCommandJson { get; init; }
     public required string ConfirmationChannel { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TransportAcceptedCommandJson { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? DesiredUpdatedUtc { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? TransportUpdatedUtc { get; init; }
     public void Validate()
     {
         ContractGuard.Defined(Actuator); ContractGuard.Defined(Owner);
@@ -202,6 +208,24 @@ public sealed record ActuatorReturnSnapshot
 
         ContractGuard.Text(OwnerExecutionId); ContractGuard.Text(ConfirmationChannel);
         ContractGuard.JsonObject(DesiredCommandJson);
+        if (TransportAcceptedCommandJson is not null) ContractGuard.JsonObject(TransportAcceptedCommandJson);
+    }
+}
+
+/// <summary>Available device evidence at capture, never substituted for the desired return commands.</summary>
+public sealed record KlaReturnObservation
+{
+    public required DateTimeOffset ReceivedUtc { get; init; }
+    public required string EchoJson { get; init; }
+    public double? MeasuredAgitationRpm { get; init; }
+    public double? MeasuredFlowLpm { get; init; }
+    public double? MeasuredOxygenPercent { get; init; }
+    public void Validate()
+    {
+        if (ReceivedUtc == default) throw new ArgumentException("Observação sem data.");
+        ContractGuard.JsonObject(EchoJson);
+        foreach (var value in new[] { MeasuredAgitationRpm, MeasuredFlowLpm, MeasuredOxygenPercent })
+            if (value.HasValue && !double.IsFinite(value.Value)) throw new ArgumentException("Observação não finita.");
     }
 }
 
@@ -230,6 +254,8 @@ public sealed record KlaReturnSnapshot
     public required GasInput AirInletInput { get; init; }
     public required ImmutableArray<ActuatorReturnSnapshot> Actuators { get; init; }
     public required ImmutableArray<ControllerReturnSnapshot> Controllers { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KlaReturnObservation? Observation { get; init; }
 
     public void Validate()
     {
@@ -239,6 +265,7 @@ public sealed record KlaReturnSnapshot
         }
 
         ContractGuard.NonNegative(AgitationSetpointRpm); ContractGuard.NonNegative(AirflowSetpointLpm);
+        Observation?.Validate();
         ContractGuard.Defined(GasRoute); ContractGuard.Defined(AirInletInput);
         if (GasRoute == GasRoute.Closed && AirflowSetpointLpm > 0)
         {

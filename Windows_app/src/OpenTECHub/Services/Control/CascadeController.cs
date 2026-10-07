@@ -127,6 +127,10 @@ public sealed class CascadeController
     public void ResetIntegral() => _pid.ResetIntegral();
 
     public void ResumeFromSuspension(double dissolvedOxygenPercent) => _pid.ResumeFromSuspension(dissolvedOxygenPercent);
+    public string CaptureStateJson() => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        Pid = _pid.CaptureState(), Allocation = _allocation.CaptureConfiguration()
+    });
 
     /// <summary>Clears all loop state when the cascade is disarmed.</summary>
     public void Reset() => _pid.Reset();

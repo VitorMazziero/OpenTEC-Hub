@@ -59,6 +59,14 @@ public sealed class CascadeTwoLoopPidController
 
     public CascadeTerms LastTerms { get; private set; } = CascadeTerms.Empty;
 
+    /// <summary>Audit snapshot while the caller holds the controller's computation/tuning gate.</summary>
+    public object CaptureState() => new
+    {
+        Tuning, Setpoint, Output = _output, Integral = _integral, PreviousError = _ePrev,
+        PreviousDerivative = _dfPrev, HasPrevious = _hasPrevious,
+        MeasurementHistory = _dotHistory.ToArray(), ErrorWindow = _errorWindow.ToArray(), LastTerms
+    };
+
     public void Retune(CascadeTuning tuning)
     {
         Tuning = tuning ?? throw new ArgumentNullException(nameof(tuning));

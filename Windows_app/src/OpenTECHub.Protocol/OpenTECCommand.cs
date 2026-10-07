@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace OpenTECHub.Protocol;
 
@@ -36,6 +37,44 @@ public sealed class OpenTECCommand
     public IEnumerable<string> Keys => _fields.Select(f => f.Key);
 
     public static OpenTECCommand Create() => new();
+
+    /// <summary>Reads a frozen wire command. Rejects duplicate keys, nested values and non-finite numbers.</summary>
+    public static OpenTECCommand Parse(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            throw new ArgumentException("Command must be a flat JSON object.", nameof(json));
+        var command = Create();
+        foreach (var field in document.RootElement.EnumerateObject())
+        {
+            if (command.Contains(field.Name) || string.IsNullOrWhiteSpace(field.Name))
+                throw new ArgumentException("Command keys must be unique and nonempty.", nameof(json));
+            switch (field.Value.ValueKind)
+            {
+                case JsonValueKind.Number:
+                    if (!field.Value.TryGetDouble(out var number) || !double.IsFinite(number))
+                        throw new ArgumentException("Non-finite command value.", nameof(json));
+                    command.SetRaw(field.Name, field.Value.GetRawText());
+                    break;
+                case JsonValueKind.String:
+                    command.SetRaw(field.Name, field.Value.GetRawText());
+                    break;
+                default:
+                    throw new ArgumentException("Wire values must be numbers or strings.", nameof(json));
+            }
+        }
+        return command;
+    }
+
+    /// <summary>Returns an independent command with the selected keys, retaining their order and exact values.</summary>
+    public OpenTECCommand SelectKeys(Func<string, bool> predicate)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        var command = Create();
+        foreach (var field in _fields)
+            if (predicate(field.Key)) command.SetRaw(field.Key, field.Value);
+        return command;
+    }
 
     /// <summary>Sets an integer value, e.g. <c>{"motorSetpoint":790}</c>.</summary>
     public OpenTECCommand Set(string key, int value)
@@ -134,7 +173,7 @@ public sealed class OpenTECCommand
                 sb.Append(',');
             }
 
-            sb.Append('"').Append(_fields[i].Key).Append("\":").Append(_fields[i].Value);
+            sb.Append(JsonSerializer.Serialize(_fields[i].Key)).Append(':').Append(_fields[i].Value);
         }
 
         return sb.Append('}').ToString();

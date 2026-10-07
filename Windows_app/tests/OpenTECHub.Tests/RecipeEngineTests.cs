@@ -32,6 +32,52 @@ public sealed class RecipeEngineTests
         => Task.Delay(TimeSpan.FromMilliseconds(Math.Clamp(requested.TotalMilliseconds, 0, 5)), ct);
 
     [Fact]
+    public async Task Captured_cascade_state_is_verified_before_physical_return_and_resume()
+    {
+        var (engine, device, arbiter, clock) = Build(); using var run = engine;
+        arbiter.Dispatch(CommandOwner.Manual, CommandBuilders.FlowmeterLoopEnabled(true));
+        arbiter.Dispatch(CommandOwner.Manual, CommandBuilders.FlowRoute(1, 10, GasRoute.Reactor, GasRigConfiguration.Default));
+        await engine.StartAsync(CascadeWithGateRecipe(out _));
+        PushFrame(device, clock, oxygen: 25);
+        await WaitForCascadeStartedAsync(engine);
+        var context = RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId };
+        var lease = await engine.Resources!.ReserveForAssayAsync(context,
+            [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen], TimeSpan.FromSeconds(5));
+        var snapshot = lease.CaptureReturnSnapshot(GasRigConfiguration.Default, clock, device.Latest, clock.GetUtcNow());
+        var controller = Assert.Single(snapshot.Controllers);
+        Assert.Equal("casc", controller.ControllerId); Assert.True(controller.WasActive);
+        Assert.Contains("ErrorWindow", controller.StateJson); Assert.Contains("Allocation", controller.StateJson);
+        Assert.Contains("MeasurementHistory", controller.StateJson);
+        lease.BeginAssay(snapshot);
+        clock.Advance(TimeSpan.FromHours(2));
+        PushFrame(device, clock, oxygen: 5);
+        Assert.True(lease.ControllersPreserved(snapshot));
+        var before = engine.CascadeTermsFor("casc");
+        device.Sent.Clear();
+        var contract = new KlaRecipeRestorationContract { BeforeAssay = snapshot, MaximumRecoverySeconds = 30,
+            StabilitySeconds = 2, AgitationToleranceRpm = 2, FlowToleranceLpm = .05 };
+        var recovering = new RecipeAssayRestoration(arbiter, clock).RestoreAsync(lease, contract,
+            new() { MaximumTelemetryAgeSeconds = 5 });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (device.Sent.Count < 3) await Task.Delay(1, timeout.Token);
+        var echo = new SensorSnapshot { OxygenCalibrated = 25, OxygenRaw = 25, Temperature = 30,
+            MotorControlViaModbus = true, ServoMotorRouteAck = 1, ServoCommandPending = false,
+            HasServoTelemetry = true, HasServoSample = true, ServoOnline = true, ServoRpm = snapshot.AgitationSetpointRpm,
+            FlowmeterOnline = true, FlowControlEnabled = true, FlowRate = snapshot.AirflowSetpointLpm,
+            FlowSetpoint = snapshot.AirflowSetpointLpm, FlowValve2 = 1, FlowCommandId = 10, FlowCommandAck = 10 };
+        device.PushTelemetry(echo);
+        while (device.Sent.Count < 5) await Task.Delay(1, timeout.Token);
+        for (var i = 0; i < 5; i++) { clock.Advance(TimeSpan.FromSeconds(1)); device.PushTelemetry(echo); await Task.Yield(); }
+        var evidence = await recovering.WaitAsync(timeout.Token);
+        Assert.Equal(KlaRestorationState.Confirmed, evidence.Restoration);
+        Assert.Equal(before, engine.CascadeTermsFor("casc")); Assert.True(lease.ControllersPreserved(snapshot));
+        await lease.ReturnAsync(new(new() { Restoration = evidence.Restoration }, 40)
+            { ReturnSnapshotId = snapshot.SnapshotId, PersistenceReceiptId = "test-durable" });
+        Assert.True(lease.HasReturnedSuccessfully);
+        await engine.StopAsync("test complete");
+    }
+
+    [Fact]
     public async Task Assay_suspension_preserves_cascade_state_and_resumes_without_integrating_the_gap()
     {
         var (engine, device, arbiter, clock) = Build();

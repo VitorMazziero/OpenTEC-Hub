@@ -7,6 +7,7 @@ namespace OpenTECHub.Services.Recipes;
 public interface IRecipeResourceSuspension
 {
     bool CanResume => true;
+    ControllerReturnSnapshot? CaptureControllerState() => null;
     void Resume();
     void Stop();
 }
@@ -89,12 +90,116 @@ public sealed class RecipeAssayResourceLease
     private readonly Action _releaseAssaySlot;
     private bool _ended;
     private Guid? _snapshotId;
+    private KlaReturnSnapshot? _capturedSnapshot;
+    private RecipeAssayRecoveryResult? _recoveryEvidence;
+    private readonly Action<OwnershipTransfer> _onRevoked;
+    private bool _emergencyStopped;
+    private bool _returned;
+    private int _producersStopped;
+    public Exception? ProducerStopError { get; private set; }
     public CommandAuthorityLease Authority { get; private set; }
 
     internal RecipeAssayResourceLease(ICommandAuthorityArbiter arbiter, CommandAuthorityLease authority,
         IReadOnlyList<IRecipeResourceSuspension> suspended, Action releaseAssaySlot)
     {
         _arbiter = arbiter; Authority = authority; _suspended = suspended; _releaseAssaySlot = releaseAssaySlot;
+        _onRevoked = transfer =>
+        {
+            if (!transfer.Actuators.Intersect(authority.Resources).Any()) return;
+            Volatile.Write(ref _emergencyStopped, true);
+            StopProducersOnce();
+        };
+        _arbiter.OwnershipRevoked += _onRevoked;
+    }
+
+    public bool HasReturnedSuccessfully
+    {
+        get { lock (_sync) return _returned && !Volatile.Read(ref _emergencyStopped) &&
+            Authority.Resources.All(a => _arbiter.OwnerOf(a) == CommandOwner.Recipe); }
+    }
+
+    private void StopProducersOnce()
+    {
+        if (Interlocked.Exchange(ref _producersStopped, 1) != 0) return;
+        foreach (var producer in _suspended)
+        {
+            try { producer.Stop(); }
+            catch (Exception error) { ProducerStopError = error; }
+        }
+    }
+
+    public KlaReturnSnapshot CaptureReturnSnapshot(GasRigConfiguration rig, TimeProvider time,
+        SensorSnapshot? observation = null, DateTimeOffset? observationReceivedUtc = null)
+    {
+        lock (_sync)
+        {
+            if (_ended || _snapshotId.HasValue || _suspended.Any(p => !p.CanResume))
+                throw new InvalidOperationException("Não é possível capturar estado de produtor encerrado ou ensaio já iniciado.");
+            var controllers = _suspended.Select(p => p.CaptureControllerState()).OfType<ControllerReturnSnapshot>().ToArray();
+            return _capturedSnapshot = RecipeAssayReturnState.Capture(_arbiter, Authority, rig, time, controllers,
+                observation, observationReceivedUtc);
+        }
+    }
+
+    public bool IsAssayAuthorityCurrent
+    {
+        get { lock (_sync) return !_ended && !Volatile.Read(ref _emergencyStopped) && _snapshotId.HasValue && Authority.Owner == CommandOwner.KlaAssay && _arbiter.IsCurrent(Authority); }
+    }
+
+    public CommandDispatchResult DispatchAssay(OpenTECCommand command, bool separateFrame = false)
+    {
+        lock (_sync)
+        {
+            if (!IsAssayAuthorityCurrent) return new(false, CommandActuators.ActuatorsIn(command).ToArray(), CommandOwner.KlaAssay);
+            return _arbiter.DispatchReserved(Authority, command, separateFrame);
+        }
+    }
+
+    public Task DrainAssayCommandsAsync(CancellationToken recoveryToken)
+    {
+        lock (_sync)
+        {
+            if (!IsAssayAuthorityCurrent) throw new InvalidOperationException("Autoridade do ensaio encerrada ou revogada.");
+            return _arbiter.DrainReservedCommandsAsync(Authority, recoveryToken);
+        }
+    }
+
+    public void ValidateRecoverySnapshot(KlaReturnSnapshot snapshot)
+    {
+        lock (_sync)
+        {
+            if (!IsAssayAuthorityCurrent || _snapshotId != snapshot.SnapshotId ||
+                _capturedSnapshot is not null && !MatchesCapturedSnapshot(snapshot) ||
+                snapshot.Actuators.Length != Authority.Resources.Length ||
+                Authority.Resources.Any(a => !snapshot.Actuators.Any(s => s.Actuator == a &&
+                    s.Owner == CommandOwner.Recipe && s.OwnerExecutionId == Authority.ExecutionId.ToString())))
+                throw new InvalidOperationException("Snapshot não corresponde à autoridade ativa do ensaio.");
+        }
+    }
+
+    public bool ControllersPreserved(KlaReturnSnapshot snapshot)
+    {
+        lock (_sync)
+        {
+            if (_suspended.Any(p => !p.CanResume)) return false;
+            var current = _suspended.Select(p => p.CaptureControllerState()).OfType<ControllerReturnSnapshot>()
+                .OrderBy(p => p.ControllerId, StringComparer.Ordinal).ToArray();
+            return current.SequenceEqual(snapshot.Controllers.OrderBy(p => p.ControllerId, StringComparer.Ordinal));
+        }
+    }
+
+    private bool MatchesCapturedSnapshot(KlaReturnSnapshot snapshot) => _capturedSnapshot is null ||
+        RecipeContractSerializer.Fingerprint(snapshot) == RecipeContractSerializer.Fingerprint(_capturedSnapshot);
+
+    internal void RecordRecoveryEvidence(RecipeAssayRecoveryResult evidence)
+    {
+        lock (_sync)
+        {
+            if (!IsAssayAuthorityCurrent || evidence.SnapshotId != _snapshotId ||
+                evidence.Restoration != KlaRestorationState.Confirmed || string.IsNullOrWhiteSpace(evidence.ConfirmationJson))
+                throw new InvalidOperationException("Evidência de recuperação inválida ou autoridade revogada.");
+            _recoveryEvidence = evidence;
+        }
     }
 
     public void BeginAssay(KlaReturnSnapshot snapshot)
@@ -102,6 +207,8 @@ public sealed class RecipeAssayResourceLease
         lock (_sync)
         {
             snapshot.Validate();
+            if (!MatchesCapturedSnapshot(snapshot))
+                throw new InvalidOperationException("Snapshot alterado após captura coordenada.");
             if (_ended || _snapshotId.HasValue || Authority.Owner != CommandOwner.Recipe || _suspended.Any(p => !p.CanResume) ||
                 Authority.Resources.Any(a => !snapshot.Actuators.Any(s => s.Actuator == a &&
                     s.Owner == CommandOwner.Recipe && s.OwnerExecutionId == Authority.ExecutionId.ToString())))
@@ -116,7 +223,8 @@ public sealed class RecipeAssayResourceLease
         lock (_sync)
         {
             if (_ended || !_snapshotId.HasValue || _suspended.Any(p => !p.CanResume) || result.Outcome.Restoration != KlaRestorationState.Confirmed ||
-                result.ReturnSnapshotId != _snapshotId || string.IsNullOrWhiteSpace(result.PersistenceReceiptId))
+                result.ReturnSnapshotId != _snapshotId || string.IsNullOrWhiteSpace(result.PersistenceReceiptId) ||
+                _capturedSnapshot is not null && _recoveryEvidence?.Restoration != KlaRestorationState.Confirmed)
                 throw new InvalidOperationException("Retomada exige retorno ao snapshot e persistência confirmados.");
         }
         await _arbiter.DrainReservedCommandsAsync(Authority, recoveryToken).ConfigureAwait(false);
@@ -126,8 +234,17 @@ public sealed class RecipeAssayResourceLease
             Authority = _arbiter.TransferReserved(Authority, CommandOwner.Recipe, "retorno confirmado ao estado anterior ao kLa");
             _arbiter.ReleaseReservation(Authority);
             _ended = true;
-            try { foreach (var producer in _suspended.AsEnumerable().Reverse()) producer.Resume(); }
-            finally { _releaseAssaySlot(); }
+            try
+            {
+                foreach (var producer in _suspended.AsEnumerable().Reverse())
+                {
+                    if (Volatile.Read(ref _emergencyStopped)) { StopProducersOnce(); break; }
+                    producer.Resume();
+                }
+                _returned = !Volatile.Read(ref _emergencyStopped);
+            }
+            catch { StopProducersOnce(); throw; }
+            finally { _arbiter.OwnershipRevoked -= _onRevoked; _releaseAssaySlot(); }
         }
     }
 
@@ -141,10 +258,10 @@ public sealed class RecipeAssayResourceLease
             _ended = true;
             try
             {
-                foreach (var producer in _suspended.AsEnumerable().Reverse())
-                    if (current) producer.Resume(); else producer.Stop();
+                if (current) foreach (var producer in _suspended.AsEnumerable().Reverse()) producer.Resume();
+                else StopProducersOnce();
             }
-            finally { _releaseAssaySlot(); }
+            finally { _arbiter.OwnershipRevoked -= _onRevoked; _releaseAssaySlot(); }
         }
     }
 
@@ -154,8 +271,8 @@ public sealed class RecipeAssayResourceLease
         {
             if (_ended) return;
             _ended = true;
-            try { foreach (var producer in _suspended) producer.Stop(); }
-            finally { _releaseAssaySlot(); }
+            try { StopProducersOnce(); }
+            finally { _arbiter.OwnershipRevoked -= _onRevoked; _releaseAssaySlot(); }
             // Keep the authority sealed. The recipe safety path revokes it and commands its explicit stop.
         }
     }

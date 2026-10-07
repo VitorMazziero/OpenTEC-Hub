@@ -57,6 +57,66 @@ public class ConnectionManagerTests
     }
 
     [Fact]
+    public async Task Failed_write_in_flight_is_not_requeued_after_emergency_supersedes_its_epoch()
+    {
+        var blockedWrite = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fake = new FakeTransport { WriteBehavior = (json, _) => json == CommandBuilders.MotorSetpoint(900).ToJson()
+            ? blockedWrite.Task : Task.FromResult(true) };
+        await using var manager = new ConnectionManager(FastOptions(), transportFactory: _ => fake);
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        Assert.True(await WaitForAsync(() => manager.State == ConnectionState.Connected));
+        manager.SendCommand(CommandBuilders.MotorSetpoint(900));
+        Assert.True(await WaitForAsync(() => { lock (fake.Writes) return fake.Writes.Count == 1; }));
+        manager.SendCommandAfterCurrentFrame(CommandBuilders.MotorSetpoint(800));
+        manager.SendSafetyCommand(CommandBuilders.MotorSetpoint(0));
+        manager.SendSafetyCommand(CommandBuilders.MotorControlMode(false));
+        blockedWrite.SetResult(false);
+        Assert.True(await WaitForAsync(() => { lock (fake.Writes) return fake.Writes.Count >= 3; }));
+        lock (fake.Writes)
+        {
+            Assert.Equal(new[] { CommandBuilders.MotorSetpoint(900).ToJson(), CommandBuilders.MotorSetpoint(0).ToJson(),
+                CommandBuilders.MotorControlMode(false).ToJson() }, fake.Writes);
+        }
+    }
+
+    [Fact]
+    public async Task Emergency_supersedes_buffered_actuator_frames_and_keeps_stop_before_disable()
+    {
+        var fake = new FakeTransport { ConnectDuration = TimeSpan.FromMilliseconds(300) };
+        await using var manager = new ConnectionManager(FastOptions(), transportFactory: _ => fake);
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        await fake.StalledConnectEntered.WaitAsync(TimeSpan.FromSeconds(5));
+        manager.SendCommand(CommandBuilders.MotorSetpoint(900));
+        manager.SendCommandAfterCurrentFrame(CommandBuilders.MotorControlMode(true));
+        manager.SendCommand(CommandBuilders.FlowRoute(4, 10, GasRoute.Reactor, GasRigConfiguration.Default));
+        manager.SendSafetyCommand(CommandBuilders.MotorSetpoint(0));
+        manager.SendSafetyCommand(CommandBuilders.MotorControlMode(false));
+        await manager.DrainCommandsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        lock (fake.Writes)
+        {
+            Assert.Equal(new[] { CommandBuilders.MotorSetpoint(0).ToJson(), CommandBuilders.MotorControlMode(false).ToJson() }, fake.Writes);
+        }
+    }
+
+    [Fact]
+    public async Task Emergency_before_connection_preserves_unowned_diagnostics_and_never_replays_old_setpoints()
+    {
+        var fake = new FakeTransport();
+        await using var manager = new ConnectionManager(FastOptions(), transportFactory: _ => fake);
+        manager.SendCommand(OpenTECCommand.Create().Set(CommandKeys.MotorSetpoint, 900).Set(CommandKeys.DataDelay, 2000));
+        manager.SendCommandAfterCurrentFrame(CommandBuilders.MotorSetpoint(800));
+        manager.SendSafetyCommand(CommandBuilders.MotorSetpoint(0));
+        manager.ConnectUsb(new SerialTransportConfig { PortName = "FAKE" });
+        Assert.True(await WaitForAsync(() => { lock (fake.Writes) return fake.Writes.Count == 2; }));
+        await manager.DrainCommandsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        lock (fake.Writes)
+        {
+            Assert.Equal(CommandBuilders.MotorSetpoint(0).ToJson(), fake.Writes[0]);
+            Assert.Equal(OpenTECCommand.Create().Set(CommandKeys.DataDelay, 2000).ToJson(), fake.Writes[1]);
+        }
+    }
+
+    [Fact]
     public async Task Motor_route_barrier_preserves_stop_route_setpoint_order()
     {
         var fake = new FakeTransport { ConnectDuration = TimeSpan.FromMilliseconds(300) };

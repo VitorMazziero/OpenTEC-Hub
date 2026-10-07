@@ -33,6 +33,12 @@ public static class RecipeContractSerializer
     /// <summary>Detaches legacy nested settings from the editor before enqueueing an immutable request.</summary>
     public static KlaRecipeRequest Snapshot(KlaRecipeRequest request) => ReadKlaRequest(Serialize(request));
 
+    public static string Fingerprint(KlaReturnSnapshot snapshot)
+    {
+        snapshot.Validate();
+        return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(snapshot, Options))));
+    }
+
     /// <summary>Payload fingerprint for conflict detection, independent of JSON property order.</summary>
     public static string Fingerprint(KlaRecipeRequest request)
     {

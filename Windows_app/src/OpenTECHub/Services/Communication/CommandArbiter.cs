@@ -248,6 +248,7 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
         CommandAuthorityLease? authority = null)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = OpenTECCommand.Create().Merge(command);
         if (command.IsEmpty)
         {
             return CommandDispatchResult.Nothing(requester);
@@ -329,6 +330,7 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
             {
                 return new CommandDispatchResult(false, lateConflicts, requester);
             }
+            RecordDesiredUnderLock(command);
             if (separateFrame) _inner.SendAfterCurrentFrame(command);
             else _inner.Send(command);
         }
@@ -345,6 +347,7 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
     private CommandDispatchResult DispatchSafetyInternal(OpenTECCommand command, string reason, bool separateFrame, bool returnToManual)
     {
         ArgumentNullException.ThrowIfNull(command);
+        command = OpenTECCommand.Create().Merge(command);
         if (command.IsEmpty)
         {
             return CommandDispatchResult.Nothing(CommandOwner.Manual);
@@ -360,6 +363,7 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
 
         lock (_gate)
         {
+            RecordDesiredUnderLock(command);
             var now = _time.GetUtcNow();
             foreach (var actuator in CommandActuators.All.Where(actuators.Contains))
             {
@@ -393,14 +397,7 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
             CommandTracked?.Invoke(entry);
         }
 
-        if (separateFrame)
-        {
-            _inner.SendAfterCurrentFrame(command);
-        }
-        else
-        {
-            _inner.Send(command);
-        }
+        lock (_gate) _inner.SendSafetyFrame(command);
 
         return new CommandDispatchResult(true, [], CommandOwner.Manual);
     }
@@ -480,10 +477,11 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
         List<CommandLifecycleEntry> advanced = [];
         lock (_gate)
         {
+            RecordAcceptedUnderLock(json);
             var now = _time.GetUtcNow();
             foreach (var actuator in ActuatorsInJson(json))
             {
-                if (_lifecycle.TryGetValue(actuator, out var entry) && entry.Phase == CommandPhase.Issued)
+                if (_lifecycle.TryGetValue(actuator, out var entry) && entry.Phase == CommandPhase.Issued && DesiredIsAcceptedUnderLock(actuator))
                 {
                     var next = entry with { Phase = CommandPhase.TransportAccepted, UpdatedAt = now };
                     _lifecycle[actuator] = next;
@@ -623,6 +621,8 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
 
     public void SendAfterCurrentFrame(OpenTECCommand command)
         => DispatchSeparateFrame(CommandOwner.Manual, command);
+    public void SendSafetyFrame(OpenTECCommand command)
+        => DispatchSafety(command, "parada pelo serviço de dispositivo");
 
     /// <summary>Read-only system request: deliberately bypasses actuator ownership.</summary>
     public void RequestNodeDiag(string device) => _inner.RequestNodeDiag(device);

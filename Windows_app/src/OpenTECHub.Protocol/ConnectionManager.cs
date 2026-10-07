@@ -151,6 +151,8 @@ public sealed class ConnectionManager : IAsyncDisposable
     /// frames, in order, and this is the queue that guarantees it.
     /// </remarks>
     private readonly List<OpenTECCommand> _frames = [];
+    private readonly List<OpenTECCommand> _safetyFrames = [];
+    private long _commandEpoch;
 
     private SerialTransportConfig? _serialConfig;
     private HttpTransportConfig? _httpConfig;
@@ -399,7 +401,7 @@ public sealed class ConnectionManager : IAsyncDisposable
                 _frames.Add(_pending);
                 _pending = OpenTECCommand.Create();
             }
-            _frames.Add(command);
+            _frames.Add(OpenTECCommand.Create().Merge(command));
         }
 
         Post(new FlushRequest());
@@ -413,6 +415,29 @@ public sealed class ConnectionManager : IAsyncDisposable
         if (!_requests.Writer.TryWrite(new DrainCommandsRequest(completion, cancellationToken)))
             throw new ObjectDisposedException(nameof(ConnectionManager));
         return completion.Task.WaitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Supersedes buffered actuator writes and places a safety frame ahead of normal traffic.
+    /// Already submitted transport writes finish before this frame; they are never replayed after it.
+    /// Multiple safety frames retain their order (stop, then disable routing).
+    /// </summary>
+    public void SendSafetyCommand(OpenTECCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.IsEmpty) return;
+        lock (_bufferLock)
+        {
+            _commandEpoch++;
+            _pending = _pending.SelectKeys(key => CommandActuators.ForKey(key) is null);
+            for (var i = _frames.Count - 1; i >= 0; i--)
+            {
+                _frames[i] = _frames[i].SelectKeys(key => CommandActuators.ForKey(key) is null);
+                if (_frames[i].IsEmpty) _frames.RemoveAt(i);
+            }
+            _safetyFrames.Add(OpenTECCommand.Create().Merge(command));
+        }
+        Post(new FlushRequest());
     }
 
     /// <summary>Applies new calibration and filter tuning.</summary>
@@ -518,7 +543,7 @@ public sealed class ConnectionManager : IAsyncDisposable
                                 throw new InvalidOperationException("Link indisponível durante barreira de comandos.");
                             lock (_bufferLock)
                             {
-                                if (_pending.IsEmpty && _frames.Count == 0) break;
+                                if (_pending.IsEmpty && _frames.Count == 0 && _safetyFrames.Count == 0) break;
                             }
                             var previousSent = Volatile.Read(ref _commandsSent);
                             await FlushCommandsAsync(linked.Token).ConfigureAwait(false);
@@ -1011,11 +1036,20 @@ public sealed class ConnectionManager : IAsyncDisposable
     {
         OpenTECCommand payload;
         var sequenced = false;
+        var safety = false;
+        long epoch;
         bool more;
         lock (_bufferLock)
         {
             // A separate frame is a barrier: later merged setpoints must not overtake it.
-            if (_frames.Count > 0)
+            epoch = _commandEpoch;
+            if (_safetyFrames.Count > 0)
+            {
+                payload = _safetyFrames[0];
+                _safetyFrames.RemoveAt(0);
+                safety = true;
+            }
+            else if (_frames.Count > 0)
             {
                 payload = _frames[0];
                 _frames.RemoveAt(0);
@@ -1031,7 +1065,7 @@ public sealed class ConnectionManager : IAsyncDisposable
                 return;
             }
 
-            more = !_pending.IsEmpty || _frames.Count > 0;
+            more = !_pending.IsEmpty || _frames.Count > 0 || _safetyFrames.Count > 0;
         }
 
         if (more)
@@ -1041,11 +1075,28 @@ public sealed class ConnectionManager : IAsyncDisposable
             Post(new FlushRequest());
         }
 
-        var transport = await GetTransportAsync(token).ConfigureAwait(false);
+        ITransport? transport;
+        try { transport = await GetTransportAsync(token).ConfigureAwait(false); }
+        catch (OperationCanceledException)
+        {
+            Requeue(payload, sequenced, safety, epoch);
+            throw;
+        }
         if (transport is null)
         {
-            Requeue(payload, sequenced);
+            Requeue(payload, sequenced, safety, epoch);
             return;
+        }
+
+        lock (_bufferLock)
+        {
+            if (!safety && epoch != _commandEpoch)
+            {
+                // Transport acquisition may have waited through an emergency. Even configuration-only
+                // leftovers must yield to its priority frames before being sent.
+                Requeue(payload, sequenced, safety, epoch);
+                return;
+            }
         }
 
         var json = payload.ToJson();
@@ -1058,20 +1109,20 @@ public sealed class ConnectionManager : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            Requeue(payload, sequenced);
+            Requeue(payload, sequenced, safety, epoch);
             throw;
         }
         catch (TransportFaultException ex)
         {
             _lastError = ex.Message;
-            Requeue(payload, sequenced);
+            Requeue(payload, sequenced, safety, epoch);
             Post(new LinkLostRequest(ex.Message));
             return;
         }
 
         if (!sent)
         {
-            Requeue(payload, sequenced);
+            Requeue(payload, sequenced, safety, epoch);
             Post(new LinkLostRequest("falha ao enviar comando"));
             return;
         }
@@ -1135,10 +1186,20 @@ public sealed class ConnectionManager : IAsyncDisposable
     /// the front of that queue rather than into the merging buffer - merging it is exactly
     /// what it was queued to avoid.
     /// </param>
-    private void Requeue(OpenTECCommand payload, bool sequenced = false)
+    private void Requeue(OpenTECCommand payload, bool sequenced, bool safety, long epoch)
     {
         lock (_bufferLock)
         {
+            if (safety)
+            {
+                _safetyFrames.Insert(0, payload);
+                return;
+            }
+            if (epoch != _commandEpoch)
+            {
+                payload = payload.SelectKeys(key => CommandActuators.ForKey(key) is null);
+                if (payload.IsEmpty) return;
+            }
             if (sequenced || _frames.Count > 0)
             {
                 _frames.Insert(0, payload);

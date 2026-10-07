@@ -41,7 +41,7 @@ public sealed record KlaAttemptPersistenceCheckpoint
             throw new ArgumentException("Preparação não pode conter resultado terminal.");
         if (Phase == KlaAttemptPersistencePhase.Terminal)
         {
-            if (Result is null || Result.ReturnSnapshotId != snapshot.SnapshotId || Result.TestFolder != TestFolder || Result.RunFolder != RunFolder ||
+            if (Authority.Owner != CommandOwner.KlaAssay || Result is null || Result.ReturnSnapshotId != snapshot.SnapshotId || Result.TestFolder != TestFolder || Result.RunFolder != RunFolder ||
                 Result.PersistenceReceiptId is not null || string.IsNullOrWhiteSpace(DecisionJson))
                 throw new ArgumentException("Resultado/decisão terminal ausentes ou divergentes.");
             using var decision = JsonDocument.Parse(DecisionJson);
@@ -71,6 +71,9 @@ public sealed partial class KlaTestStore
         CancellationToken ct = default)
     {
         checkpoint.Validate();
+        // Freeze mutable session/result members before crossing an asynchronous boundary.
+        checkpoint = JsonSerializer.Deserialize<KlaAttemptPersistenceCheckpoint>(JsonSerializer.Serialize(checkpoint), CheckpointReadOptions)
+            ?? throw new InvalidDataException("Checkpoint vazio.");
         await _recipeCheckpointGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -94,7 +97,12 @@ public sealed partial class KlaTestStore
                 var prepared = ReadEnvelope(ReceiptPath(directory, checkpoint.Request.RequestId, KlaAttemptPersistencePhase.BeforeActuation));
                 if (prepared.Checkpoint.TestId != checkpoint.TestId || prepared.Checkpoint.RunId != checkpoint.RunId ||
                     prepared.Checkpoint.Request != checkpoint.Request && JsonSerializer.Serialize(prepared.Checkpoint.Request) != JsonSerializer.Serialize(checkpoint.Request) ||
-                    prepared.Checkpoint.Authority.ReservationId != checkpoint.Authority.ReservationId)
+                    prepared.Checkpoint.Authority.ReservationId != checkpoint.Authority.ReservationId ||
+                    prepared.Checkpoint.Authority.ExecutionId != checkpoint.Authority.ExecutionId ||
+                    prepared.Checkpoint.Authority.BlockId != checkpoint.Authority.BlockId ||
+                    !prepared.Checkpoint.Authority.Resources.SequenceEqual(checkpoint.Authority.Resources) ||
+                    checkpoint.Authority.Generation != prepared.Checkpoint.Authority.Generation +
+                        (prepared.Checkpoint.Authority.Owner == CommandOwner.Recipe ? 1 : 0))
                     throw new InvalidOperationException("Terminal não corresponde à reserva persistida antes da atuação.");
             }
             var rawPath = GetRunRawDataPath(checkpoint.TestFolder, checkpoint.RunFolder);

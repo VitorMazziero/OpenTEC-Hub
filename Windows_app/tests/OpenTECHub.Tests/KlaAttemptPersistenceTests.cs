@@ -29,10 +29,75 @@ public sealed class KlaAttemptPersistenceTests : IDisposable
     }
     private static KlaAttemptPersistenceCheckpoint Terminal(KlaAttemptPersistenceCheckpoint prepared) => prepared with
     {
+        Authority = prepared.Authority with { Owner = CommandOwner.KlaAssay, Generation = prepared.Authority.Generation + 1 },
         Phase = KlaAttemptPersistencePhase.Terminal, DecisionJson = "{\"author\":\"AutomaticPolicy\"}",
         Result = new(new() { Restoration = KlaRestorationState.Confirmed, KlaQuality = KlaScientificQuality.Valid }, 40, "session", "run")
         { ReturnSnapshotId = prepared.Request.RecipePulse!.Invocation.Restoration.BeforeAssay.SnapshotId }
     };
+
+    [Fact]
+    public async Task TerminalCannotSkipOrReuseAuthorityGenerations()
+    {
+        var prepared = Prepare();
+        var store = new KlaTestStore(_root);
+        await store.PersistRecipeAttemptAsync(prepared);
+        File.WriteAllText(store.GetRunRawDataPath("session", "run"), "raw");
+        var terminal = Terminal(prepared);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.PersistRecipeAttemptAsync(terminal with
+            { Authority = terminal.Authority with { Generation = 0 } }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.PersistRecipeAttemptAsync(terminal with
+            { Authority = terminal.Authority with { Generation = 2 } }));
+        await Assert.ThrowsAsync<ArgumentException>(() => store.PersistRecipeAttemptAsync(terminal with
+            { Authority = terminal.Authority with { Owner = CommandOwner.Recipe } }));
+        Assert.Null(store.ReadRecipeAttemptReceipt("session", "run", prepared.Request.RequestId, KlaAttemptPersistencePhase.Terminal));
+        await store.PersistRecipeAttemptAsync(terminal);
+    }
+
+    [Fact]
+    public async Task FailureDuringRawRecordingPreventsTerminalReceiptButPreservesPreparation()
+    {
+        var prepared = Prepare();
+        using var writer = new BackgroundFileWriter();
+        var store = new KlaTestStore(_root, writer);
+        var receipt = await store.PersistRecipeAttemptAsync(prepared);
+        var raw = store.GetRunRawDataPath("session", "run");
+        writer.AppendLine(raw, "0,40", "time,oxygen");
+        writer.Run(raw, () => throw new IOException("Injected acquisition write failure"));
+        await Assert.ThrowsAsync<AggregateException>(() => store.PersistRecipeAttemptAsync(Terminal(prepared)));
+        Assert.Equal(receipt, store.ReadRecipeAttemptReceipt("session", "run", prepared.Request.RequestId,
+            KlaAttemptPersistencePhase.BeforeActuation));
+        Assert.Null(store.ReadRecipeAttemptReceipt("session", "run", prepared.Request.RequestId, KlaAttemptPersistencePhase.Terminal));
+        var observation = new KlaAssayApiObservation(prepared.Request, KlaAssayApiState.Interrupted,
+            StartedUtc: DateTimeOffset.UtcNow);
+        var reconciled = KlaAttemptReconciliation.Read(new KlaTestStore(_root), observation, "session", "run");
+        Assert.Equal(KlaAttemptReconciliationState.PreparationOnly, reconciled.State);
+        Assert.True(reconciled.ChargeReservedBudget);
+    }
+
+    [Theory]
+    [InlineData(true, KlaAttemptPersistencePhase.BeforeActuation)]
+    [InlineData(false, KlaAttemptPersistencePhase.BeforeActuation)]
+    [InlineData(true, KlaAttemptPersistencePhase.Terminal)]
+    [InlineData(false, KlaAttemptPersistencePhase.Terminal)]
+    public async Task CheckpointWriteFailureCannotProduceReceipt(bool synchronous, KlaAttemptPersistencePhase phase)
+    {
+        var prepared = Prepare();
+        using var writer = new BackgroundFileWriter(synchronous);
+        var store = new KlaTestStore(_root, writer);
+        if (phase == KlaAttemptPersistencePhase.Terminal)
+        {
+            await store.PersistRecipeAttemptAsync(prepared);
+            File.WriteAllText(store.GetRunRawDataPath("session", "run"), "raw");
+        }
+        var path = Path.Combine(_root, "session", KlaTestFileContracts.RunsDirectoryName, "run",
+            $"receita-{prepared.Request.RequestId:N}-{phase}.json");
+        Directory.CreateDirectory(path);
+        await Assert.ThrowsAsync<AggregateException>(() => store.PersistRecipeAttemptAsync(
+            phase == KlaAttemptPersistencePhase.Terminal ? Terminal(prepared) : prepared));
+        Assert.Null(store.ReadRecipeAttemptReceipt("session", "run", prepared.Request.RequestId, phase));
+        await Assert.ThrowsAsync<AggregateException>(() => store.PersistRecipeAttemptAsync(
+            phase == KlaAttemptPersistencePhase.Terminal ? Terminal(prepared) : prepared));
+    }
 
     [Fact]
     public async Task DuplicateAndUnknownPropertiesCannotChangeCheckpointMeaning()

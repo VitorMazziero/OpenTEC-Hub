@@ -115,6 +115,8 @@ public sealed record KlaAssayCondition(Guid ConditionId, int OrderIndex, double 
 /// <summary>Protocol and scheduling are independent. Both modes use the same run unit.</summary>
 public sealed record KlaAssayDefinition
 {
+    public KlaMeasurementContext? Context { get; init; }
+    public KlaSequenceLimits? SequenceLimits { get; init; } = new();
     public KlaAssayProtocol Protocol { get; init; } = KlaAssayProtocol.Abiotic;
     public KlaCaptureMode CaptureMode { get; init; } = KlaCaptureMode.Multiple;
     public KlaTestSettings Settings { get; init; } = new();
@@ -131,6 +133,7 @@ public sealed record KlaAssayDefinition
     public static KlaAssayDefinition FromDocument(KlaTestDocument document) => new()
     {
         Protocol = document.EffectiveProtocol, CaptureMode = document.EffectiveCaptureMode,
+        Context = document.Context, SequenceLimits = document.SequenceLimits,
         Settings = document.Settings,
         ProtocolSettings = document.ProtocolSettings ?? new()
         {
@@ -147,6 +150,7 @@ public sealed record KlaAssayDefinition
         }
 
         ArgumentNullException.ThrowIfNull(Settings);
+        SequenceLimits?.Validate();
         ArgumentNullException.ThrowIfNull(ProtocolSettings);
         ArgumentNullException.ThrowIfNull(ProtocolSettings.Probe);
         ArgumentNullException.ThrowIfNull(ProtocolSettings.AerationReturn);
@@ -248,6 +252,8 @@ public sealed record KlaRunDefinition(KlaAssayProtocol Protocol, KlaCaptureMode 
     KlaTestSettings Settings, KlaProtocolSettings ProtocolSettings, KlaAssayCondition Condition,
     int ReplicateNumber)
 {
+    public int AttemptNumber { get; init; } = 1;
+    public KlaMeasurementContext? Context { get; init; }
     public static KlaRunDefinition Create(KlaTestDocument document, KlaTestCondition condition, int replicateNumber)
     {
         if (replicateNumber < 1)
@@ -258,6 +264,7 @@ public sealed record KlaRunDefinition(KlaAssayProtocol Protocol, KlaCaptureMode 
         var snapshot = KlaAssayDefinition.FromDocument(document);
         if (snapshot.CaptureMode == KlaCaptureMode.Single)
         {
+            if (replicateNumber != 1) throw new ArgumentException("Captura única possui uma réplica; repetições são novas tentativas dessa réplica.");
             snapshot.Validate();
             if (snapshot.Conditions[0].ConditionId != condition.ConditionId ||
                 snapshot.Conditions[0].AgitationRpm != condition.AgitationRpm ||
@@ -267,7 +274,11 @@ public sealed record KlaRunDefinition(KlaAssayProtocol Protocol, KlaCaptureMode 
             }
         }
         return new(snapshot.Protocol, snapshot.CaptureMode, snapshot.Settings,
-            snapshot.ProtocolSettings, KlaAssayCondition.From(condition), replicateNumber);
+            snapshot.ProtocolSettings, KlaAssayCondition.From(condition), replicateNumber)
+        {
+            Context = document.Context,
+            AttemptNumber = document.Runs.Count(r => r.ConditionId == condition.ConditionId && r.ReplicateNumber == replicateNumber) + 1,
+        };
     }
 }
 

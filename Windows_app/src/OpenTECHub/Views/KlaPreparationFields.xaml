@@ -55,5 +55,21 @@
     <StackPanel><TextBlock Text="Prazo de pré-estabilização (s)"/><TextBox Text="{Binding SettingMaxPrestageSeconds}"/></StackPanel>
    </UniformGrid>
   </Expander>
+  <Expander Header="Contexto das medições" Margin="0,8,0,0">
+   <UniformGrid Columns="2">
+    <StackPanel><TextBlock Text="Meio"/><TextBox Text="{Binding MeasurementMedium}"/></StackPanel>
+    <StackPanel><TextBlock Text="Cultivo"/><TextBox Text="{Binding MeasurementCultivation}"/></StackPanel>
+    <StackPanel><TextBlock Text="Janela do cultivo"/><TextBox Text="{Binding MeasurementTimeWindow}"/></StackPanel>
+    <StackPanel><TextBlock Text="Origem"/><ComboBox ItemsSource="{Binding MeasurementSources}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding MeasurementSource}"/></StackPanel>
+   </UniformGrid>
+  </Expander>
+  <Expander Header="Limites da fila" Margin="0,8,0,0">
+   <UniformGrid Columns="2">
+    <StackPanel><TextBlock Text="Tentativas por réplica"/><TextBox Text="{Binding MaximumAttempts}"/></StackPanel>
+    <StackPanel><TextBlock Text="Corridas nesta sessão"/><TextBox Text="{Binding MaximumSessionRuns}"/></StackPanel>
+    <StackPanel><TextBlock Text="Remoção acumulada máxima (s)"/><TextBox Text="{Binding MaximumRemovalExposure}"/></StackPanel>
+    <StackPanel><TextBlock Text="Intervalo mínimo (s)"/><TextBox Text="{Binding MinimumInterAssaySeconds}"/></StackPanel>
+   </UniformGrid>
+  </Expander>
  </StackPanel>
 </UserControl>

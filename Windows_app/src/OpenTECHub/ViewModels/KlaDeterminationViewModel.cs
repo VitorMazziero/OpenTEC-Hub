@@ -487,7 +487,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     public string DisplayReviewR2 => IsReviewOpen && CurrentAnalysis != null ? $"R²: {ReviewR2:F4}" : "R²: —";
     public string DisplayReviewRmse => IsReviewOpen && CurrentAnalysis != null ? $"RMSE: {ReviewRmse:F4}" : "RMSE: —";
     public string DisplayReviewCi95 => IsReviewOpen && CurrentAnalysis != null &&
-        (CurrentAnalysis.DeterministicResult is null || CurrentAnalysis.DeterministicResult.ConditionalCi95Low.HasValue)
+        (CurrentAnalysis.DeterministicResult is null ||
+         (CurrentAnalysis.DeterministicResult.KlaPerHour.HasValue && CurrentAnalysis.DeterministicResult.ConditionalCi95Low.HasValue))
         ? $"IC 95% cond.: [{ReviewCi95Low:F1}; {ReviewCi95High:F1}]" : "IC 95%: [—; —]";
     public string DisplayReviewSens => IsReviewOpen && CurrentAnalysis != null ? $"[{ReviewSensLow:F1}; {ReviewSensHigh:F1}] h⁻¹" : "[—; —] h⁻¹";
     public string DisplayReviewQuality => !IsReviewOpen || CurrentAnalysis == null
@@ -1196,7 +1197,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
 
         _activeSequenceQueue = SequencePreviewQueue.Select(c => c.Model).ToList();
+        _queueOwnerTestId = CurrentTest.TestId;
         IsStartSequenceDialogOpen = false;
+        if (CurrentTest.SequenceLimits is not null)
+        {
+            await ContinueQueueAsync();
+            return;
+        }
 
         var firstCondition = _activeSequenceQueue.FirstOrDefault();
         if (firstCondition is not null)
@@ -1242,7 +1249,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
 
         _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
-        var nextRep = cond.CompletedReplicates + 1;
+        var nextRep = CurrentTest.SequenceLimits is null ? cond.CompletedReplicates + 1
+            : KlaSequence.Pending(CurrentTest, new[] { cond }).FirstOrDefault()?.ReplicateNumber ?? 1;
 
         LivePoints.Clear();
         InstantaneousKlaSeries.Clear();
@@ -1323,10 +1331,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
         if (CurrentTest.ProtocolSettings is not null && !IsRunning && !IsCreateDialogOpen)
         {
-            var candidate = KlaAssayDefinition.FromDocument(CurrentTest) with { Settings = newSettings, ProtocolSettings = BuildProtocolSettings() };
+            var candidate = KlaAssayDefinition.FromDocument(CurrentTest) with { Settings = newSettings, ProtocolSettings = BuildProtocolSettings(),
+                Context = BuildMeasurementContext(), SequenceLimits = BuildSequenceLimits() };
             try { candidate.Validate(requireConditions: false); }
             catch (ArgumentException ex) { StatusMessage = ex.Message; return; }
             CurrentTest.ProtocolSettings = candidate.ProtocolSettings;
+            CurrentTest.Context = candidate.Context;
+            CurrentTest.SequenceLimits = candidate.SequenceLimits;
         }
         CurrentTest.Settings = newSettings;
         _runner.UpdateLiveSettings(newSettings);
@@ -1475,10 +1486,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
         if (CurrentTest is not null && CurrentTest.ProtocolSettings is not null && !IsRunning)
         {
-            var candidate = KlaAssayDefinition.FromDocument(CurrentTest) with { Settings = settings, ProtocolSettings = BuildProtocolSettings() };
+            var candidate = KlaAssayDefinition.FromDocument(CurrentTest) with { Settings = settings, ProtocolSettings = BuildProtocolSettings(),
+                Context = BuildMeasurementContext(), SequenceLimits = BuildSequenceLimits() };
             try { candidate.Validate(requireConditions: false); }
             catch (ArgumentException ex) { StatusMessage = ex.Message; return; }
             CurrentTest.ProtocolSettings = candidate.ProtocolSettings;
+            CurrentTest.Context = candidate.Context; CurrentTest.SequenceLimits = candidate.SequenceLimits;
         }
         _settings.Update(s => s with { KlaTest = settings });
         ApplyLiveSettings();
@@ -1613,6 +1626,14 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             IsReviewOpen = false;
             RefreshConditionsList();
 
+            if (CurrentTest?.SequenceLimits is not null)
+            {
+                NotifyQueue();
+                if (AutoAdvanceQueue && HasQueuedRuns) await ContinueQueueAsync();
+                else StatusMessage = QueueStatus;
+                UpdateUiState();
+                return;
+            }
             // Auto-advance to the next pending condition/replicate in sequence
             _activeSequenceQueue.RemoveAll(c => c.ConditionId == _runner.CurrentCondition?.ConditionId && c.AcceptedReplicates >= c.RequestedReplicates);
             var nextCondition = _activeSequenceQueue.FirstOrDefault()
@@ -1677,6 +1698,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
                 CurrentTest.Runs.Add(updatedRunSummary);
             }
             _currentlyEditingRun = updatedRunSummary;
+            foreach (var condition in CurrentTest.Conditions) KlaSequence.RefreshCounters(CurrentTest, condition);
+            _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
             _store.SaveTestManifest(CurrentTest);
 
             if (_currentlyEditingRow is not null)
@@ -1717,8 +1740,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             var condition = CurrentTest.Conditions.FirstOrDefault(c => c.ConditionId == _currentlyEditingRun.ConditionId);
             if (condition is not null)
             {
-                condition.AcceptedReplicates = CurrentTest.Runs.Count(r => r.ConditionId == condition.ConditionId && r.EffectiveOutcome.OperatorDecision == KlaOperatorDecision.Accepted);
-                condition.RejectedReplicates = CurrentTest.Runs.Count(r => r.ConditionId == condition.ConditionId && r.EffectiveOutcome.OperatorDecision == KlaOperatorDecision.Rejected);
+                KlaSequence.RefreshCounters(CurrentTest, condition);
                 _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
             }
             _store.SaveTestManifest(CurrentTest);
@@ -1736,12 +1758,15 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     {
         if (!CanRepeatLiveRun) return;
         IsReviewOpen = false;
-        await _runner.RepeatRunAsync();
+        try { await _runner.RepeatRunAsync(); }
+        catch (InvalidOperationException ex) { StatusMessage = ex.Message; }
+        NotifyQueue();
     }
 
     [RelayCommand]
     public async Task CompleteTestAsync()
     {
+        StopQueue();
         await _runner.CompleteTestAsync();
         if (CurrentTest is not null)
         {
@@ -1764,6 +1789,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public async Task AbortTestAsync()
     {
+        StopQueue();
         await _runner.AbortTestAsync("Cancelado pelo operador");
         if (CurrentTest is not null)
         {
@@ -2210,6 +2236,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     public void Dispose()
     {
+        _queueAdvanceCancellation?.Cancel();
         if (_disposed)
         {
             return;

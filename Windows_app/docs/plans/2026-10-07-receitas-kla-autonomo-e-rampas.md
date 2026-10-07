@@ -1,13 +1,13 @@
 # Receitas: determinação autônoma de kLa e rampas lineares
 
-Data: 07/10/2026. Base inspecionada: `main`, commit `84d246d`.
-Estado: plano de implementação; não representa funcionalidade já entregue ou qualificação de bancada.
+Data: 07/10/2026. Revisão após chegada de E5/E6/E7. Base inspecionada: `main`, HEAD `c51253f`, dois commits à frente de `origin/main`, mais alterações locais E5/E6/E7 ainda não consolidadas em commit neste checkout.
+Estado: R0 implementado; integração autônoma ainda pendente. Esta revisão é um plano de execução baseado nos arquivos locais, não uma liberação de atuação ou qualificação de bancada. Recibos E7 de outras revisões não identificam automaticamente este conjunto de fontes.
 
 ## 1. Situação atual e escopo
 
 Há uma base reutilizável independente da tela: `IKlaTestRunner`, `IKlaTestStore`, `IKlaDeterministicAnalysisEngine` e definições de ensaio que separam protocolo (`Abiotic`/`Biotic`) de captura (`Single`/`Multiple`). Ambos os modos usam a mesma unidade de corrida. O modo único exige uma condição e uma réplica planejada.
 
-Isso ainda não equivale à API autônoma de receitas. O plano de 06/10 mantém E5 (sequências) e E6 (contrato para receitas) pendentes. O runner chega a `Reviewing`, expõe aceitar/rejeitar/repetir, e `KlaAssayCoordinator.Validate` rejeita posse `Recipe`. Não existe `KlaAssay` no catálogo ou no executor de receitas.
+E5 agora fornece fila de condições/réplicas, contadores e limites em `KlaSequence`; E6 fornece `IKlaAssayApi`/`KlaAssayApi`, diário persistente, idempotência, limites cumulativos e recuperação de solicitações interrompidas. A API E6 aceita somente uma condição/uma réplica por solicitação: múltiplos exigem orquestração acima dela. `IKlaAssayExecution` ainda não tem adaptador de produção registrado. O runner chega a `Reviewing`, expõe aceitar/rejeitar/repetir, e `KlaAssayCoordinator.Validate` rejeita posse `Recipe`. Não existe `KlaAssay` no catálogo ou no executor de receitas.
 
 Outros pontos relevantes verificados:
 
@@ -20,7 +20,29 @@ Outros pontos relevantes verificados:
 - O catálogo de receitas admite listas e campos condicionais por `VisibleWhen`. Não há bloco de rampa.
 - O setpoint de O₂ de `SetSetpoint` escreve `OxygenMonitor`; isso não altera, por si só, a referência do controlador da cascata.
 
-Este plano complementa E5/E6 com dois blocos, preservando o runner, o núcleo científico e o armazenamento comuns. A API proposta é interna ao aplicativo; servidor HTTP não é requisito.
+Este plano integra E5/E6 com três blocos: Determinar kLa, Periodicidade e Rampa linear, preservando runner, núcleo científico e armazenamento comuns. A API é interna ao aplicativo; servidor HTTP não é requisito.
+
+### 1.1 Auditoria da revisão E5/E6/E7
+
+Prioridades abaixo referem-se à habilitação autônoma. São incompatibilidades verificadas com este plano, não evidência de atuação insegura já habilitada: o caminho de receitas continua fechado.
+
+| Prioridade | Achado e evidência no código atual | Alteração necessária |
+|---|---|---|
+| Bloqueante | E6 não possui adaptador de produção; `KlaAssayApiContracts.cs` restringe request a `Single`; `IsValidated` impede partida não qualificada | Adaptador sobre o runner comum e orquestração de matriz acima da API; qualificação explícita por protocolo/instalação |
+| Bloqueante | `KlaAssayApi.ExecuteAsync` aceita retorno abiótico `NotRequired`; `KlaTestRunner` libera revisão/terminal abiótico com `Release(true, 0, 0, ...)` | Restaurar snapshot anterior também no abiótico. Encerrar com gás fechado e posse manual não atende ao retorno exigido pela receita |
+| Bloqueante | `RecipeEngine.Cascade` calcula PID e despacha comandos sem barreira de cessão; o gate novo está isolado, sem integração | Reserva por bloco, pausa confirmada antes da transferência, exclusão de comandos concorrentes e retomada confirmada; não basta evento de início/fim |
+| Alta | `KlaSequence.IsAccepted`, revisão da fila, contadores e importação dependem de `OperatorDecision` | Decisão com autoria automática e política versionada; adaptar contagem/seleção sem simular aprovação humana |
+| Alta | E6 marca qualidade `Conditional` como `Completed`; `MayContinueRecipe` pode liberar continuação, enquanto R0 exige política explícita | Separar término do pulso de aceitação da réplica e autorização de avanço; aplicar `Valid` por padrão e códigos condicionais permitidos |
+| Alta | E6 `KlaPeriodicSchedule.Latest` usa UTC e oferece o último slot vencido; R0 pede relógio monotônico e descarte de slots perdidos durante indisponibilidade | Um único agendador de receitas com semântica R0; não ligar o helper E6 diretamente ao bloco |
+| Alta | `BackgroundFileWriter.Execute` informa erro do item por evento; um `FlushAsync` posterior pode concluir normalmente. Runner já escuta `WriteFailed`, mas isso não constitui recibo durável por tentativa | Barreira por sessão/tentativa que carregue falhas anteriores, manifesto atômico e vínculo entre diário E6 e dados brutos |
+| Alta | Falha de persistência terminal em E6 é registrada em memória como `RestorationFailed` | Separar erro de disco da evidência física de retorno; ambos bloqueiam nova atuação, preservando diagnósticos distintos |
+| Alta | `AtCurrentCondition` apenas congela N/Q fornecidos pelo chamador; R0 exige origem/confirmado/medido e snapshot completo | Capturar no coordenador após cessar comandos concorrentes, validar e persistir antes da perturbação |
+| Integração | `RecipeEngine`/`RecipeEngine.Cascade` receberam consumo de quadros em fila e avaliação das condições de saída; só o quadro mais recente comanda | Integrar suspensão sem regredir avaliação dos quadros, debounce e saída legada; descartar histórico de controle do período de ensaio na retomada |
+| Liberação | E7 mantém biótico físico bloqueado em `KlaActuationRelease`; corpus de 92 curvas foi recusado por eventos ausentes | Preservar bloqueio. Recusa correta e testes simulados não qualificam estimador em novos cultivos nem operação autônoma |
+
+Verificação desta revisão: `dotnet test Windows_app/tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj -p:SelfContained=false --no-restore --filter "FullyQualifiedName~RecipeExecutionContractTests|FullyQualifiedName~RecipeCascadeSuspensionGateTests|FullyQualifiedName~KlaAssayApiTests|FullyQualifiedName~KlaSequenceTests" -v quiet`: **55 aprovados, 0 falhas, 0 ignorados**. A compilação atual passou; os erros transitórios de campos ausentes durante a chegada dos arquivos não permanecem neste recorte. Não foi reexecutada a regressão completa E7 nesta auditoria.
+
+Evidência E7 consultada: [execução e limites](kla-e7/EXECUCAO_E7.md). O recibo relata 397 verificações distintas em execuções diferentes, builds candidatas vinculadas a outras revisões e bancada pendente; não somar esse número aos 55 testes atuais nem apresentá-lo como aprovação integral deste checkout.
 
 ## 2. Decisões de produto
 
@@ -55,7 +77,7 @@ Antes da partida da receita, validar a configuração de gás, pré-condições 
 
 ### 3.2 API de orquestração proposta
 
-Introduzir `IKlaAssayService` acima do runner existente, com operações equivalentes a:
+Introduzir `IKlaAssayService` como orquestrador da invocação R0 acima da API E6 existente. Cada tentativa usa um request Single E6; não duplicar diário, mecanismo de pulso ou núcleo científico. Operações equivalentes a:
 
 - `ValidateRequest`: validação sem atuação.
 - `StartOrGetAsync(request)`: cria ou recupera a mesma execução por chave idempotente.
@@ -64,6 +86,8 @@ Introduzir `IKlaAssayService` acima do runner existente, com operações equival
 - `GetResult`: resultado terminal persistido e agregado por condição.
 
 O request imutável inclui definição do ensaio, políticas de qualidade/repetição/falha, deadlines, contexto do cultivo, versão/hash da receita e IDs da execução, bloco e invocação. A identidade da invocação inclui ciclo quando houver repetição da receita. A mesma chave com payload diferente é erro; uma tentativa nova recebe ID novo ligado à mesma réplica. Repetição científica não pode ser confundida com retransmissão de comando.
+
+R0 é o contrato externo da receita; E6 é o contrato interno de um pulso. Mapear explicitamente invocação/condição/réplica/tentativa para `RequestId`, sessão/corrida e reserva de exposição persistida. `StartAsync` chamado novamente pode retornar `Running`; o adaptador deve observar/aguardar término, nunca tratar o retorno dessa chamada como pulso concluído. Reservar uma única vez o orçamento de cada tentativa; reenvio não incrementa contadores. UTC identifica eventos e deadlines persistidos; intervalos em processo usam relógio monotônico injetável, inclusive cancelamentos temporizados testáveis.
 
 Estados da orquestração: `Validating → AcquiringOwnership → Preparing → Running → Restoring → Analyzing → Persisting → Deciding → WaitingRetry/NextRun/Completed`. A implementação pode analisar dados em paralelo à recuperação, mas não libera a próxima corrida ou bloco antes de confirmar retorno e persistência.
 
@@ -198,7 +222,45 @@ Pausa: manter os últimos setpoints e congelar o tempo ativo da rampa. Ao retoma
 | R5 — Rampas | Modelo de linhas, interpolação, cadência, destinos, pausa e confirmação | Tempos distintos, subida/descida, final exato na resolução do dispositivo, relógio virtual e conflito com kLa/cascata |
 | R6 — Integração e qualificação | Documentação, exemplos, regressão, renderização WPF e ensaios de bancada | Evidências de software e de equipamento separadas; liberação autônoma apenas para combinações qualificadas |
 
-Ordem recomendada: R0 → R1 → R2 → R3 → R4 → R5 → R6, em commits pequenos com validação por pacote. Partes puras da matemática da rampa podem ser desenvolvidas antes, mas sua integração depende das reservas e da pausa.
+Ordem executável revisada: **R0.1 → R0.2 → R1.1 → R1.2 → R1.3 → R3.1 → R2.1 → R2.2 → R4.1 → R4.2 → R5.1 → R5.2 → R6.1 → R6.2**. Persistência antecede o fluxo autônomo: nenhuma próxima tentativa pode ser liberada sem recibo. Cada etapa deve ter commit isolado e recibo com revisão, comando, resultado e limites; os nomes de classes novas abaixo são propostas, não componentes já entregues.
+
+### 5.1 Etapas explícitas de execução
+
+**R0.1 — Consolidar a base recebida (primeira etapa).** Inventariar alterações E5/E6/E7, identificar arquivos de conflito/screenshot duplicados sem excluir evidências automaticamente e consolidar fontes, contratos e testes correspondentes. Conferir vínculos dos recibos aos commits/builds de origem. Preservar as correções de quadros em `RecipeEngine.cs`, `RecipeEngine.Cascade.cs`, `TestClock.cs` e testes associados. Executar regressão de E5/E6, contratos R0, persistência e receitas; registrar baseline com commit e estado local. Aceite: checkout reproduzível, dependências presentes e falhas residuais discriminadas. Não usar `git add` global para misturar material paralelo.
+
+**R0.2 — Conciliar contratos R0/E6 e migração.** Alterar `KlaRecipeContracts.cs`, `RecipeExecutionContracts.cs`, `KlaAssayApiContracts.cs` e serializadores conforme necessário; adicionar mapeador de invocação para pulsos. Definir versão e migração do diário E6, autoria automática, recibos, distinção de falha de persistência/retorno e vínculo ao snapshot. Manter leitura de sessões antigas sem inventar confirmações. Definir contrato de capacidades qualificadas por protocolo/instalação no lugar de depender apenas de um booleano global. Aceite: round-trip/migração, chave repetida com payload diferente recusada, Multiple decomposto em Single com IDs estáveis e nenhuma atuação nesta etapa.
+
+**R1.1 — Reserva e cessão por bloco.** Criar coordenador de recursos da receita; ajustar `CommandArbiter`, `KlaAssayCoordinator` e caminhos de atuação do engine. Reservar atomicamente N/Q/rotas e demais recursos declarados; verificar proprietário esperado e geração da cessão. Fazer `Recipe → KlaAssay → Recipe` sem passagem por Manual. Todos os produtores, incluindo setpoint, rampa, cascata e comandos manuais, devem respeitar a autoridade vigente. Aceite: corrida entre dois blocos/ensaios, timeout e cancelamento sem posse parcial; temperatura independente continua; emergência invalida tokens antigos.
+
+**R1.2 — Suspensão real da cascata e retomada do PID.** Revisar e integrar `RecipeCascadeSuspensionGate` ao ciclo Update+Dispatch em `RecipeEngine.Cascade`; vincular pausa/retomada ao recibo e à geração de R1.1. O gate isolado atual não conclui R1: `Resume` público e liberação após cancelamento de pausa precisam ficar subordinados ao coordenador para não reabrir uma cessão em andamento. Adicionar operação explícita de retomada em `CascadeController`/`CascadeTwoLoopPidController`: preservar configuração e saída coerente, não acumular integral, rebasear tempo e memórias de derivada/janelas na amostra atual. Preservar avaliação da condição de saída durante a suspensão; término solicita recuperação e encerra o grupo. Aceite: pausa espera dispatch em voo, nenhum Update durante ensaio, primeiro passo sem dt acumulado, sem replay de comandos de quadros antigos, saída/debounce existentes mantidos.
+
+**R1.3 — Captura e restauração completas.** Ajustar runner abiótico/biótico e coordenador para usar `KlaReturnSnapshot` capturado após quiescência, com referências solicitadas/confirmadas e leitura separadas. Restaurar rotas, N/Q, controles e proprietário em sucesso, falha e cancelamento; confirmação deve corresponder ao dispositivo. Não reutilizar retorno abiótico a zero como restauração do snapshot. Recuperação tem prazo próprio e não usa token já cancelado da aquisição. Em Multiple, restaurar entre tentativas e antes de devolver a cascata; nova tentativa recaptura estado após adquirir recursos. Aceite: matriz dos dois protocolos em todas as fases, falha de confirmação bloqueia retomada, emergência nunca reativa saídas. Testar em simulação; bancada permanece R6.2.
+
+**R3.1 — Persistência como requisito de avanço.** Estender `IKlaTestStore`, `KlaTestStore` e o caminho de `BackgroundFileWriter` sem regredir outros consumidores. Implementar recibo por tentativa que propague falhas de itens anteriores; distinguir flush de fila e garantia de durabilidade. Persistir request, snapshot e reserva antes da atuação, resultado e decisão antes do avanço. Ajustar `KlaAssayApi` para preservar estado físico quando falhar escrita terminal. Definir reconciliação por IDs entre diário E6 e sessão comum; dados brutos têm uma única fonte autoritativa. Aceite: falhas injetadas antes/durante/depois da corrida, reinício nos intervalos entre gravações, nenhuma repetição de pulso e orçamento não zerado.
+
+**R2.1 — Adaptador de pulso E6 para o runner comum.** Implementar `IKlaAssayExecution` sobre R1/R3, sem dependência da tela ou diálogos. Reutilizar fases, análise e dados existentes; `Completed` do pulso não significa réplica aceita. Exigir retorno confirmado para ambos os protocolos e recibo de persistência. Revisar `MayContinueRecipe` e contratos de resultado para não liberar avanço por qualidade condicional ou `NotRequired`. Registrar dependências em `App.xaml.cs` somente com capacidades apropriadas: simulador isolado para testes, produção fechada enquanto não qualificada. Aceite: execução/observação/cancelamento real do serviço em simulador, request duplicado em Running/terminal, deadline e recuperação com relógio controlável, zero aprovação humana fictícia.
+
+**R2.2 — Matriz e decisão automática.** Implementar orquestrador R0 sobre E6; extrair/reutilizar regras puras de `KlaSequence` e adaptar `KlaSessionModels`, contadores e seleção à autoria automática. Manter fluxo manual legado e importação de mapa desabilitada por padrão para receitas. Aplicar primeira tentativa aceitável, razões estruturadas permitidas, limites de réplica/bloco/cultivo e intervalo mínimo; não usar defaults interativos como perfil autônomo qualificado. Restaurar e devolver a cascata durante espera de repetição; reacquirir antes da próxima perturbação. Aceite: Abiótico/Biótico × Único/Múltiplos, condicional recusado por padrão, esgotamento termina automaticamente, contadores persistidos sem dupla reserva e nenhuma espera por operador.
+
+**R4.1 — Periodicidade e duração do grupo paralelo.** Implementar executor de `PeriodicBlockSchedule` com tempo monotônico, IDs por slot, retorno do alvo e grupo vinculado à cascata. Usar a agenda R0 como única regra da receita; manter helper E6 apenas onde sua semântica esteja explicitamente desejada ou substituí-lo com migração/testes. Definir término/cancelamento/erro do grupo em `RecipeEngine.Flow/State/Safety`: fim da cascata cancela agenda e aguarda recuperação. Slots perdidos são registrados e pulados; nenhuma execução simultânea do próprio alvo. Aceite: 2/6/10 h, ensaio atravessando slot, pausa cobrindo slots, mudança UTC, atraso, condição de saída durante ensaio e emergência. Intervalos mínimos podem pular slots, nunca criar rajada compensatória.
+
+**R4.2 — Blocos, editor e resultados automáticos.** Alterar `RecipeEnums`, `RecipeNodeCatalog`, schema, validador, serializer e executores; adicionar `Periodicidade` e `Determinar kLa`, campos contextuais e referência à cascata coordenada. Validar recursos, ciclos e encerramento dos ramos antes de iniciar. Integrar progresso, qualidade, autoria, restauração e caminhos ao visualizador comum; exportar resumo CSV e abrir sessão sem mapa. Aceite: salvar/reabrir receitas antigas e novas, campos inativos fora do request, fluxo sem diálogo, tentativas ruins visíveis e navegação receita→sessão. UI deve informar capacidades indisponíveis sem habilitar atuação física prematuramente.
+
+**R5.1 — Motor de rampa e destinos.** Implementar serviço de interpolação baseado em `LinearSetpointRampDefinition`; centralizar atualização de referência da cascata, distinta de `OxygenMonitor`. Reusar rotas, resolução e limites reais, validar trajetória inteira inclusive intervalo OFF proibido. Integrar reservas R1. Aceite: linhas com tempos diferentes, subida/descida/constante, alvo final quantizado, taxas de comando limitadas e destino O₂ correto, sem hardware.
+
+**R5.2 — Rampa no engine/editor e conflito com ensaio.** Adicionar catálogo/executor, captura inicial, registro, confirmação e pausa durante bloco. O tempo ativo da rampa congela em pausa; agenda periódica segue a regra própria de slots perdidos. Durante kLa, também suspender rampa da referência de O₂ da cascata coordenada e retomar do ponto preservado, para não alterar silenciosamente o snapshot. Rampas diretas N/Q incompatíveis devem ser recusadas ou aguardar reserva com prazo conforme configuração explícita. Aceite: pausa repetida, cancelamento, perda de posse/comunicação, banho/motor nas rotas existentes, nenhum salto após espera, confirmação final por parâmetro.
+
+**R6.1 — Regressão integrada e documentação.** Executar suíte completa aplicável após todas as integrações; manter regressões E5/E6/E7, armazenamento, arbitragem e quadros da cascata. Criar receitas de exemplo para kLa único/matriz, agenda 2 h/4 h paralela e rampas de tempos distintos. Verificar renderização e interação dos campos/progresso/resultados e produzir recibo vinculado à revisão final. Aceite: toda a execução autônoma demonstrada em simulador com falhas injetadas; artefatos identificados como software, sem atribuir qualificação física.
+
+**R6.2 — Qualificação operacional e habilitação restrita.** Executar roteiro de bancada de E7 ampliado para cessão/retomada da receita, protocolos habilitáveis, exposição, falhas e persistência. Registrar instalação, dispositivos/firmware, calibrações, perfil e evidência de cada retorno. Validar também rampas em rotas reais. Habilitar apenas combinações comprovadas; `KlaActuationRelease` continua bloqueando biótico físico até satisfazer critérios específicos. Aceite: confirmação física e autorização operacional documentadas; se não disponíveis, entrega de software fica explicitamente concluída apenas no ambiente simulado e R6.2 permanece pendente.
+
+### 5.2 Estado de partida e critério de conclusão
+
+- R0 original e extensão de periodicidade/handoff: commits `b8b5f2e` e `c51253f`; seus contratos não provam execução autônoma.
+- Gate de suspensão e testes: protótipo local não integrado, incluído nos 55 testes aprovados desta auditoria; não marcar R1 concluído.
+- E5/E6/E7: reutilizar o que foi entregue; não refazer núcleo/diário/visualizador nem remover bloqueios para fazer o exemplo funcionar.
+- Próxima alteração de código: R0.1/R0.2, seguida da autoridade de recursos R1.1. Não iniciar pela conexão dos blocos ao catálogo.
+- Pacote só termina com alterações, testes relevantes e recibo; aprovação simulada não fecha bancada. Rever este plano se o checkout receber nova alteração concorrente antes da etapa seguinte.
 
 Arquivos existentes envolvidos: `Services/KlaTesting/{IKlaTestRunner,KlaTestRunner,KlaTestRunner.Biotic,KlaAssayCoordinator,KlaSessionModels,IKlaTestStore,KlaTestStore}.cs`; `Services/Recipes/{RecipeEnums,RecipeNodeCatalog,RecipeSchema,RecipeValidator,RecipeSerializer,RecipeEngine,RecipeEngine.Flow,RecipeEngine.State,RecipeEngine.Safety,RecipeEngine.Actuation,RecipeEngine.Cascade}.cs`; editor/visualizadores de receitas e kLa. Novos serviços devem permanecer fora de ViewModels e compartilhar o núcleo científico atual.
 

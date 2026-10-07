@@ -1,0 +1,15 @@
+{
+  "stage": "E6",
+  "total": 14,
+  "passed": 14,
+  "failed": 0,
+  "validationScope": "Durable API contract with fake executor; no production runner adapter or recipe block enabled",
+  "evidence": "evidence/kla-e6-api-lifecycle.trx",
+  "sha256": "80f24ca91cf5b075633ab71a9369baef4ec97387e11dc6513df16c18cc0663d2",
+  "physicalEquipmentValidation": false,
+  "initialEvidence": {
+    "evidence": "evidence/kla-e6-api.trx",
+    "sha256": "b82dc71a2bd68a14c044d5fb4989155803ad4bb042e310b7fab8444e3f69457f",
+    "passed": 13
+  }
+}

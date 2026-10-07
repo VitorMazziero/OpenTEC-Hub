@@ -37,6 +37,8 @@ public sealed partial class RecipeEngine : IRecipeEngine
     private Task _run = Task.CompletedTask;
     private DateTimeOffset _startedAt;
     private SensorSnapshot? _latest;
+    private long _frameVersion;
+    private readonly Queue<(SensorSnapshot Snapshot, long Version)> _cascadeFrames = new();
 
     // Last route the Hub itself reported for temperature. A frame without bath telemetry
     // (partial/legacy) says nothing about the route and must not reset this.
@@ -226,20 +228,51 @@ public sealed partial class RecipeEngine : IRecipeEngine
 
     private void OnTelemetry(SensorSnapshot snapshot)
     {
-        _latest = snapshot;
+        TaskCompletionSource signal;
+        lock (_lock)
+        {
+            _latest = snapshot;
+            _frameVersion++;
+            _cascadeFrames.Enqueue((snapshot, _frameVersion));
+            while (_cascadeFrames.Count > 256) _cascadeFrames.Dequeue();
+            signal = _frameSignal;
+            _frameSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
         if (snapshot.HasBathTelemetry && snapshot.TempControlViaBath is { } viaBath)
         {
             _hubRoutesTemperatureToBath = viaBath;
         }
 
         // Wake any block awaiting the next frame (monitor conditions, cascade steps).
-        var signal = Interlocked.Exchange(
-            ref _frameSignal, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
         signal.TrySetResult();
     }
 
     /// <summary>Awaits the next telemetry frame, or throws if the run is cancelled.</summary>
     private Task WaitNextFrameAsync(CancellationToken ct) => _frameSignal.Task.WaitAsync(ct);
+
+    // A frame that arrives while the cascade computes must remain observable on its next pass.
+    // Capture the snapshot, version and wait handle under the same lock to avoid a lost wakeup.
+    private async Task<(SensorSnapshot? Snapshot, long Version)> WaitCascadeFrameAsync(long observedVersion, DateTimeOffset? deadline, CancellationToken ct)
+    {
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (deadline is { } end && _time.GetUtcNow() >= end) return (null, observedVersion);
+            Task signal;
+            lock (_lock)
+            {
+                foreach (var frame in _cascadeFrames)
+                    if (frame.Version > observedVersion) return frame;
+                signal = _frameSignal.Task;
+            }
+            if (deadline is null) await signal.WaitAsync(ct).ConfigureAwait(false);
+            else
+            {
+                try { await signal.WaitAsync(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false); }
+                catch (TimeoutException) { /* Recheck the injected clock without duplicating a cached frame. */ }
+            }
+        }
+    }
 
     private void OnOwnershipRevoked(OwnershipTransfer transfer)
     {

@@ -2,7 +2,7 @@
 
 Data: 06/10/2026. Aplicação: OpenTEC-Hub / Windows.
 
-**Status: E0–E3 implementados e validados em software, com execução e evidências separadas para E2 e E3. Regressão conjunta: 306 aprovados; verificação final específica: 77 aprovados. E4–E7 pendentes. Não houve validação física ou liberação biótica em bancada.**
+**Status: E0–E3 implementados e validados em software, com execução e evidências separadas para E2 e E3. Regressão conjunta: 306 aprovados; verificação final específica: 77 aprovados. E4 implementado e validado em simulação; E5 implementado e validado em software (298 testes integrados aprovados). E6: contrato/API futura implementados (14 testes aprovados), sem integração de atuação ou bloco habilitado. E7 parcialmente executado: 397 verificações distintas de software aprovadas; auditoria exploratória de 160 curvas sintéticas com ruído concluída; corpus auditado, ajuda atualizada e build candidata separada produzida (39 testes de núcleo/API e 14 de layout em Release aprovados). Bancada e validação experimental permanecem pendentes. Não houve validação física ou liberação biótica em bancada.**
 
 ## 1. Diagnóstico e objetivo
 
@@ -341,7 +341,7 @@ Execução e procedimento detalhados em [CONTRATO_E1.md](kla-e1/CONTRATO_E1.md).
 
 Arquivos: runner, consumidores do `CommandArbiter`, `OurSoftSensorService`, serviços de cascata e telemetria. Aceite: testes de todas as saídas demonstram restauração ou falha explícita; revisão biótica não deixa intencionalmente ar desligado.
 
-Execução de software registrada em [EXECUCAO_E2.md](kla-e2/EXECUCAO_E2.md). Aquisição qualificada, rota biótica e retomada possuem testes. Bancada/E4/E6 permanecem pendentes; receitas concorrentes são bloqueadas.
+Execução de software registrada em [EXECUCAO_E2.md](kla-e2/EXECUCAO_E2.md). Aquisição qualificada, rota biótica e retomada possuem testes. Bancada permanece pendente; E4 e o contrato futuro E6 foram concluídos nas respectivas execuções. Receitas concorrentes são bloqueadas.
 
 ### E3 — Núcleo determinístico
 
@@ -359,49 +359,56 @@ Contrato de implementação em [CONTRATO_E3.md](kla-e3/CONTRATO_E3.md). A parida
 
 ### E4 — Interface comum
 
-- [ ] Criar abas e seletor de captura.
-- [ ] Implementar cartão único e matriz sobre a mesma definição de condição.
-- [ ] Mostrar etapa, próximo evento e ação principal contextual.
-- [ ] Reusar gráfico com faixas, dados, ajuste e limites.
-- [ ] Exibir OUR apenas quando aplicável, distinguindo aparente/validado.
-- [ ] Exibir restauração antes da revisão, caminho salvo e qualidade.
-- [ ] Reanálise manual gera revisão; exportação independe de mapa.
-- [ ] Verificar teclado, janela reduzida e DPI 100%, 125%, 150%.
+- [x] Criar abas e seletor de captura.
+- [x] Implementar cartão único e matriz sobre a mesma definição de condição.
+- [x] Mostrar etapa, próximo evento e ação principal contextual.
+- [x] Reusar gráfico com faixas, dados, ajuste e limites.
+- [x] Exibir OUR apenas quando aplicável, distinguindo aparente/validado.
+- [x] Exibir restauração antes da revisão, caminho salvo e qualidade.
+- [x] Reanálise manual gera revisão; exportação independe de mapa.
+- [x] Verificar teclado, janela reduzida e DPI 100%, 125%, 150%.
 
 Arquivos: `KlaDeterminationView.xaml`, ViewModel e componentes compartilhados. Aceite: quatro fluxos em simulação sem ações cortadas ou estados ambíguos.
 
+Execução e limites da verificação em [EXECUCAO_E4.md](kla-e4/EXECUCAO_E4.md). Navegação por teclado verificada pelo contrato de Tab/Escape no WPF; avaliação interativa física permanece em E7.
+
 ### E5 — Sequências e mapas opcionais
 
-- [ ] Separar condição, réplica e tentativa na fila.
-- [ ] Bloquear próxima corrida até recuperação confirmada.
-- [ ] Limitar repetição automática e exposição; resultado ruim não autoriza pulsos indefinidos.
-- [ ] Permitir encerrar fila preservando histórico.
-- [ ] Implementar envio opcional de aceitos ao mapa e filtros de compatibilidade.
-- [ ] Registrar/proteger diferenças de meio, cultivo, tempo e simulação.
-- [ ] Não tratar um ponto como superfície N×Q identificada nem sobrescrever mapa ativo automaticamente.
+- [x] Separar condição, réplica e tentativa na fila.
+- [x] Bloquear próxima corrida até recuperação confirmada.
+- [x] Limitar repetição automática e exposição; resultado ruim não autoriza pulsos indefinidos.
+- [x] Permitir encerrar fila preservando histórico.
+- [x] Implementar envio opcional de aceitos ao mapa e filtros de compatibilidade.
+- [x] Registrar/proteger diferenças de meio, cultivo, tempo e simulação.
+- [x] Não tratar um ponto como superfície N×Q identificada nem sobrescrever mapa ativo automaticamente.
 
 Arquivos: runner, ViewModel, `KlaMapImportHelper.cs` e modelos de mapas. Aceite: único/múltiplos funcionam sem mapa; mapa biótico não mistura contextos silenciosamente.
 
+Execução E5: [EXECUCAO_E5.md](kla-e5/EXECUCAO_E5.md).
+
 ### E6 — Contrato para receitas futuras
 
-- [ ] Expor API independente de UI: criar, iniciar, observar, cancelar com recuperação e obter resultado.
-- [ ] Definir request com protocolo, condição atual/explícita, limites, deadline e política de falha.
-- [ ] Usar ID idempotente para impedir pulso duplicado após reconexão.
-- [ ] Definir retornos concluído, inconclusivo, cancelado e falha de restauração.
-- [ ] Documentar lock de atuadores, intervalo mínimo e limite por cultivo.
-- [ ] Especificar futuro bloco `KlaAssay` no enum, catálogo, validador e engine; habilitar somente após validação.
-- [ ] Distinguir periodicidade de réplicas imediatas; registrar execução adiada/pulada e não acumular pulsos atrasados.
+- [x] Expor API independente de UI: criar, iniciar, observar, cancelar com recuperação e obter resultado.
+- [x] Definir request com protocolo, condição atual/explícita, limites, deadline e política de falha.
+- [x] Usar ID idempotente para impedir pulso duplicado após reconexão.
+- [x] Definir retornos concluído, inconclusivo, cancelado e falha de restauração.
+- [x] Documentar lock de atuadores, intervalo mínimo e limite por cultivo.
+- [x] Especificar futuro bloco `KlaAssay` no enum, catálogo, validador e engine; habilitar somente após validação.
+- [x] Distinguir periodicidade de réplicas imediatas; registrar execução adiada/pulada e não acumular pulsos atrasados.
 
-Entrega inicial: contrato e testes da API. Editor/agenda periódica podem ser entrega posterior, sem refazer algoritmo.
+Entrega inicial: contrato e testes da API. Editor/agenda periódica podem ser entrega posterior, sem refazer algoritmo. Execução: [EXECUCAO_E6.md](kla-e6/EXECUCAO_E6.md).
 
 ### E7 — Validação, documentação e distribuição
 
-- [ ] Executar matriz da seção 10 e registrar evidências.
-- [ ] Atualizar ajuda contextual e procedimentos kLa/OUR.
-- [ ] Produzir build identificável após critérios aprovados.
-- [ ] Preservar versão anterior e dados; não usar arquivos originais do cultivo para testar migração.
-- [ ] Confirmar reabertura com histórico intacto e sem iniciar atuadores.
+- [x] Executar parte de software da matriz da seção 10 e registrar evidências, incluindo viés/dispersão/cobertura condicional/recusas em ruído sintético.
+- [ ] Concluir parte experimental da matriz: sonda/cultivos independentes, eventos de gás do corpus, avaliação interativa e bancada.
+- [x] Atualizar ajuda contextual e procedimentos kLa/OUR.
+- [x] Produzir build candidata identificável para abiótico/revisão offline após critérios de software aprovados; liberação biótica física permanece bloqueada.
+- [x] Preservar versão anterior e dados; não usar arquivos originais do cultivo para testar migração.
+- [x] Confirmar reabertura de sessão/serviço em testes com histórico intacto e sem iniciar atuadores (abertura interativa do PC operacional permanece pendente).
 - [ ] Validar em bancada antes de liberar biótico supervisionado.
+
+Execução e pendências E7: [EXECUCAO_E7.md](kla-e7/EXECUCAO_E7.md).
 
 Dependências: E0→E1; E2/E3 sustentam E4; E5 depende de E2–E4; E6 usa contratos E1/E2; E7 exige validação operacional e científica. Aparência não deve preceder aquisição confiável e retomada.
 

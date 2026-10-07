@@ -153,4 +153,25 @@ public sealed partial class KlaDeterminationViewModelTests
         Assert.Equal("—", _vm.DisplayReviewKla);
         Assert.False(_vm.CanAcceptAnalysis);
     }
+
+    [Fact]
+    public async Task E7_RejectedPhysicalBalanceDoesNotDisplayTheCandidateRateIntervalAsAnAvailableResult()
+    {
+        await SimulateCommonRecovery(true);
+        _runner.CurrentRun!.Outcome = new() { Restoration = KlaRestorationState.Confirmed };
+        _vm.ResidualTransferVerified = true;
+        _vm.ConsumptionRepresentative = true;
+        _vm.ProbeResponseVerified = true;
+        _vm.PhysicalSaturation = 90;
+        _vm.PhysicalSaturationSource = "synthetic independent saturation deliberately inconsistent with OUR";
+        _vm.RecomputeReviewAnalysis();
+        var result = _vm.CurrentAnalysis!.DeterministicResult!;
+        Assert.Equal(KlaScientificQuality.Inconclusive, result.KlaQuality);
+        Assert.Contains("independent_our_and_physical_balance_disagree", result.Reasons);
+        Assert.Null(result.KlaPerHour);
+        Assert.NotNull(result.ConditionalCi95Low); // candidate diagnostic stays available in the audit
+        Assert.Equal("—", _vm.DisplayReviewKla);
+        Assert.Equal("IC 95%: [—; —]", _vm.DisplayReviewCi95);
+        Assert.False(_vm.CanAcceptAnalysis);
+    }
 }

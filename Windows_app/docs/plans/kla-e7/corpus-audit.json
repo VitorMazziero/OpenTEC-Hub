@@ -1,0 +1,1510 @@
+{
+  "Algorithm": "OpenTecDeterministicKlaV1",
+  "Config": {
+    "MinimumPoints": 8,
+    "MinimumOurPoints": 10,
+    "MinimumSpanSeconds": 10,
+    "MaximumSampleGapSeconds": 10,
+    "TransientSeconds": 6,
+    "StabilitySpanSeconds": 10,
+    "StableSlopePercentPerSecond": 0.02,
+    "StableSlopeHysteresis": 1.5,
+    "MinimumDrivingForcePercent": 0.05,
+    "NoiseFloorPercent": 0.01,
+    "MinimumSignalToNoise": 3,
+    "MinimumR2": 0.95,
+    "MaximumRelativeSlopeError": 0.2,
+    "MaximumSlopeChange": 0.2,
+    "MaximumResidualAutocorrelation": 0.8,
+    "CeqSensitivityStepPercent": 0.1,
+    "MaximumCeqSensitivity": 0.2,
+    "MaximumCeqPercent": 110,
+    "MinimumRatePerSecond": 1E-05,
+    "MaximumRatePerSecond": 5,
+    "EquilibriumWeightRatio": 5,
+    "MaximumBoundaryCandidates": 48,
+    "MaximumProbeRateRatio": 0.2,
+    "BalanceRelativeTolerance": 0.25,
+    "MaximumTemperatureChangeC": 0.5
+  },
+  "Scope": "Strict metadata audit of all 92 curves; no confirmed gas events present. This is not estimator accuracy or independent biotic validation.",
+  "SourceCleaning": "Curated source may already remove duplicate/nonfinite observations; no additional cleaning in this audit.",
+  "Total": 92,
+  "Inconclusive": 92,
+  "ValidatedKla": 0,
+  "Biotic": 17,
+  "Results": [
+    {
+      "CurveId": "ALR5L-01",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "a7b711c6babd2932ef14c08af2e5fe3913bd30063e25fb46665405c7f346d8bc",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-02",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "1ce2eb686bbfda9a187b81a1e960bbcba815413692bc65e1f3cedec1d96b5ae0",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-03",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "19673c16636991ca0a769af82c44818c11ec58b2bf05009887f39a659002c6f3",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-04",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "515a18cef48324b4d7163130998ed3075f36b0b3ff223d6d9e754997297d08b7",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-05",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "10b35a89c58f354beea69bc70eb3064560fe521a1d7ebd3f7286ea6031f6fbd9",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-06",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "9f82703ec17abe6f67804f590c9b7683b35a07a181cfb74afe0ebcd1aab5a1fe",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-07",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "e4d53f67916285cffac94a2e8af98c31314f3b5be659d8edef2d409c69e0ad03",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-08",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "d1ed45065c6cb36cad925624b694ff15d30ba48f25414e9478bff09b1dbb10ea",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-09",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "f9c8e221b4993d2ecc3838631cba2ddcd48f00100ad800d358a795a5eaed7cc7",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-10",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "48290dd36abe7c8467f044c24271ad487cf538d48705057cfee9696d85b8c488",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALR5L-13",
+      "Biology": "abiotic",
+      "Group": "ALR5L:ALR5",
+      "Role": "development",
+      "Sha256": "faa31d332bf7722089686913cd9cab4a20940bb4a757130e0fa34a4dc8d4c6e8",
+      "EventProvenance": "designed_series",
+      "Points": 721,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-01",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "6c4b34c476fa2a7e91cb450b1c4d7272978e9ba344d484984fa999a25bbe6c3b",
+      "EventProvenance": "designed_series",
+      "Points": 737,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-02",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "d9112b584b31d55da8ed438f6d88732158ffca867e544b36d66bb1b14feb9f95",
+      "EventProvenance": "designed_series",
+      "Points": 685,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-03",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "4b2d4d1574f219cfa78d9a2cc0f545fe509977bd204dcd71920c33f61da09290",
+      "EventProvenance": "designed_series",
+      "Points": 715,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-04",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "74885260a433d06c8b8d5de09e84c1d75c8c06ef6bb580c88437b52c61689f33",
+      "EventProvenance": "designed_series",
+      "Points": 407,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-05",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "298a6d77e0195265261e85181a498ae0172f5b9fd461d5543b4ebff689ddaa92",
+      "EventProvenance": "designed_series",
+      "Points": 474,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-06",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "6054b527f30410c9823108d6a8ad9082e24385b7ea54a49043a4a348257be76a",
+      "EventProvenance": "designed_series",
+      "Points": 435,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-07",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "c7796b777a1577e92a09f1654a13f969d99f58c05c8cbc1f89da0e16ed4c61a7",
+      "EventProvenance": "designed_series",
+      "Points": 298,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-08",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "d2234d7d0b9ff81cd901cf95e49ece869d2c64f27dc59544b72034a5ee4a28ec",
+      "EventProvenance": "designed_series",
+      "Points": 301,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-09",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "35e27fc52e7a4c3a7b0b57c3645f3402b383fd6c361c31236d92f7c1e9e0635c",
+      "EventProvenance": "designed_series",
+      "Points": 346,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-10",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "04f9e17bc48fb5844c39a318185066e7b1590895480513cc9ea864c5d3c861cc",
+      "EventProvenance": "designed_series",
+      "Points": 261,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-11",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "51789fa463c067b3b1b7397a64fbaee447292a0031d54b2c34278bc1d8b1d98a",
+      "EventProvenance": "designed_series",
+      "Points": 340,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRACR-12",
+      "Biology": "abiotic",
+      "Group": "ALRACR:ALRA",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "c62f1898e155153cfba1222f13bb35061ab8e0c287e43d7152f660b296348692",
+      "EventProvenance": "designed_series",
+      "Points": 248,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRFIL-01",
+      "Biology": "abiotic",
+      "Group": "ALRFIL:ALRF",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "f17f78d87d8e9a5022755bddbd44762594605e782f9f05e40fb89e36a5839ecb",
+      "EventProvenance": "designed_series",
+      "Points": 550,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRFIL-02",
+      "Biology": "abiotic",
+      "Group": "ALRFIL:ALRF",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "656707764f41e95442dbbd3c31d3c3aa4e68c4a92e9e1be88c86d62ad6c73d9f",
+      "EventProvenance": "designed_series",
+      "Points": 573,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "ALRFIL-03",
+      "Biology": "abiotic",
+      "Group": "ALRFIL:ALRF",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "56bccc50cde7ee629511b76f10ca29704859a2399e9ea17bb5ef2c30d1d1450a",
+      "EventProvenance": "designed_series",
+      "Points": 609,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-01",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "a2020ffd7b9ee48b6f223ea768e6415cac544c59dc5d77e48ccc8c4142db25cb",
+      "EventProvenance": "designed_series",
+      "Points": 536,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-02",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "3fe2583eefc6e4929ce034cde5c9c27c398dc05b9741f2e89f4c409ed47d1332",
+      "EventProvenance": "designed_series",
+      "Points": 524,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-03",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "c7495cf99e2de6924eaaa9d97f26ea68bfe4c69113e5989e9ddd383233c62e0f",
+      "EventProvenance": "designed_series",
+      "Points": 511,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-04",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "8ad7405212c1b9b7bf2d455154ef19cbbd2d7126bc8661653986d2570509599c",
+      "EventProvenance": "designed_series",
+      "Points": 411,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-05",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "61071ae6f067c6fb193aa27ef7549acb125480e6252520d1f3166642479276ba",
+      "EventProvenance": "designed_series",
+      "Points": 366,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-06",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "d8abb5ffbcbfffb8ffd1d29f575d261a1e69399a592295641df74ed345602508",
+      "EventProvenance": "designed_series",
+      "Points": 360,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-07",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "3bf240428d954aa1805ed1ca6f2f5c0c7030b662dde45f031f224e1979844717",
+      "EventProvenance": "designed_series",
+      "Points": 425,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-08",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "69de5e56e12b95a86e6087617190925cb40d998e7408f8c5b54e2640840dc75c",
+      "EventProvenance": "designed_series",
+      "Points": 420,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-09",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "f31fb40a7d605a8cd39bb47c0cdf3d149a98dffd6174f5ecbc5e48e4c37196e6",
+      "EventProvenance": "designed_series",
+      "Points": 302,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-10",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "0cb248f0853e60c6a51706f8d61f56224daec2c23b72acbb9faffb5518e127da",
+      "EventProvenance": "designed_series",
+      "Points": 477,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-11",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "45672448bf58cf68ea51662ec221ed0b8560b66c9c3bdcdbfd8b5f0217cd8c83",
+      "EventProvenance": "designed_series",
+      "Points": 402,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-12",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "6730929c0d14ac0177cdd2058945d596f9f99234665989c598919ca72a4fef92",
+      "EventProvenance": "designed_series",
+      "Points": 334,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-13",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "f798adb2ad99abdd25dbedda912b46b10c70fdbb369e3500ef5381f1c5def604",
+      "EventProvenance": "designed_series",
+      "Points": 111,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-14",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "00d0a8aeb27535170f03e51363d8784da536d1f522a243b2b7f9a16c4762f26a",
+      "EventProvenance": "designed_series",
+      "Points": 587,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-15",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "cde6152567660bad97f5a2239f5197fa1da7328e8115732267b68ea7444d0801",
+      "EventProvenance": "designed_series",
+      "Points": 453,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-16",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "6c8d11e9a814039fccd7a9a852422e0f87769d7c3f877e74e6100053a3f03421",
+      "EventProvenance": "designed_series",
+      "Points": 431,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-17",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "c9e100ca5b07cd0108f0ff6881d4b12af63f1b6e152d23f2577f72c4ad8f50ec",
+      "EventProvenance": "designed_series",
+      "Points": 300,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-18",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "559344ad112c1f367d8f3bfa6b46a0d135fce317aa2c3f037a1b156c8f0876c9",
+      "EventProvenance": "designed_series",
+      "Points": 406,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-19",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "87dcea2acbff2c108acb447ba08fd494f827675b11b7d7b15c20b95ebffc2054",
+      "EventProvenance": "designed_series",
+      "Points": 409,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-20",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "1cc2a24ce514f53de29eaed08ebb1d4486f461aaae2493f6b18ccfd21474935b",
+      "EventProvenance": "designed_series",
+      "Points": 414,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-21",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "1255c1f0c747bc302fcb45892905d230445a52987504d0e27d0198c4bdfcb4da",
+      "EventProvenance": "designed_series",
+      "Points": 548,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-22",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "b17bea9aa7d2054f44fae682459077da8f6ee02970ddcaca24bcac5c3eab42a9",
+      "EventProvenance": "designed_series",
+      "Points": 420,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-23",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "f20dce9fd49cd9eb295c5db8cfc3fd6980e0f8a622629d36341f2d7e148b8760",
+      "EventProvenance": "designed_series",
+      "Points": 407,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-24",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "db95421634d83ad24a3b716a48418bf9bbe09ca0b6f917be85100bc6cf8fd340",
+      "EventProvenance": "designed_series",
+      "Points": 429,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-25",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "1e9bead3e3424544e97d9b30429fce0cdd029b483292ea229884eefe28ee549a",
+      "EventProvenance": "designed_series",
+      "Points": 163,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-26",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "c3f38c305efe6452ca756c048e8fd8018d3706124c8ec86b7a8ae85b5f15d879",
+      "EventProvenance": "designed_series",
+      "Points": 422,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-27",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "edbc3e816475b5f5b8490f9c383423a853f8d87b13926e59978adf3f6464e4a6",
+      "EventProvenance": "designed_series",
+      "Points": 406,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-28",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "53e5a0f63d4117a5f2c2a81a25bb5103c079a39ab61b7d229e93598d9adf6c4e",
+      "EventProvenance": "designed_series",
+      "Points": 407,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-29",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "d4d11902618f613837ec5cf4febfd0a0a2bdcdd3b32686145114cf0796d477ce",
+      "EventProvenance": "designed_series",
+      "Points": 223,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-30",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "d5709e95d9c99d4e529983c4ecf62146a67c7936b2eb4a84e43057ad290850ef",
+      "EventProvenance": "designed_series",
+      "Points": 409,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-31",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "792bce3ebca082c3abed2854bf0a3eff0f735b1833a31f81ef1ac885ff46c224",
+      "EventProvenance": "designed_series",
+      "Points": 406,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-32",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "2bf25b638bb229d36edbfededa91c3abcfacb1b6f0009e5168016026e78cd710",
+      "EventProvenance": "designed_series",
+      "Points": 448,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-33",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "f8fdcedb18fe684b640ed5a011a95c81f2d602127ba6d7d28085761a31da10bb",
+      "EventProvenance": "designed_series",
+      "Points": 411,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-34",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "a1f68f66cefe003e75b935467acb5c25f2aee81785e9b2def2a02074ae0c28ca",
+      "EventProvenance": "designed_series",
+      "Points": 503,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-35",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "4388bc8c3d64ec8d2dc87453a88aa5a13a273cc8aa23a1c98025120a3b53de61",
+      "EventProvenance": "designed_series",
+      "Points": 523,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-36",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "154ed072dbfc450f9b986882474734a6f4ba82f89ad93daf98fabf1800226fa6",
+      "EventProvenance": "designed_series",
+      "Points": 426,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "STR20L-37",
+      "Biology": "abiotic",
+      "Group": "STR20L:STR",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "b1b77c311eaa4bf4f7ac18f13b8b47d458e676d914033d8a4905f6e58b5299e2",
+      "EventProvenance": "designed_series",
+      "Points": 157,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-01",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "dc7e0dd5a2c6e688ce546cea7df271df5eccf3c7aeb97dd6c904be50fdfdcde4",
+      "EventProvenance": "designed_series",
+      "Points": 450,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-02",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "a4cda3ea19571a970f53deaebb0a66159b845714c125553ee36eac6dea1f0834",
+      "EventProvenance": "designed_series",
+      "Points": 346,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-03",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "bba4e5a48e531b7a9737f3665b5f8e92b40f2ced550dbbf87de29992c45d21cc",
+      "EventProvenance": "designed_series",
+      "Points": 252,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-04",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "c923c74fa62baddedca9bd25e99328dd816ce1308105f3548735c9c14098b684",
+      "EventProvenance": "designed_series",
+      "Points": 198,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-05",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "755da356df092c4677a94d0188d0b2a25c3993e068596d1336d44e8c6a73a260",
+      "EventProvenance": "designed_series",
+      "Points": 158,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-06",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "6a6268a6cf8cce384d676d22c97169c754c1e4b9b289fc816eb70e14913f3ef5",
+      "EventProvenance": "designed_series",
+      "Points": 145,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-07",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "4862dd74d3be6a06e8922ae9909eb31c1237662e12e21f1df5416853ffaa7b79",
+      "EventProvenance": "designed_series",
+      "Points": 307,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-08",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "126f52534bbba2442f502b034fec58c142dfbe177c18ec1b172107ea2cfe8821",
+      "EventProvenance": "designed_series",
+      "Points": 240,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-09",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "148c0a20057aa45dda36a0144b47c4131c4937f9ab0e6e2f00e1ead9abd96e88",
+      "EventProvenance": "designed_series",
+      "Points": 201,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-10",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "da6caf5e6bde0b3bbd7a5e8affe315fdc400871209859b798263a7c6f4a3683a",
+      "EventProvenance": "designed_series",
+      "Points": 151,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-11",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "7f50ea604a9dc6737bde6c9e178444f0fec11ef883bf5b9bb3efd00df10a7e6b",
+      "EventProvenance": "designed_series",
+      "Points": 135,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "TRANSFO2-12",
+      "Biology": "abiotic",
+      "Group": "TRANSFO2:ABI",
+      "Role": "reserved-not-evaluated",
+      "Sha256": "be34abd9fd348e4597c1e826477c0eda18b9f33ff1c0d3b2eadb78d52c33aa67",
+      "EventProvenance": "designed_series",
+      "Points": 108,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-02",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "f6d72097a223f3ea0053813f3f3fb6d95718ee38220cd9962c5348d91a23249e",
+      "EventProvenance": "operator_log",
+      "Points": 312,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-03",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "45ad0fc1c4b80eeea0a23aad041f8b0a865bbc12e083e92add5527b58c9d87ef",
+      "EventProvenance": "operator_log",
+      "Points": 490,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-04",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "a0a034c1acf349bc92b27d3e8d4067ee45ca1f2f4bcb57b8cf3622182bdfc1bd",
+      "EventProvenance": "operator_log",
+      "Points": 273,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-05",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "e2232fa9d1197efaccc9d201b18dfd58a0cb04853ee39d3aee6f6590c7486458",
+      "EventProvenance": "operator_log",
+      "Points": 304,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-06",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "4e89ee34e06f49d21f7ddbf71a44ed1f9f986e5aebea582e1effdbeb7f9bb344",
+      "EventProvenance": "operator_log",
+      "Points": 271,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "oxygen_sample_gap_exceeds_configured_span"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-07",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "54720db278ee749610fde7bf2df721c56b69079c67f6f343c9efa463829d6960",
+      "EventProvenance": "operator_log",
+      "Points": 267,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-08",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "44bff6ed2af5a8456655503dcd25790a59d9976f62365bbde966ad383dd9522f",
+      "EventProvenance": "operator_log",
+      "Points": 276,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-09",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "82656640c9d2070833b4ced8d67e816ef7e25efff6d6e411bfdb9841856e3722",
+      "EventProvenance": "operator_log",
+      "Points": 282,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-10",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "54ec32ef194ffcacd1eadd626dc0d413ce9f557944e72ab22d42e07420b9775a",
+      "EventProvenance": "operator_log",
+      "Points": 304,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-11",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "aae003f08a446191606cecd7d591adf581779df60c97d1a5939b9777dbb39207",
+      "EventProvenance": "operator_log",
+      "Points": 268,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-12",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "255055fa1ac556e7660abac0deb4dc951144249a6f139c16228b331f49219fe8",
+      "EventProvenance": "operator_log",
+      "Points": 301,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "oxygen_sample_gap_exceeds_configured_span"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-13",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "1f881e85742c6d69aae535c096f1747923f534ace7bec19d59ea7cb87bc648ec",
+      "EventProvenance": "operator_log",
+      "Points": 302,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-14",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "3ac5f0814775ec62e20dbf0e6e3e4771bc9f6a9c4ccdb5918300b0c5266eda2d",
+      "EventProvenance": "operator_log",
+      "Points": 292,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-15",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "82bb9bca9f89077398b0ef13d51e53dfb98cee7756a4c8866e7091eefcf3c706",
+      "EventProvenance": "operator_log",
+      "Points": 304,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-16",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "788fb39b97c636e28df25285d92ee980483165eceff970a8b887ec5e4d5498f3",
+      "EventProvenance": "operator_log",
+      "Points": 227,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-17",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "928bb5a652128d3873775968d207d2f7af9f625208aa450b9271be7273931b33",
+      "EventProvenance": "operator_log",
+      "Points": 278,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    },
+    {
+      "CurveId": "SC0708-18",
+      "Biology": "biotic",
+      "Group": "SC0708:B1",
+      "Role": "development",
+      "Sha256": "e466d85169998953f67bf47dadc3b16d891b45bbd2d804c682b4f381d48cd18f",
+      "EventProvenance": "operator_log",
+      "Points": 250,
+      "Quality": "Inconclusive",
+      "KlaPerHour": null,
+      "Reasons": [
+        "one_recovery_episode_required"
+      ],
+      "OurQuality": "NotEvaluated",
+      "OurReasons": []
+    }
+  ]
+}

@@ -309,7 +309,9 @@ public sealed class DocumentationTests
         foreach (var term in new[]
                  {
                      "gassing-out", "Região Linear", "Ceq", "R²", "RMSE", "Aceitar Corrida",
-                     "Executar Sequência", "Desligar N₂", "DO Máx", "Importar Teste",
+                     "Próxima corrida", "OD final da remoção", "Limites da fila", "Importar Teste",
+                     "OUR", "equilíbrio respiratório", "fluxômetro ligado", "Restaurar cultivo",
+                     "Contexto das medições", "validação em bancada",
                  })
         {
             Assert.Contains(term, determination, StringComparison.OrdinalIgnoreCase);

@@ -49,10 +49,11 @@ public sealed class KlaRunnerSimulatorTests : IDisposable
         _overrideScope = AppPaths.OverrideForTests(_testRoot);
 
         _device = new RecordingDeviceService();
-        _clock = new TestClock(DateTimeOffset.UtcNow);
+        _clock = new TestClock(DateTimeOffset.UtcNow, manualWatchdog: true);
         _arbiter = new CommandArbiter(_device, _clock);
         _store = new KlaTestStore(AppPaths.KlaTestsDirectory);
-        _runner = new KlaTestRunner(_device, _arbiter, _store, new KlaAnalysisEngine(), new MemorySettingsService(), _clock);
+        _runner = new KlaTestRunner(_device, _arbiter, _store, new KlaAnalysisEngine(), new MemorySettingsService(), _clock,
+            actuationRelease: new(isIsolatedSimulation: true));
 
         _model = new DeviceModel(clock: new AcceleratedClock(), profile: Abiotic, probeDeadTime: TimeSpan.Zero, randomSeed: 11, servoPowerModel: Quiet)
         {

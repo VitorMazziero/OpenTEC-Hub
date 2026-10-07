@@ -1,0 +1,3976 @@
+{
+  "Algorithm": "OpenTecDeterministicKlaV1",
+  "Runtime": "10.0.11",
+  "AnalysisAssemblySha256": "930c552389835c935b12aa6f0c1529a226ca8ef0f35239ff0f82406069c40278",
+  "TotalSyntheticTrials": 160,
+  "Config": {
+    "MinimumPoints": 8,
+    "MinimumOurPoints": 10,
+    "MinimumSpanSeconds": 10,
+    "MaximumSampleGapSeconds": 10,
+    "TransientSeconds": 6,
+    "StabilitySpanSeconds": 10,
+    "StableSlopePercentPerSecond": 0.02,
+    "StableSlopeHysteresis": 1.5,
+    "MinimumDrivingForcePercent": 0.05,
+    "NoiseFloorPercent": 0.01,
+    "MinimumSignalToNoise": 3,
+    "MinimumR2": 0.95,
+    "MaximumRelativeSlopeError": 0.2,
+    "MaximumSlopeChange": 0.2,
+    "MaximumResidualAutocorrelation": 0.8,
+    "CeqSensitivityStepPercent": 0.1,
+    "MaximumCeqSensitivity": 0.2,
+    "MaximumCeqPercent": 110,
+    "MinimumRatePerSecond": 1E-05,
+    "MaximumRatePerSecond": 5,
+    "EquilibriumWeightRatio": 5,
+    "MaximumBoundaryCandidates": 48,
+    "MaximumProbeRateRatio": 0.2,
+    "BalanceRelativeTolerance": 0.25,
+    "MaximumTemperatureChangeC": 0.5
+  },
+  "TrueKlaPerHour": 72,
+  "TrueOurPercentPointsPerHour": 1800,
+  "Scope": "160 seeded synthetic trajectories; ideal independently negligible probe; constant process/OUR and negligible residual transfer. Biotic starts at Ceq=75%, falls to 15% over 120 s, then recovers. No hardware, adaptive cleanup, criterion tuning or experimental truth borrowed. Estimated does not imply operator acceptance.",
+  "IntervalScope": "Coverage uses only estimates with an available OLS conditional interval; all refusals and missing intervals are reported. Twenty repetitions per scenario are exploratory, not proof of nominal 95% coverage or full uncertainty.",
+  "NoiseScope": "Gaussian sigma in percentage points. Correlated: stationary AR(1), rho=0.8. Outliers: white sigma=0.2 plus alternating \u002B/-3 pp every 37 observations. Identical seed pairing across protocols/noise scenarios is deliberate; scenarios are not independent experiments.",
+  "Scenarios": [
+    {
+      "Protocol": "abiotic",
+      "Noise": "white-0.1",
+      "Trials": 20,
+      "EstimatedKla": 14,
+      "RefusedKla": 6,
+      "KlaQualityCounts": {
+        "Inconclusive": 6,
+        "Valid": 13,
+        "Conditional": 1
+      },
+      "KlaBiasPerHour": 0.39228699494920555,
+      "KlaDispersionPerHour": 0.30028433962157985,
+      "ConditionalCiCoverageAmongEstimated": 0.7857142857142857,
+      "CiAvailable": 14,
+      "EstimatedOur": 0,
+      "RefusedOur": null,
+      "OurQualityCounts": {
+        "NotApplicable": 20
+      },
+      "OurBiasPercentPointsPerHour": null,
+      "OurDispersionPercentPointsPerHour": null,
+      "OurConditionalCiCoverageAmongEstimated": null,
+      "OurCiAvailable": 0,
+      "RefusalReasons": {
+        "independent_our_and_physical_balance_disagree": 6,
+        "ols_interval_is_conditional_on_equilibrium_and_correlated_errors": 1
+      },
+      "Runs": [
+        {
+          "Seed": 20261007,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 71.73260739302675,
+          "CiHigh": 72.51138997810342,
+          "CeqPercent": 100.00899079454992,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261008,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 71.84722580065471,
+          "CiHigh": 73.35043649374188,
+          "CeqPercent": 100.00654504502049,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 142,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 140
+          }
+        },
+        {
+          "Seed": 20261009,
+          "Quality": "Valid",
+          "KlaPerHour": 72.32121658056373,
+          "CiLow": 71.7048552804619,
+          "CiHigh": 72.93757788066556,
+          "CeqPercent": 99.9903961633499,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 134,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 132
+          }
+        },
+        {
+          "Seed": 20261010,
+          "Quality": "Valid",
+          "KlaPerHour": 72.35355968881564,
+          "CiLow": 71.93776349569167,
+          "CiHigh": 72.7693558819396,
+          "CeqPercent": 99.97859246241539,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 123,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 121
+          }
+        },
+        {
+          "Seed": 20261011,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 72.03019078716069,
+          "CiHigh": 72.90001772598187,
+          "CeqPercent": 100.0036435606211,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 122,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 120
+          }
+        },
+        {
+          "Seed": 20261012,
+          "Quality": "Valid",
+          "KlaPerHour": 72.56257350441689,
+          "CiLow": 72.20257170563612,
+          "CiHigh": 72.92257530319766,
+          "CeqPercent": 99.97067089251654,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 116,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261013,
+          "Quality": "Valid",
+          "KlaPerHour": 73.05855613533865,
+          "CiLow": 72.36549004855031,
+          "CiHigh": 73.75162222212698,
+          "CeqPercent": 99.98083534881079,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 127,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 125
+          }
+        },
+        {
+          "Seed": 20261014,
+          "Quality": "Valid",
+          "KlaPerHour": 71.91530921301253,
+          "CiLow": 71.61567929704874,
+          "CiHigh": 72.21493912897633,
+          "CeqPercent": 99.99857329392904,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 120,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 118
+          }
+        },
+        {
+          "Seed": 20261015,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 71.38911853780435,
+          "CiHigh": 72.32825963842673,
+          "CeqPercent": 100.02419142168516,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 127,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 125
+          }
+        },
+        {
+          "Seed": 20261016,
+          "Quality": "Valid",
+          "KlaPerHour": 72.4893094315222,
+          "CiLow": 71.9569669781043,
+          "CiHigh": 73.0216518849401,
+          "CeqPercent": 99.9991595634498,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 138,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 136
+          }
+        },
+        {
+          "Seed": 20261017,
+          "Quality": "Valid",
+          "KlaPerHour": 71.911773612469,
+          "CiLow": 71.3470788160675,
+          "CiHigh": 72.47646840887052,
+          "CeqPercent": 99.99381234898512,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 131,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 129
+          }
+        },
+        {
+          "Seed": 20261018,
+          "Quality": "Valid",
+          "KlaPerHour": 72.51052155193996,
+          "CiLow": 71.57911706781191,
+          "CiHigh": 73.44192603606801,
+          "CeqPercent": 99.99886179816335,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 144,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 142
+          }
+        },
+        {
+          "Seed": 20261019,
+          "Quality": "Valid",
+          "KlaPerHour": 72.17308445468117,
+          "CiLow": 71.51834160203852,
+          "CiHigh": 72.82782730732383,
+          "CeqPercent": 99.99867903974389,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 133,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 131
+          }
+        },
+        {
+          "Seed": 20261020,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 71.08367749316783,
+          "CiHigh": 72.23810990721772,
+          "CeqPercent": 100.0309299129139,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 128,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 126
+          }
+        },
+        {
+          "Seed": 20261021,
+          "Quality": "Valid",
+          "KlaPerHour": 72.28383293686032,
+          "CiLow": 71.82734009589419,
+          "CiHigh": 72.74032577782646,
+          "CeqPercent": 99.99506630621703,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 131,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 129
+          }
+        },
+        {
+          "Seed": 20261022,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 72.03462362179411,
+          "CiHigh": 72.96415615787939,
+          "CeqPercent": 100.00329552881152,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 123,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 121
+          }
+        },
+        {
+          "Seed": 20261023,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.72911962381991,
+          "CiLow": 72.06819579981685,
+          "CiHigh": 73.39004344782298,
+          "CeqPercent": 99.97587359292237,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 134,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 132
+          }
+        },
+        {
+          "Seed": 20261024,
+          "Quality": "Valid",
+          "KlaPerHour": 72.47902778149965,
+          "CiLow": 71.97088187299816,
+          "CiHigh": 72.98717369000114,
+          "CeqPercent": 99.97817109189353,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261025,
+          "Quality": "Valid",
+          "KlaPerHour": 72.468115806776,
+          "CiLow": 71.83664057412174,
+          "CiHigh": 73.09959103943025,
+          "CeqPercent": 99.97232078376693,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 125,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 123
+          }
+        },
+        {
+          "Seed": 20261026,
+          "Quality": "Valid",
+          "KlaPerHour": 72.23601760757322,
+          "CiLow": 71.80742579946171,
+          "CiHigh": 72.66460941568472,
+          "CeqPercent": 99.98567158785342,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 118,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 116
+          }
+        }
+      ]
+    },
+    {
+      "Protocol": "abiotic",
+      "Noise": "white-0.5",
+      "Trials": 20,
+      "EstimatedKla": 14,
+      "RefusedKla": 6,
+      "KlaQualityCounts": {
+        "Inconclusive": 6,
+        "Valid": 11,
+        "Conditional": 3
+      },
+      "KlaBiasPerHour": 1.880697404387954,
+      "KlaDispersionPerHour": 1.7775904231382176,
+      "ConditionalCiCoverageAmongEstimated": 0.5,
+      "CiAvailable": 14,
+      "EstimatedOur": 0,
+      "RefusedOur": null,
+      "OurQualityCounts": {
+        "NotApplicable": 20
+      },
+      "OurBiasPercentPointsPerHour": null,
+      "OurDispersionPercentPointsPerHour": null,
+      "OurConditionalCiCoverageAmongEstimated": null,
+      "OurCiAvailable": 0,
+      "RefusalReasons": {
+        "independent_our_and_physical_balance_disagree": 6,
+        "ols_interval_is_conditional_on_equilibrium_and_correlated_errors": 1
+      },
+      "Runs": [
+        {
+          "Seed": 20261007,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.73435550466027,
+          "CiHigh": 73.25704105485858,
+          "CeqPercent": 100.04497679088178,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 131,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 129
+          }
+        },
+        {
+          "Seed": 20261008,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 69.17643177692835,
+          "CiHigh": 72.78870051660587,
+          "CeqPercent": 100.03273939535744,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 122,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 120
+          }
+        },
+        {
+          "Seed": 20261009,
+          "Quality": "Valid",
+          "KlaPerHour": 72.93077866918401,
+          "CiLow": 71.44421590146374,
+          "CiHigh": 74.41734143690428,
+          "CeqPercent": 99.95197888935134,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 106,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 104
+          }
+        },
+        {
+          "Seed": 20261010,
+          "Quality": "Valid",
+          "KlaPerHour": 72.38374529921478,
+          "CiLow": 71.047484138082,
+          "CiHigh": 73.72000646034756,
+          "CeqPercent": 99.89299501812786,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 106,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 104
+          }
+        },
+        {
+          "Seed": 20261011,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 73.21007000258757,
+          "CiHigh": 78.277417855307,
+          "CeqPercent": 100.01838403006383,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261012,
+          "Quality": "Valid",
+          "KlaPerHour": 74.66423712580443,
+          "CiLow": 72.4645440575348,
+          "CiHigh": 76.86393019407407,
+          "CeqPercent": 99.8538273307514,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 122,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 120
+          }
+        },
+        {
+          "Seed": 20261013,
+          "Quality": "Valid",
+          "KlaPerHour": 75.91330333030056,
+          "CiLow": 73.30221434833493,
+          "CiHigh": 78.5243923122662,
+          "CeqPercent": 99.9042544171128,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261014,
+          "Quality": "Valid",
+          "KlaPerHour": 70.33382203472088,
+          "CiLow": 68.42793793406936,
+          "CiHigh": 72.2397061353724,
+          "CeqPercent": 99.99288442514555,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 128,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 126
+          }
+        },
+        {
+          "Seed": 20261015,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 67.13066269355286,
+          "CiHigh": 70.19689532566989,
+          "CeqPercent": 100.12199978381445,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 116,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261016,
+          "Quality": "Valid",
+          "KlaPerHour": 75.73395439059978,
+          "CiLow": 73.35088683537055,
+          "CiHigh": 78.11702194582901,
+          "CeqPercent": 99.99583711950041,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 125,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 123
+          }
+        },
+        {
+          "Seed": 20261017,
+          "Quality": "Valid",
+          "KlaPerHour": 73.71612078137598,
+          "CiLow": 71.35740457437734,
+          "CiHigh": 76.07483698837461,
+          "CeqPercent": 99.96907653301193,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 116,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261018,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.6223510344051,
+          "CiLow": 72.00180070538575,
+          "CiHigh": 75.24290136342445,
+          "CeqPercent": 99.99425858361784,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 100,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 98
+          }
+        },
+        {
+          "Seed": 20261019,
+          "Quality": "Valid",
+          "KlaPerHour": 71.85471319341129,
+          "CiLow": 69.03900517921126,
+          "CiHigh": 74.67042120761131,
+          "CeqPercent": 99.99339143419986,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 116,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261020,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 69.25426781158747,
+          "CiHigh": 73.03886271916939,
+          "CeqPercent": 100.15466481825837,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261021,
+          "Quality": "Conditional",
+          "KlaPerHour": 74.29900444277318,
+          "CiLow": 72.09651864982119,
+          "CiHigh": 76.50149023572517,
+          "CeqPercent": 99.97537204726542,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 122,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 120
+          }
+        },
+        {
+          "Seed": 20261022,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 73.40729970990122,
+          "CiHigh": 79.4702535219574,
+          "CeqPercent": 100.0165463508382,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 125,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 123
+          }
+        },
+        {
+          "Seed": 20261023,
+          "Quality": "Valid",
+          "KlaPerHour": 77.1015618744818,
+          "CiLow": 74.7568543105518,
+          "CiHigh": 79.4462694384118,
+          "CeqPercent": 99.88119621241981,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 116,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261024,
+          "Quality": "Conditional",
+          "KlaPerHour": 74.20482488894173,
+          "CiLow": 71.76559016812423,
+          "CiHigh": 76.64405960975922,
+          "CeqPercent": 99.89106969442186,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 109,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 107
+          }
+        },
+        {
+          "Seed": 20261025,
+          "Quality": "Valid",
+          "KlaPerHour": 72.7124225055991,
+          "CiLow": 70.59785128780813,
+          "CiHigh": 74.82699372339006,
+          "CeqPercent": 99.86203093650177,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261026,
+          "Quality": "Valid",
+          "KlaPerHour": 74.85892409061874,
+          "CiLow": 72.19028933434552,
+          "CiHigh": 77.52755884689196,
+          "CeqPercent": 99.92893626211387,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        }
+      ]
+    },
+    {
+      "Protocol": "abiotic",
+      "Noise": "correlated-0.2",
+      "Trials": 20,
+      "EstimatedKla": 12,
+      "RefusedKla": 8,
+      "KlaQualityCounts": {
+        "Inconclusive": 8,
+        "Conditional": 12
+      },
+      "KlaBiasPerHour": 1.8818922282907937,
+      "KlaDispersionPerHour": 1.5486789496884075,
+      "ConditionalCiCoverageAmongEstimated": 0.08333333333333333,
+      "CiAvailable": 12,
+      "EstimatedOur": 0,
+      "RefusedOur": null,
+      "OurQualityCounts": {
+        "NotApplicable": 20
+      },
+      "OurBiasPercentPointsPerHour": null,
+      "OurDispersionPercentPointsPerHour": null,
+      "OurConditionalCiCoverageAmongEstimated": null,
+      "OurCiAvailable": 0,
+      "RefusalReasons": {
+        "independent_our_and_physical_balance_disagree": 8,
+        "ols_interval_is_conditional_on_equilibrium_and_correlated_errors": 8
+      },
+      "Runs": [
+        {
+          "Seed": 20261007,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 69.4946161502132,
+          "CiHigh": 71.366863280323,
+          "CeqPercent": 100.02345928528796,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 135,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 133
+          }
+        },
+        {
+          "Seed": 20261008,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.77959162075534,
+          "CiHigh": 70.14283663033827,
+          "CeqPercent": 100.09464953474652,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 134,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 132
+          }
+        },
+        {
+          "Seed": 20261009,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.38943511555023,
+          "CiLow": 72.81710953597165,
+          "CiHigh": 73.9617606951288,
+          "CeqPercent": 99.9093962299108,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 113,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 111
+          }
+        },
+        {
+          "Seed": 20261010,
+          "Quality": "Conditional",
+          "KlaPerHour": 74.10843444742652,
+          "CiLow": 73.29034366856094,
+          "CiHigh": 74.9265252262921,
+          "CeqPercent": 99.88198383554288,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 123,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 121
+          }
+        },
+        {
+          "Seed": 20261011,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 72.82873821341238,
+          "CiHigh": 74.16572746068397,
+          "CeqPercent": 100.05985723381687,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 123,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 121
+          }
+        },
+        {
+          "Seed": 20261012,
+          "Quality": "Conditional",
+          "KlaPerHour": 75.82293614207097,
+          "CiLow": 74.98932569488372,
+          "CiHigh": 76.65654658925823,
+          "CeqPercent": 99.80596109969292,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261013,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.17953938260929,
+          "CiLow": 72.4998807577306,
+          "CiHigh": 73.85919800748799,
+          "CeqPercent": 99.92039898813036,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 120,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 118
+          }
+        },
+        {
+          "Seed": 20261014,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.55101681718243,
+          "CiLow": 71.11669468899123,
+          "CiHigh": 71.98533894537363,
+          "CeqPercent": 99.98713464756513,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 121,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 119
+          }
+        },
+        {
+          "Seed": 20261015,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 70.31609013719873,
+          "CiHigh": 71.21084997755702,
+          "CeqPercent": 100.07899081385332,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 104,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 102
+          }
+        },
+        {
+          "Seed": 20261016,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 72.8730769881052,
+          "CiHigh": 74.43804860782413,
+          "CeqPercent": 100.01300392737566,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 124,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 122
+          }
+        },
+        {
+          "Seed": 20261017,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.26943321918273,
+          "CiLow": 71.15080820917716,
+          "CiHigh": 73.3880582291883,
+          "CeqPercent": 99.98372192180322,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 144,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 142
+          }
+        },
+        {
+          "Seed": 20261018,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.36263786072021,
+          "CiLow": 72.43742982688595,
+          "CiHigh": 74.28784589455448,
+          "CeqPercent": 99.99204988470296,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261019,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.31077109674007,
+          "CiLow": 72.57298278053531,
+          "CiHigh": 74.04855941294483,
+          "CeqPercent": 99.97588881783945,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 105,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 103
+          }
+        },
+        {
+          "Seed": 20261020,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 69.64413462684514,
+          "CiHigh": 71.440092520477,
+          "CeqPercent": 100.20053939872372,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 128,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 126
+          }
+        },
+        {
+          "Seed": 20261021,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 72.76078165415203,
+          "CiHigh": 74.09172073495833,
+          "CeqPercent": 100.00172518427155,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 116,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261022,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 73.4764815106637,
+          "CiHigh": 75.40836882076569,
+          "CeqPercent": 100.04713884246925,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 121,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 119
+          }
+        },
+        {
+          "Seed": 20261023,
+          "Quality": "Conditional",
+          "KlaPerHour": 77.3405961554215,
+          "CiLow": 76.51041708198127,
+          "CiHigh": 78.17077522886171,
+          "CeqPercent": 99.83496746116433,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 113,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 111
+          }
+        },
+        {
+          "Seed": 20261024,
+          "Quality": "Conditional",
+          "KlaPerHour": 74.49892198553924,
+          "CiLow": 73.22303897389745,
+          "CiHigh": 75.77480499718104,
+          "CeqPercent": 99.8900820793369,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 124,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 122
+          }
+        },
+        {
+          "Seed": 20261025,
+          "Quality": "Conditional",
+          "KlaPerHour": 74.52848316900871,
+          "CiLow": 73.09141620425274,
+          "CiHigh": 75.96555013376468,
+          "CeqPercent": 99.86483971482258,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 133,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 131
+          }
+        },
+        {
+          "Seed": 20261026,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.22050134803763,
+          "CiLow": 72.54059256694704,
+          "CiHigh": 73.90041012912822,
+          "CeqPercent": 99.99798091255737,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 118,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 116
+          }
+        }
+      ]
+    },
+    {
+      "Protocol": "abiotic",
+      "Noise": "outliers-0.2",
+      "Trials": 20,
+      "EstimatedKla": 0,
+      "RefusedKla": 20,
+      "KlaQualityCounts": {
+        "Inconclusive": 20
+      },
+      "KlaBiasPerHour": null,
+      "KlaDispersionPerHour": null,
+      "ConditionalCiCoverageAmongEstimated": null,
+      "CiAvailable": 0,
+      "EstimatedOur": 0,
+      "RefusedOur": null,
+      "OurQualityCounts": {
+        "NotApplicable": 20
+      },
+      "OurBiasPercentPointsPerHour": null,
+      "OurDispersionPercentPointsPerHour": null,
+      "OurConditionalCiCoverageAmongEstimated": null,
+      "OurCiAvailable": 0,
+      "RefusalReasons": {
+        "independent_our_and_physical_balance_disagree": 20
+      },
+      "Runs": [
+        {
+          "Seed": 20261007,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.21439795959446,
+          "CiHigh": 71.44046614789457,
+          "CeqPercent": 100.1451508208162,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261008,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 67.84562607710453,
+          "CiHigh": 71.17392559717487,
+          "CeqPercent": 100.1402297016559,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 141,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 139
+          }
+        },
+        {
+          "Seed": 20261009,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 66.54365810234414,
+          "CiHigh": 69.83909050010662,
+          "CeqPercent": 100.1078383482774,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 146,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 144
+          }
+        },
+        {
+          "Seed": 20261010,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.47048562353726,
+          "CiHigh": 71.59288088170683,
+          "CeqPercent": 100.0840717837324,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 123,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 121
+          }
+        },
+        {
+          "Seed": 20261011,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.39529159949109,
+          "CiHigh": 71.53708772887006,
+          "CeqPercent": 100.13400154230814,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 124,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 122
+          }
+        },
+        {
+          "Seed": 20261012,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.5748996865474,
+          "CiHigh": 71.85688059623688,
+          "CeqPercent": 100.06785530112265,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261013,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.55074652867523,
+          "CiHigh": 71.96669084362253,
+          "CeqPercent": 100.08843204269338,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 119,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261014,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 67.62113194604832,
+          "CiHigh": 70.89869054884748,
+          "CeqPercent": 100.12429949654445,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 121,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 119
+          }
+        },
+        {
+          "Seed": 20261015,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 67.54464761737871,
+          "CiHigh": 70.70371739443117,
+          "CeqPercent": 100.17636306762438,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 127,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 125
+          }
+        },
+        {
+          "Seed": 20261016,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 67.80279568247254,
+          "CiHigh": 70.69587955802838,
+          "CeqPercent": 100.12519309306741,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 141,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 139
+          }
+        },
+        {
+          "Seed": 20261017,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 67.32048365897276,
+          "CiHigh": 70.73294612304704,
+          "CeqPercent": 100.11455987215994,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 143,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 141
+          }
+        },
+        {
+          "Seed": 20261018,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.38390163835433,
+          "CiHigh": 71.95078201917502,
+          "CeqPercent": 100.12475548668411,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 133,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 131
+          }
+        },
+        {
+          "Seed": 20261019,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 66.84070024989015,
+          "CiHigh": 70.1868296363649,
+          "CeqPercent": 100.12435835010977,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 145
+          }
+        },
+        {
+          "Seed": 20261020,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 66.9350485462267,
+          "CiHigh": 70.44858100744612,
+          "CeqPercent": 100.18901841026853,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 137,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 135
+          }
+        },
+        {
+          "Seed": 20261021,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 67.44969712504599,
+          "CiHigh": 70.45371864436973,
+          "CeqPercent": 100.11698421555512,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 134,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 132
+          }
+        },
+        {
+          "Seed": 20261022,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.02878469905885,
+          "CiHigh": 71.45122939777853,
+          "CeqPercent": 100.1333927876431,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 143,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 141
+          }
+        },
+        {
+          "Seed": 20261023,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.91634463187717,
+          "CiHigh": 72.28809992974007,
+          "CeqPercent": 100.07785057664472,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 133,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 131
+          }
+        },
+        {
+          "Seed": 20261024,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.4472035673592,
+          "CiHigh": 71.92426202681574,
+          "CeqPercent": 100.0830178381744,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 121,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 119
+          }
+        },
+        {
+          "Seed": 20261025,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 68.33098315003087,
+          "CiHigh": 71.71113841786229,
+          "CeqPercent": 100.07116782450876,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 133,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 131
+          }
+        },
+        {
+          "Seed": 20261026,
+          "Quality": "Inconclusive",
+          "KlaPerHour": null,
+          "CiLow": 67.58642110264087,
+          "CiHigh": 70.67186382529697,
+          "CeqPercent": 100.09777969511558,
+          "OurQuality": "NotApplicable",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "independent_our_and_physical_balance_disagree"
+          ],
+          "OurReasons": [
+            "our_not_applicable_to_nitrogen_stripping"
+          ],
+          "Window": {
+            "Start": 3,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 145
+          }
+        }
+      ]
+    },
+    {
+      "Protocol": "biotic",
+      "Noise": "white-0.1",
+      "Trials": 20,
+      "EstimatedKla": 20,
+      "RefusedKla": 0,
+      "KlaQualityCounts": {
+        "Valid": 15,
+        "Conditional": 5
+      },
+      "KlaBiasPerHour": 0.17352089455562378,
+      "KlaDispersionPerHour": 0.3870693578874434,
+      "ConditionalCiCoverageAmongEstimated": 0.8,
+      "CiAvailable": 20,
+      "EstimatedOur": 20,
+      "RefusedOur": 0,
+      "OurQualityCounts": {
+        "Valid": 20
+      },
+      "OurBiasPercentPointsPerHour": -0.2844139501788959,
+      "OurDispersionPercentPointsPerHour": 1.4789541733297227,
+      "OurConditionalCiCoverageAmongEstimated": 0.95,
+      "OurCiAvailable": 20,
+      "RefusalReasons": {},
+      "Runs": [
+        {
+          "Seed": 20261007,
+          "Quality": "Valid",
+          "KlaPerHour": 71.88433363703489,
+          "CiLow": 71.33692509204197,
+          "CiHigh": 72.4317421820278,
+          "CeqPercent": 74.99641499579484,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1801.418108692998,
+          "OurCiLow": 1798.3327871279243,
+          "OurCiHigh": 1804.5034302580716,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 173,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 111
+          }
+        },
+        {
+          "Seed": 20261008,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.40848629671846,
+          "CiLow": 71.8913985756161,
+          "CiHigh": 72.92557401782084,
+          "CeqPercent": 74.99035603643013,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1799.1479177418385,
+          "OurCiLow": 1795.5697550322216,
+          "OurCiHigh": 1802.7260804514553,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 175,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 113
+          }
+        },
+        {
+          "Seed": 20261009,
+          "Quality": "Valid",
+          "KlaPerHour": 72.06738755843337,
+          "CiLow": 71.41643335293179,
+          "CiHigh": 72.71834176393494,
+          "CeqPercent": 75.01602788719583,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1801.5696920191488,
+          "OurCiLow": 1798.3867199891574,
+          "OurCiHigh": 1804.75266404914,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 179,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261010,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.39713820794542,
+          "CiLow": 71.93692468505981,
+          "CiHigh": 72.85735173083103,
+          "CeqPercent": 75.01601012615525,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.8760744671397,
+          "OurCiLow": 1798.3249051169541,
+          "OurCiHigh": 1803.4272438173252,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 174,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 112
+          }
+        },
+        {
+          "Seed": 20261011,
+          "Quality": "Valid",
+          "KlaPerHour": 71.55252653948747,
+          "CiLow": 70.97246871749351,
+          "CiHigh": 72.13258436148143,
+          "CeqPercent": 75.02900667832311,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1797.919428524883,
+          "OurCiLow": 1795.5564857644217,
+          "OurCiHigh": 1800.2823712853442,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 180,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 118
+          }
+        },
+        {
+          "Seed": 20261012,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.62692550535823,
+          "CiLow": 72.0470588840194,
+          "CiHigh": 73.20679212669705,
+          "CeqPercent": 74.98630785934733,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.7092600878987,
+          "OurCiLow": 1797.9681930433358,
+          "OurCiHigh": 1803.4503271324616,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 173,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 111
+          }
+        },
+        {
+          "Seed": 20261013,
+          "Quality": "Valid",
+          "KlaPerHour": 72.33322174543711,
+          "CiLow": 71.5947845199755,
+          "CiHigh": 73.07165897089872,
+          "CeqPercent": 74.97343419294845,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.5735928235197,
+          "OurCiLow": 1797.3636444635483,
+          "OurCiHigh": 1803.783541183491,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 175,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 113
+          }
+        },
+        {
+          "Seed": 20261014,
+          "Quality": "Valid",
+          "KlaPerHour": 71.82603838244297,
+          "CiLow": 71.28796872582467,
+          "CiHigh": 72.36410803906128,
+          "CeqPercent": 75.01747350762892,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1799.2783018256155,
+          "OurCiLow": 1796.2095535115486,
+          "OurCiHigh": 1802.3470501396823,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 174,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 112
+          }
+        },
+        {
+          "Seed": 20261015,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.9405379289236,
+          "CiLow": 71.42471265282926,
+          "CiHigh": 72.45636320501795,
+          "CeqPercent": 75.0167849944002,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.7449767392243,
+          "OurCiLow": 1797.6288955280506,
+          "OurCiHigh": 1803.861057950398,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 172,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 110
+          }
+        },
+        {
+          "Seed": 20261016,
+          "Quality": "Valid",
+          "KlaPerHour": 71.95878949184065,
+          "CiLow": 71.34404774737756,
+          "CiHigh": 72.57353123630374,
+          "CeqPercent": 75.01605427863262,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1799.8072377614576,
+          "OurCiLow": 1796.933122015579,
+          "OurCiHigh": 1802.681353507336,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 178,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 116
+          }
+        },
+        {
+          "Seed": 20261017,
+          "Quality": "Valid",
+          "KlaPerHour": 72.11618494469279,
+          "CiLow": 71.39664653153838,
+          "CiHigh": 72.8357233578472,
+          "CeqPercent": 75.01945720427608,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.0275291889752,
+          "OurCiLow": 1797.2390832039937,
+          "OurCiHigh": 1802.8159751739568,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 183,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 121
+          }
+        },
+        {
+          "Seed": 20261018,
+          "Quality": "Valid",
+          "KlaPerHour": 72.54820078765955,
+          "CiLow": 71.64275431151313,
+          "CiHigh": 73.45364726380598,
+          "CeqPercent": 75.00342751900136,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1802.6826971331784,
+          "OurCiLow": 1799.8393415245955,
+          "OurCiHigh": 1805.5260527417613,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 185,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 123
+          }
+        },
+        {
+          "Seed": 20261019,
+          "Quality": "Valid",
+          "KlaPerHour": 72.72521904732305,
+          "CiLow": 72.12989638766041,
+          "CiHigh": 73.3205417069857,
+          "CeqPercent": 75.00885234930773,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.3216641855226,
+          "OurCiLow": 1797.8908933542073,
+          "OurCiHigh": 1802.752435016838,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 180,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 118
+          }
+        },
+        {
+          "Seed": 20261020,
+          "Quality": "Valid",
+          "KlaPerHour": 72.61745427883447,
+          "CiLow": 72.05951549430296,
+          "CiHigh": 73.17539306336599,
+          "CeqPercent": 75.01744794296388,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.079554012041,
+          "OurCiLow": 1794.9888995059193,
+          "OurCiHigh": 1801.1702085181626,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 186,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 124
+          }
+        },
+        {
+          "Seed": 20261021,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.49975032382694,
+          "CiLow": 71.62853746318576,
+          "CiHigh": 73.37096318446812,
+          "CeqPercent": 74.9728753219844,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.8005833630293,
+          "OurCiLow": 1795.571736413142,
+          "OurCiHigh": 1802.0294303129167,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 191,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 129
+          }
+        },
+        {
+          "Seed": 20261022,
+          "Quality": "Valid",
+          "KlaPerHour": 72.27186311304443,
+          "CiLow": 71.7970048397946,
+          "CiHigh": 72.74672138629427,
+          "CeqPercent": 75.00638240573386,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1799.7879202184577,
+          "OurCiLow": 1796.5860607004745,
+          "OurCiHigh": 1802.9897797364408,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 168,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 106
+          }
+        },
+        {
+          "Seed": 20261023,
+          "Quality": "Valid",
+          "KlaPerHour": 72.30697473004723,
+          "CiLow": 71.78000740878014,
+          "CiHigh": 72.83394205131432,
+          "CeqPercent": 74.96858240650424,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1797.5668069611902,
+          "OurCiLow": 1794.7296343658427,
+          "OurCiHigh": 1800.4039795565377,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 174,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 112
+          }
+        },
+        {
+          "Seed": 20261024,
+          "Quality": "Valid",
+          "KlaPerHour": 71.45118028052838,
+          "CiLow": 70.92200214791889,
+          "CiHigh": 71.98035841313786,
+          "CeqPercent": 75.02515167064647,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1799.7241015129734,
+          "OurCiLow": 1796.4808471621209,
+          "OurCiHigh": 1802.967355863826,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 173,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 111
+          }
+        },
+        {
+          "Seed": 20261025,
+          "Quality": "Valid",
+          "KlaPerHour": 71.50850583176151,
+          "CiLow": 70.76838478005074,
+          "CiHigh": 72.24862688347228,
+          "CeqPercent": 75.01441589088017,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1796.829385499643,
+          "OurCiLow": 1794.2746731085388,
+          "OurCiHigh": 1799.3840978907472,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 186,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 124
+          }
+        },
+        {
+          "Seed": 20261026,
+          "Quality": "Valid",
+          "KlaPerHour": 72.42969925977194,
+          "CiLow": 71.6059698976523,
+          "CiHigh": 73.25342862189157,
+          "CeqPercent": 75.00881526662009,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.4468882376877,
+          "OurCiLow": 1795.5928519532904,
+          "OurCiHigh": 1801.300924522085,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 182,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 120
+          }
+        }
+      ]
+    },
+    {
+      "Protocol": "biotic",
+      "Noise": "white-0.5",
+      "Trials": 20,
+      "EstimatedKla": 20,
+      "RefusedKla": 0,
+      "KlaQualityCounts": {
+        "Valid": 17,
+        "Conditional": 3
+      },
+      "KlaBiasPerHour": 0.5050093464258275,
+      "KlaDispersionPerHour": 1.679298882404338,
+      "ConditionalCiCoverageAmongEstimated": 0.95,
+      "CiAvailable": 20,
+      "EstimatedOur": 20,
+      "RefusedOur": 0,
+      "OurQualityCounts": {
+        "Valid": 20
+      },
+      "OurBiasPercentPointsPerHour": -1.422069750895173,
+      "OurDispersionPercentPointsPerHour": 7.394770866647783,
+      "OurConditionalCiCoverageAmongEstimated": 0.95,
+      "OurCiAvailable": 20,
+      "RefusalReasons": {},
+      "Runs": [
+        {
+          "Seed": 20261007,
+          "Quality": "Valid",
+          "KlaPerHour": 74.17766827217288,
+          "CiLow": 71.58565143264062,
+          "CiHigh": 76.76968511170514,
+          "CeqPercent": 74.98207485222567,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1807.0905434649892,
+          "OurCiLow": 1791.663935639621,
+          "OurCiHigh": 1822.5171512903573,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 176,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261008,
+          "Quality": "Valid",
+          "KlaPerHour": 75.69005084552977,
+          "CiLow": 73.19009968946746,
+          "CiHigh": 78.19000200159208,
+          "CeqPercent": 74.95208066024323,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1795.7395887091925,
+          "OurCiLow": 1777.848775161108,
+          "OurCiHigh": 1813.630402257277,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 169,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 107
+          }
+        },
+        {
+          "Seed": 20261009,
+          "Quality": "Valid",
+          "KlaPerHour": 71.92875025247774,
+          "CiLow": 69.05917807632909,
+          "CiHigh": 74.79832242862639,
+          "CeqPercent": 75.08026709030749,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1807.8484600957413,
+          "OurCiLow": 1791.9335999457842,
+          "OurCiHigh": 1823.7633202456984,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 169,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 107
+          }
+        },
+        {
+          "Seed": 20261010,
+          "Quality": "Valid",
+          "KlaPerHour": 72.55250710651734,
+          "CiLow": 70.17928379016472,
+          "CiHigh": 74.92573042286996,
+          "CeqPercent": 75.08019021214115,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1804.380372335697,
+          "OurCiLow": 1791.6245255847693,
+          "OurCiHigh": 1817.1362190866248,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 166,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 104
+          }
+        },
+        {
+          "Seed": 20261011,
+          "Quality": "Valid",
+          "KlaPerHour": 72.83784070075285,
+          "CiLow": 70.69120287171145,
+          "CiHigh": 74.98447852979425,
+          "CeqPercent": 75.14526288322128,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1789.5971426244148,
+          "OurCiLow": 1777.7824288221082,
+          "OurCiHigh": 1801.4118564267214,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 160,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 98
+          }
+        },
+        {
+          "Seed": 20261012,
+          "Quality": "Valid",
+          "KlaPerHour": 73.9294973027337,
+          "CiLow": 71.77069963571408,
+          "CiHigh": 76.0882949697533,
+          "CeqPercent": 74.93159444151979,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1803.5463004394933,
+          "OurCiLow": 1789.8409652166793,
+          "OurCiHigh": 1817.2516356623073,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 166,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 104
+          }
+        },
+        {
+          "Seed": 20261013,
+          "Quality": "Valid",
+          "KlaPerHour": 73.26825286685741,
+          "CiLow": 71.34056107398148,
+          "CiHigh": 75.19594465973334,
+          "CeqPercent": 74.86764306195202,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1802.8679641175981,
+          "OurCiLow": 1786.8182223177414,
+          "OurCiHigh": 1818.917705917455,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 154,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 92
+          }
+        },
+        {
+          "Seed": 20261014,
+          "Quality": "Valid",
+          "KlaPerHour": 72.23830816604202,
+          "CiLow": 70.64569858207531,
+          "CiHigh": 73.83091775000872,
+          "CeqPercent": 75.08801605326553,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1796.3915091280799,
+          "OurCiLow": 1781.047767557746,
+          "OurCiHigh": 1811.7352506984137,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 166,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 104
+          }
+        },
+        {
+          "Seed": 20261015,
+          "Quality": "Valid",
+          "KlaPerHour": 73.50528114989514,
+          "CiLow": 70.72033331825692,
+          "CiHigh": 76.29022898153336,
+          "CeqPercent": 75.08392483021305,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1803.7248836961207,
+          "OurCiLow": 1788.1444776402523,
+          "OurCiHigh": 1819.3052897519892,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 172,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 110
+          }
+        },
+        {
+          "Seed": 20261016,
+          "Quality": "Valid",
+          "KlaPerHour": 70.10483580419208,
+          "CiLow": 68.1328137810868,
+          "CiHigh": 72.07685782729736,
+          "CeqPercent": 75.08033241755383,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1799.036188807283,
+          "OurCiLow": 1784.6656100778898,
+          "OurCiHigh": 1813.4067675366762,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 169,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 107
+          }
+        },
+        {
+          "Seed": 20261017,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.09239278861028,
+          "CiLow": 68.6455013842414,
+          "CiHigh": 73.53928419297917,
+          "CeqPercent": 75.09760269769406,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.1376459448734,
+          "OurCiLow": 1786.1954160199657,
+          "OurCiHigh": 1814.079875869781,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 163,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 101
+          }
+        },
+        {
+          "Seed": 20261018,
+          "Quality": "Conditional",
+          "KlaPerHour": 70.05923844009449,
+          "CiLow": 67.94533829342343,
+          "CiHigh": 72.17313858676555,
+          "CeqPercent": 75.01713131496746,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1813.4134856658907,
+          "OurCiLow": 1799.1967076229757,
+          "OurCiHigh": 1827.6302637088056,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 166,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 104
+          }
+        },
+        {
+          "Seed": 20261019,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.47745144596725,
+          "CiLow": 70.88658668752174,
+          "CiHigh": 76.06831620441275,
+          "CeqPercent": 75.04436864624002,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1801.6083209276105,
+          "OurCiLow": 1789.4544667710338,
+          "OurCiHigh": 1813.7621750841872,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 172,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 110
+          }
+        },
+        {
+          "Seed": 20261020,
+          "Quality": "Valid",
+          "KlaPerHour": 73.78208125878442,
+          "CiLow": 71.36816993045566,
+          "CiHigh": 76.19599258711317,
+          "CeqPercent": 75.08723850866879,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1790.3977700602054,
+          "OurCiLow": 1774.9444975295976,
+          "OurCiHigh": 1805.8510425908132,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 172,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 110
+          }
+        },
+        {
+          "Seed": 20261021,
+          "Quality": "Valid",
+          "KlaPerHour": 74.14048146192627,
+          "CiLow": 71.82765191987369,
+          "CiHigh": 76.45331100397885,
+          "CeqPercent": 74.86544937277668,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1794.0029168151493,
+          "OurCiLow": 1777.8586820657126,
+          "OurCiHigh": 1810.147151564586,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 163,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 101
+          }
+        },
+        {
+          "Seed": 20261022,
+          "Quality": "Valid",
+          "KlaPerHour": 71.84543239319557,
+          "CiLow": 68.98362899643321,
+          "CiHigh": 74.70723578995792,
+          "CeqPercent": 75.03195331373412,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.9396010922867,
+          "OurCiLow": 1782.930303502371,
+          "OurCiHigh": 1814.9488986822023,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 176,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261023,
+          "Quality": "Valid",
+          "KlaPerHour": 74.28088499965797,
+          "CiLow": 71.50023165810097,
+          "CiHigh": 77.06153834121497,
+          "CeqPercent": 74.84314986496562,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1787.834034805952,
+          "OurCiLow": 1773.6481718292148,
+          "OurCiHigh": 1802.019897782689,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 169,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 107
+          }
+        },
+        {
+          "Seed": 20261024,
+          "Quality": "Valid",
+          "KlaPerHour": 70.09294965962403,
+          "CiLow": 67.14462410152781,
+          "CiHigh": 73.04127521772024,
+          "CeqPercent": 75.12685552807528,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.6205075648652,
+          "OurCiLow": 1782.404235810602,
+          "OurCiHigh": 1814.8367793191285,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 160,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 98
+          }
+        },
+        {
+          "Seed": 20261025,
+          "Quality": "Valid",
+          "KlaPerHour": 70.0710817912307,
+          "CiLow": 67.73290927300488,
+          "CiHigh": 72.40925430945651,
+          "CeqPercent": 75.07321507840787,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1784.1469274982155,
+          "OurCiLow": 1771.373365542695,
+          "OurCiHigh": 1796.920489453736,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 169,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 107
+          }
+        },
+        {
+          "Seed": 20261026,
+          "Quality": "Valid",
+          "KlaPerHour": 71.02520022225467,
+          "CiLow": 69.35931336221846,
+          "CiHigh": 72.69108708229088,
+          "CeqPercent": 75.04410838316147,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1792.234441188438,
+          "OurCiLow": 1777.9642597664517,
+          "OurCiHigh": 1806.5046226104243,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 159,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 97
+          }
+        }
+      ]
+    },
+    {
+      "Protocol": "biotic",
+      "Noise": "correlated-0.2",
+      "Trials": 20,
+      "EstimatedKla": 20,
+      "RefusedKla": 0,
+      "KlaQualityCounts": {
+        "Conditional": 20
+      },
+      "KlaBiasPerHour": 0.3377016370805386,
+      "KlaDispersionPerHour": 2.1105951747438096,
+      "ConditionalCiCoverageAmongEstimated": 0.45,
+      "CiAvailable": 20,
+      "EstimatedOur": 16,
+      "RefusedOur": 4,
+      "OurQualityCounts": {
+        "Valid": 16,
+        "Inconclusive": 4
+      },
+      "OurBiasPercentPointsPerHour": -1.1670526699785597,
+      "OurDispersionPercentPointsPerHour": 7.915084799038416,
+      "OurConditionalCiCoverageAmongEstimated": 0.5,
+      "OurCiAvailable": 16,
+      "RefusalReasons": {},
+      "Runs": [
+        {
+          "Seed": 20261007,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.49144864154502,
+          "CiLow": 71.39322559754693,
+          "CiHigh": 73.58967168554311,
+          "CeqPercent": 74.98685007815976,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.8029188787089,
+          "OurCiLow": 1796.2937289628803,
+          "OurCiHigh": 1805.3121087945374,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 185,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 123
+          }
+        },
+        {
+          "Seed": 20261008,
+          "Quality": "Conditional",
+          "KlaPerHour": 75.79076950082718,
+          "CiLow": 74.91345210444804,
+          "CiHigh": 76.66808689720632,
+          "CeqPercent": 74.91377516027741,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1796.4998324756111,
+          "OurCiLow": 1789.8272969615314,
+          "OurCiHigh": 1803.1723679896909,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 177,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 115
+          }
+        },
+        {
+          "Seed": 20261009,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.10695511533366,
+          "CiLow": 69.99147432852693,
+          "CiHigh": 72.22243590214039,
+          "CeqPercent": 75.11967823001433,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1810.9547990667213,
+          "OurCiLow": 1806.1509648179979,
+          "OurCiHigh": 1815.7586333154447,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 179,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261010,
+          "Quality": "Conditional",
+          "KlaPerHour": 70.12560128580846,
+          "CiLow": 69.4078833196179,
+          "CiHigh": 70.84331925199902,
+          "CeqPercent": 75.14271745379558,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1805.9699488715264,
+          "OurCiLow": 1802.7511308778116,
+          "OurCiHigh": 1809.1887668652412,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 168,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 106
+          }
+        },
+        {
+          "Seed": 20261011,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.01283884477436,
+          "CiLow": 70.21268508449593,
+          "CiHigh": 71.8129926050528,
+          "CeqPercent": 75.16617799685399,
+          "OurQuality": "Inconclusive",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "constant_representative_our_not_independently_verified",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "correlated_respiratory_residuals"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 170,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 108
+          }
+        },
+        {
+          "Seed": 20261012,
+          "Quality": "Conditional",
+          "KlaPerHour": 74.62511441063332,
+          "CiLow": 73.12197764629673,
+          "CiHigh": 76.1282511749699,
+          "CeqPercent": 74.93432159513537,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1801.2850919172367,
+          "OurCiLow": 1796.9235488077136,
+          "OurCiHigh": 1805.64663502676,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 181,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 119
+          }
+        },
+        {
+          "Seed": 20261013,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.33646265281008,
+          "CiLow": 72.29108869399772,
+          "CiHigh": 74.38183661162245,
+          "CeqPercent": 74.85722451699301,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1803.057628740593,
+          "OurCiLow": 1798.253440953818,
+          "OurCiHigh": 1807.8618165273679,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 177,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 115
+          }
+        },
+        {
+          "Seed": 20261014,
+          "Quality": "Conditional",
+          "KlaPerHour": 69.73538597919806,
+          "CiLow": 68.16791625648544,
+          "CiHigh": 71.30285570191067,
+          "CeqPercent": 75.05007229976053,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.3086938859155,
+          "OurCiLow": 1795.4729357022936,
+          "OurCiHigh": 1805.1444520695375,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 194,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 132
+          }
+        },
+        {
+          "Seed": 20261015,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.72669117331564,
+          "CiLow": 71.91883605539763,
+          "CiHigh": 73.53454629123365,
+          "CeqPercent": 75.11503326649516,
+          "OurQuality": "Inconclusive",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "constant_representative_our_not_independently_verified",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "correlated_respiratory_residuals"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 163,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 101
+          }
+        },
+        {
+          "Seed": 20261016,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.37888325150855,
+          "CiLow": 71.78422888590333,
+          "CiHigh": 74.97353761711378,
+          "CeqPercent": 75.06615717742355,
+          "OurQuality": "Inconclusive",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "constant_representative_our_not_independently_verified",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "correlated_respiratory_residuals"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 183,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 121
+          }
+        },
+        {
+          "Seed": 20261017,
+          "Quality": "Conditional",
+          "KlaPerHour": 73.19238164454268,
+          "CiLow": 71.61194875959501,
+          "CiHigh": 74.77281452949035,
+          "CeqPercent": 75.09371229747796,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1795.7830592793816,
+          "OurCiLow": 1791.800897728911,
+          "OurCiHigh": 1799.7652208298523,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 190,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 128
+          }
+        },
+        {
+          "Seed": 20261018,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.31899301323837,
+          "CiLow": 70.16570531452261,
+          "CiHigh": 72.47228071195413,
+          "CeqPercent": 75.05052503153256,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1813.188367179486,
+          "OurCiLow": 1808.5592109637637,
+          "OurCiHigh": 1817.8175233952084,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 179,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 117
+          }
+        },
+        {
+          "Seed": 20261019,
+          "Quality": "Conditional",
+          "KlaPerHour": 74.75142774517896,
+          "CiLow": 73.12090740585597,
+          "CiHigh": 76.38194808450194,
+          "CeqPercent": 75.03408571487012,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1801.0016830102936,
+          "OurCiLow": 1796.7263352307496,
+          "OurCiHigh": 1805.2770307898377,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 188,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 126
+          }
+        },
+        {
+          "Seed": 20261020,
+          "Quality": "Conditional",
+          "KlaPerHour": 74.97950877239789,
+          "CiLow": 73.520126140517,
+          "CiHigh": 76.43889140427879,
+          "CeqPercent": 75.10772778856067,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1791.3713698277377,
+          "OurCiLow": 1786.7118948729214,
+          "OurCiHigh": 1796.030844782554,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 187,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 125
+          }
+        },
+        {
+          "Seed": 20261021,
+          "Quality": "Conditional",
+          "KlaPerHour": 75.39697932190637,
+          "CiLow": 74.02116619762766,
+          "CiHigh": 76.77279244618508,
+          "CeqPercent": 74.90727301194963,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1793.7624710605087,
+          "OurCiLow": 1789.1439598669049,
+          "OurCiHigh": 1798.3809822541125,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 175,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 113
+          }
+        },
+        {
+          "Seed": 20261022,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.23947671096154,
+          "CiLow": 70.08645266234909,
+          "CiHigh": 72.39250075957399,
+          "CeqPercent": 75.0404003257305,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.8538489028526,
+          "OurCiLow": 1794.0382027126982,
+          "OurCiHigh": 1803.669495093007,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 176,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 114
+          }
+        },
+        {
+          "Seed": 20261023,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.13353352404734,
+          "CiLow": 71.3561685018019,
+          "CiHigh": 72.91089854629277,
+          "CeqPercent": 74.80233540810514,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1781.6642921191747,
+          "OurCiLow": 1778.1268950726612,
+          "OurCiHigh": 1785.201689165688,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 161,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 99
+          }
+        },
+        {
+          "Seed": 20261024,
+          "Quality": "Conditional",
+          "KlaPerHour": 68.20194850756776,
+          "CiLow": 67.47749498535136,
+          "CiHigh": 68.92640202978417,
+          "CeqPercent": 75.16963372292443,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.484818196788,
+          "OurCiLow": 1793.6819758550162,
+          "OurCiHigh": 1803.2876605385597,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 174,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 112
+          }
+        },
+        {
+          "Seed": 20261025,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.60458197384514,
+          "CiLow": 70.72040279648965,
+          "CiHigh": 72.48876115120063,
+          "CeqPercent": 75.02813612777962,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1788.3383338678073,
+          "OurCiLow": 1784.4418958901895,
+          "OurCiHigh": 1792.234771845425,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 162,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 100
+          }
+        },
+        {
+          "Seed": 20261026,
+          "Quality": "Conditional",
+          "KlaPerHour": 69.60505067217038,
+          "CiLow": 68.73030969850701,
+          "CiHigh": 70.47979164583374,
+          "CeqPercent": 75.07730103798417,
+          "OurQuality": "Inconclusive",
+          "OurPercentPointsPerHour": null,
+          "OurCiLow": null,
+          "OurCiHigh": null,
+          "Reasons": [
+            "constant_representative_our_not_independently_verified",
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "correlated_respiratory_residuals"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 172,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 110
+          }
+        }
+      ]
+    },
+    {
+      "Protocol": "biotic",
+      "Noise": "outliers-0.2",
+      "Trials": 20,
+      "EstimatedKla": 20,
+      "RefusedKla": 0,
+      "KlaQualityCounts": {
+        "Conditional": 3,
+        "Valid": 17
+      },
+      "KlaBiasPerHour": -0.05516276417417103,
+      "KlaDispersionPerHour": 0.5110184269616228,
+      "ConditionalCiCoverageAmongEstimated": 0.95,
+      "CiAvailable": 20,
+      "EstimatedOur": 20,
+      "RefusedOur": 0,
+      "OurQualityCounts": {
+        "Valid": 20
+      },
+      "OurBiasPercentPointsPerHour": 1.5312498803005723,
+      "OurDispersionPercentPointsPerHour": 2.9579083466590075,
+      "OurConditionalCiCoverageAmongEstimated": 1,
+      "OurCiAvailable": 20,
+      "RefusalReasons": {},
+      "Runs": [
+        {
+          "Seed": 20261007,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.28631729931251,
+          "CiLow": 71.34814951236837,
+          "CiHigh": 73.22448508625666,
+          "CeqPercent": 74.95944842784108,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1804.9362951666542,
+          "OurCiLow": 1791.7515001059462,
+          "OurCiHigh": 1818.1210902273622,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261008,
+          "Quality": "Valid",
+          "KlaPerHour": 73.07966040724078,
+          "CiLow": 72.19874706382727,
+          "CiHigh": 73.96057375065429,
+          "CeqPercent": 74.9473764815097,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.3959132643356,
+          "OurCiLow": 1787.4638027834405,
+          "OurCiHigh": 1813.3280237452307,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261009,
+          "Quality": "Valid",
+          "KlaPerHour": 71.32310073075942,
+          "CiLow": 70.49545520792388,
+          "CiHigh": 72.15074625359496,
+          "CeqPercent": 74.99867621963615,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1805.2394618189546,
+          "OurCiLow": 1792.5093088871697,
+          "OurCiHigh": 1817.9696147507395,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 146,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 84
+          }
+        },
+        {
+          "Seed": 20261010,
+          "Quality": "Valid",
+          "KlaPerHour": 71.71427869477613,
+          "CiLow": 70.83148121155766,
+          "CiHigh": 72.5970761779946,
+          "CeqPercent": 74.99863496126855,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1803.852226714937,
+          "OurCiLow": 1791.344726548706,
+          "OurCiHigh": 1816.359726881168,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 145,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 83
+          }
+        },
+        {
+          "Seed": 20261011,
+          "Quality": "Valid",
+          "KlaPerHour": 71.5617318885965,
+          "CiLow": 70.74873423094564,
+          "CiHigh": 72.37472954624735,
+          "CeqPercent": 75.02464275261175,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1797.9389348304244,
+          "OurCiLow": 1786.5322619954768,
+          "OurCiHigh": 1809.345607665372,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 146,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 84
+          }
+        },
+        {
+          "Seed": 20261012,
+          "Quality": "Valid",
+          "KlaPerHour": 71.24704959038378,
+          "CiLow": 70.40513071929202,
+          "CiHigh": 72.08896846147555,
+          "CeqPercent": 74.9392470590247,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1803.5185979564553,
+          "OurCiLow": 1791.2085780452537,
+          "OurCiHigh": 1815.828617867657,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261013,
+          "Quality": "Conditional",
+          "KlaPerHour": 72.35585998416053,
+          "CiLow": 71.49370036340815,
+          "CiHigh": 73.21801960491291,
+          "CeqPercent": 74.91355875859237,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1803.247263427699,
+          "OurCiLow": 1790.2048099831109,
+          "OurCiHigh": 1816.289716872287,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261014,
+          "Quality": "Valid",
+          "KlaPerHour": 72.13607991378537,
+          "CiLow": 71.31403562259796,
+          "CiHigh": 72.95812420497278,
+          "CeqPercent": 75.00160228048954,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1800.65668143189,
+          "OurCiLow": 1787.8549656271105,
+          "OurCiHigh": 1813.4583972366697,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261015,
+          "Quality": "Valid",
+          "KlaPerHour": 71.89473762777075,
+          "CiLow": 70.99802077660819,
+          "CiHigh": 72.79145447893332,
+          "CeqPercent": 75.00018275865297,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1803.5900312591064,
+          "OurCiLow": 1790.4974162811016,
+          "OurCiHigh": 1816.6826462371112,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261016,
+          "Quality": "Valid",
+          "KlaPerHour": 71.77121033237458,
+          "CiLow": 70.86900125293154,
+          "CiHigh": 72.67341941181762,
+          "CeqPercent": 74.99872994525681,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1801.7145533035723,
+          "OurCiLow": 1788.6499256819627,
+          "OurCiHigh": 1814.779180925182,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 145,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 83
+          }
+        },
+        {
+          "Seed": 20261017,
+          "Quality": "Valid",
+          "KlaPerHour": 72.03848550421075,
+          "CiLow": 71.13991489325096,
+          "CiHigh": 72.93705611517055,
+          "CeqPercent": 75.00554878921666,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1802.1551361586078,
+          "OurCiLow": 1788.5890229840966,
+          "OurCiHigh": 1815.721249333119,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261018,
+          "Quality": "Conditional",
+          "KlaPerHour": 71.9167331399382,
+          "CiLow": 70.90033103549818,
+          "CiHigh": 72.93313524437822,
+          "CeqPercent": 74.97347632142252,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1807.4654720470153,
+          "OurCiLow": 1794.0258597656107,
+          "OurCiHigh": 1820.90508432842,
+          "Reasons": [
+            "ols_interval_is_conditional_on_equilibrium_and_correlated_errors"
+          ],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 146,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 84
+          }
+        },
+        {
+          "Seed": 20261019,
+          "Quality": "Valid",
+          "KlaPerHour": 71.93131963907551,
+          "CiLow": 71.01826559676304,
+          "CiHigh": 72.84437368138798,
+          "CeqPercent": 74.98432570514278,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1802.7434061517026,
+          "OurCiLow": 1789.8471978165746,
+          "OurCiHigh": 1815.6396144868306,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 146,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 84
+          }
+        },
+        {
+          "Seed": 20261020,
+          "Quality": "Valid",
+          "KlaPerHour": 72.77631059263098,
+          "CiLow": 71.75658853501523,
+          "CiHigh": 73.79603265024673,
+          "CeqPercent": 75.00151311905348,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.2591858047413,
+          "OurCiLow": 1784.0524769932065,
+          "OurCiHigh": 1812.465894616276,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261021,
+          "Quality": "Valid",
+          "KlaPerHour": 72.7700021040832,
+          "CiLow": 71.96928651408359,
+          "CiHigh": 73.57071769408282,
+          "CeqPercent": 74.9125098294475,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1799.7012445067185,
+          "OurCiLow": 1785.7993740001207,
+          "OurCiHigh": 1813.6031150133163,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261022,
+          "Quality": "Valid",
+          "KlaPerHour": 71.82506089597726,
+          "CiLow": 70.98233870050505,
+          "CiHigh": 72.66778309144946,
+          "CeqPercent": 74.97939722368451,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1801.6759182175738,
+          "OurCiLow": 1788.1313484120085,
+          "OurCiHigh": 1815.220488023139,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261023,
+          "Quality": "Valid",
+          "KlaPerHour": 71.90447388135402,
+          "CiLow": 70.8794726518467,
+          "CiHigh": 72.92947511086135,
+          "CeqPercent": 74.9038257412664,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1797.2336917030393,
+          "OurCiLow": 1783.697951929538,
+          "OurCiHigh": 1810.7694314765406,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261024,
+          "Quality": "Valid",
+          "KlaPerHour": 71.19490735220191,
+          "CiLow": 70.38922279636174,
+          "CiHigh": 72.00059190804208,
+          "CeqPercent": 75.01700313418613,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1801.5482808066045,
+          "OurCiLow": 1788.2596002697496,
+          "OurCiHigh": 1814.8369613434593,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261025,
+          "Quality": "Valid",
+          "KlaPerHour": 71.47085635477382,
+          "CiLow": 70.4723424823065,
+          "CiHigh": 72.46937022724113,
+          "CeqPercent": 74.99553752991633,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1795.758848779945,
+          "OurCiLow": 1783.1319774710319,
+          "OurCiHigh": 1808.3857200888583,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 147,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 85
+          }
+        },
+        {
+          "Seed": 20261026,
+          "Quality": "Valid",
+          "KlaPerHour": 71.69856878311057,
+          "CiLow": 70.86678531355491,
+          "CiHigh": 72.53035225266623,
+          "CeqPercent": 74.98424515306338,
+          "OurQuality": "Valid",
+          "OurPercentPointsPerHour": 1798.9938542560346,
+          "OurCiLow": 1786.9719182553322,
+          "OurCiHigh": 1811.015790256737,
+          "Reasons": [],
+          "OurReasons": [
+            "concentration_conversion_unavailable_without_reference"
+          ],
+          "Window": {
+            "Start": 63,
+            "End": 146,
+            "Origin": "deterministic_bounded_search_v1",
+            "Count": 84
+          }
+        }
+      ]
+    }
+  ]
+}

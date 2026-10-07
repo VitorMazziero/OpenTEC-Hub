@@ -35,7 +35,7 @@ public sealed class KlaTestRunnerTests : IDisposable
         _overrideScope = AppPaths.OverrideForTests(_testRoot);
 
         _device = new RecordingDeviceService();
-        _clock = new TestClock(DateTimeOffset.UtcNow);
+        _clock = new TestClock(DateTimeOffset.UtcNow, manualWatchdog: true);
         _arbiter = new CommandArbiter(_device, _clock);
         _store = new KlaTestStore(AppPaths.KlaTestsDirectory);
         _analysisEngine = new KlaAnalysisEngine();
@@ -47,7 +47,7 @@ public sealed class KlaTestRunnerTests : IDisposable
             _store,
             _analysisEngine,
             _settings,
-            _clock);
+            _clock, actuationRelease: new(isIsolatedSimulation: true));
     }
 
     public void Dispose()
@@ -70,6 +70,52 @@ public sealed class KlaTestRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task E7_PhysicalBioticReleaseIsBlockedBeforeAnyActuatorCommand()
+    {
+        var (doc, condition) = await StartTestAsync("Biotic release gate", 80);
+        doc.Protocol = KlaAssayProtocol.Biotic;
+        using var physicalRunner = new KlaTestRunner(_device, _arbiter, _store, _analysisEngine, _settings, _clock);
+        await physicalRunner.StartTestAsync(doc);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => physicalRunner.StartRunAsync(condition, 1));
+        Assert.Contains("validação em bancada", error.Message);
+        Assert.Empty(_device.Sent);
+    }
+
+    [Theory]
+    [InlineData(KlaAssayProtocol.Abiotic)] [InlineData(KlaAssayProtocol.Biotic)]
+    public async Task E7_Reopening_saved_history_preserves_raw_analysis_and_never_starts_actuators(KlaAssayProtocol protocol)
+    {
+        var (doc, condition) = await StartTestAsync("Reopen history", 80);
+        doc.Protocol = protocol;
+        var run = new KlaTestRun { TestId = doc.TestId, ConditionId = condition.ConditionId, ReplicateNumber = 1,
+            AgitationRpm = condition.AgitationRpm, AirflowLpm = condition.AirflowLpm, CurrentPhase = RunPhase.Accepted,
+            Definition = KlaRunDefinition.Create(doc, condition, 1) };
+        run.FolderName = _store.InitializeRunFolder(doc.FolderName, run);
+        var outcome = new KlaRunOutcome { KlaQuality = KlaScientificQuality.Conditional,
+            OperatorDecision = KlaOperatorDecision.Accepted,
+            Restoration = protocol == KlaAssayProtocol.Biotic ? KlaRestorationState.Confirmed : KlaRestorationState.NotRequired };
+        var analysis = new KlaAnalysisRevision { RevisionNumber = 1, KlaPerHour = 40,
+            Quality = DecisionQuality.AcceptableWithWarning, Outcome = outcome };
+        _store.SaveRunRawData(doc.FolderName, run.FolderName,
+            [new(_clock.GetUtcNow(), 0, RunPhase.Reoxygenating, 12345, 40, 3, 3, 450, false, true, false)]);
+        _store.SaveRunAnalysis(doc.FolderName, run.FolderName, analysis);
+        _store.SaveRunResult(doc.FolderName, run.FolderName, run, analysis);
+        doc.Runs.Add(new() { RunId = run.RunId, ConditionId = condition.ConditionId, ReplicateNumber = 1,
+            FolderName = run.FolderName, Phase = RunPhase.Accepted, Outcome = outcome,
+            Decision = DecisionQuality.AcceptableWithWarning, KlaPerHour = 40, Definition = run.Definition });
+        _store.SaveTestManifest(doc); await _store.FlushAsync();
+        var rawPath = _store.GetRunRawDataPath(doc.FolderName, run.FolderName);
+        var before = File.ReadAllBytes(rawPath);
+        var loaded = _store.LoadTest(doc.FolderName)!;
+        _runner.PrepareTest(loaded);
+        Assert.Equal(RunPhase.Idle, _runner.Phase); Assert.Null(_runner.CurrentRun);
+        Assert.Equal(protocol, loaded.EffectiveProtocol); Assert.Single(loaded.Runs);
+        Assert.Equal(40, _store.LoadRunAnalysis(doc.FolderName, run.FolderName)!.KlaPerHour);
+        Assert.Equal(1, _store.LoadRunAnalysis(doc.FolderName, run.FolderName)!.RevisionNumber);
+        Assert.Equal(before, File.ReadAllBytes(rawPath)); Assert.Empty(_device.Sent);
+    }
+
+    [Fact]
     public async Task BioticSession_DoesNotFallThroughToAbioticGasCommands()
     {
         var (doc, condition) = await StartTestAsync("Biotic E1", 10);
@@ -77,6 +123,27 @@ public sealed class KlaTestRunnerTests : IDisposable
         var commandCount = _device.Sent.Count;
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _runner.StartRunAsync(condition, 1));
         Assert.Contains("biótica", error.Message);
+        Assert.Equal(commandCount, _device.Sent.Count);
+        Assert.Null(_runner.CurrentRun);
+    }
+
+    [Theory]
+    [InlineData("attempt")] [InlineData("restoration")] [InlineData("exposure")]
+    public async Task E5_Queue_limits_block_the_real_runner_before_any_command(string reason)
+    {
+        var (doc, condition) = await StartTestAsync("Queue E5", 10);
+        doc.SequenceLimits = reason == "exposure" ? new() { MaximumRemovalSeconds = 1 }
+            : new() { MaximumAttemptsPerReplicate = 1 };
+        if (reason != "exposure") doc.Runs.Add(new()
+        {
+            ConditionId = condition.ConditionId, ReplicateNumber = 1, Phase = RunPhase.Rejected,
+            Decision = DecisionQuality.Inconclusive, RemovalSeconds = 20,
+            Outcome = new() { OperatorDecision = KlaOperatorDecision.Rejected,
+                Restoration = reason == "restoration" ? KlaRestorationState.Failed : KlaRestorationState.Confirmed },
+        });
+        var commandCount = _device.Sent.Count;
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => _runner.StartRunAsync(condition, 1));
+        Assert.Contains(reason switch { "attempt" => "tentativas", "restoration" => "retomada", _ => "acumulado" }, error.Message);
         Assert.Equal(commandCount, _device.Sent.Count);
         Assert.Null(_runner.CurrentRun);
     }

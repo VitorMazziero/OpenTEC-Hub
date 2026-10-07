@@ -126,6 +126,9 @@ Desktop.ini
 # Arquivos de download gerados por tools/Build-ReleaseAssets.ps1
 release-assets/
 
+# Routine test output; curated TRX receipts live under Windows_app/docs.
+**/TestResults/
+
 # Gerados pelo Flutter a cada pub get/build
 **/GeneratedPluginRegistrant.*
 **/ios/Flutter/Generated.xcconfig

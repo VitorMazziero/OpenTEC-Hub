@@ -58,6 +58,7 @@ public sealed class KlaE0ReferenceTests
             Assert.True(manifest.IsLegacyRig);
             var points = store.LoadRunRawData(name, "N0450_Q03p00_Rep01");
             Assert.NotEmpty(points);
+            Assert.Contains(points, p => p.Phase == RunPhase.LegacyOpeningVent);
             Assert.All(points, p => { Assert.Null(p.TemperatureC); Assert.Null(p.RpmMeasured); });
         });
     }

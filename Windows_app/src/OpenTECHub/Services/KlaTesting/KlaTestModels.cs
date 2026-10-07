@@ -42,6 +42,8 @@ public enum RunPhase
     DivertingAir,
     MeasuringConsumption,
     RestoringCultivation,
+    /// <summary>Historical OpeningVent observation, without inferring the current A/B/C routing.</summary>
+    LegacyOpeningVent,
 }
 
 /// <summary>
@@ -208,6 +210,9 @@ public sealed class KlaAnalysisRevision
 
 public sealed class KlaTestRun
 {
+    public int AttemptNumber { get; set; } = 1;
+    public KlaMeasurementContext? Context { get; set; }
+    public double? RemovalSeconds { get; set; }
     public KlaAcquisitionMetadata? Acquisition { get; set; }
     public List<KlaGasEvent> GasEvents { get; set; } = [];
     public KlaRunDefinition? Definition { get; set; }
@@ -245,6 +250,9 @@ public sealed class KlaTestRun
 
 public sealed record KlaTestRunSummary
 {
+    public int AttemptNumber { get; init; } = 1;
+    public KlaMeasurementContext? Context { get; init; }
+    public double? RemovalSeconds { get; init; }
     public KlaRunDefinition? Definition { get; init; }
     public KlaRunOutcome? Outcome { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
@@ -270,6 +278,8 @@ public sealed record KlaTestRunSummary
 
 public sealed class KlaTestDocument
 {
+    public KlaMeasurementContext? Context { get; set; }
+    public KlaSequenceLimits? SequenceLimits { get; set; }
     /// <summary>
     /// 1 = original; 2 = CSV temperature/measured RPM; 3 = protocol, capture mode and outcomes.
     /// </summary>

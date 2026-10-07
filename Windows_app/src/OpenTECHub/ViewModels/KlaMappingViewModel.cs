@@ -74,10 +74,12 @@ public sealed partial class KlaTestImportCandidateViewModel : ObservableObject
     public required KlaTestRunSummary Run { get; init; }
     public required KlaAnalysisRevision Analysis { get; init; }
     public bool AlreadyImported { get; init; }
+    public string Compatibility { get; init; } = "Compatível";
+    public bool CanImport { get; init; } = true;
     [ObservableProperty] public partial bool IsSelected { get; set; }
     public string Condition => $"{Run.AgitationRpm:F0} rpm · {Run.AirflowLpm:F2} L/min";
     public string Result => $"Rep {Run.ReplicateNumber} · kLa {Analysis.KlaPerHour:F2} h⁻¹ · R² {Analysis.AnalysisR2:F4} · rev {Analysis.RevisionNumber}";
-    public string ImportStatus => AlreadyImported ? "Já importada" : Analysis.Quality == DecisionQuality.AcceptableWithWarning ? "Aceita com aviso" : "Aceita";
+    public string ImportStatus => !CanImport ? "Bloqueada" : AlreadyImported ? "Já importada" : Analysis.Quality == DecisionQuality.AcceptableWithWarning ? "Aceita com aviso" : "Aceita";
 }
 
 public sealed record KlaExperimentListItem(Guid Id, string Name, KlaWorkflowStage Stage, bool IsAvailableForControl = false)
@@ -117,6 +119,8 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     private readonly IEventJournal _journal;
     private readonly Dictionary<Guid, KlaExperimentDocument> _documents = [];
     private readonly List<KlaImportedMeasurement> _importedMeasurements = [];
+    private KlaMeasurementContext? _measurementContext;
+    private KlaAssayProtocol? _measurementProtocol;
 
     private CancellationTokenSource? _workCancellation;
     private bool _loading;
@@ -643,12 +647,15 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     {
         KlaTestImportCandidates.Clear();
         if (value is null || _testStore?.LoadTest(value.FolderName) is not { } doc) return;
-        foreach (var run in doc.Runs.Where(r => r.Phase == RunPhase.Accepted))
+        foreach (var run in doc.Runs.Where(KlaSequence.IsAccepted).GroupBy(r => (r.ConditionId, r.ReplicateNumber))
+                     .Select(g => g.OrderByDescending(r => r.CompletedUtc).ThenByDescending(r => r.AttemptNumber).First()))
         {
             var analysis = _testStore.LoadRunAnalysis(doc.FolderName, run.FolderName);
             if (analysis is null || analysis.Quality == DecisionQuality.Inconclusive || analysis.KlaPerHour <= 0) continue;
             var imported = _importedMeasurements.Any(m => m.SourceTestId == doc.TestId && m.SourceRunId == run.RunId && m.SourceAnalysisRevision == analysis.RevisionNumber);
-            KlaTestImportCandidates.Add(new KlaTestImportCandidateViewModel { Run = run, Analysis = analysis, AlreadyImported = imported, IsSelected = !imported });
+            var refusal = KlaMeasurementImportPolicy.Refusal(doc, run, analysis, _measurementProtocol, _measurementContext, Anchors.Count > 0);
+            KlaTestImportCandidates.Add(new KlaTestImportCandidateViewModel { Run = run, Analysis = analysis, AlreadyImported = imported,
+                CanImport = refusal is null, Compatibility = refusal ?? "Compatível", IsSelected = !imported && refusal is null });
         }
     }
 
@@ -668,6 +675,26 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         }
 
         var acceptedRuns = KlaTestImportCandidates.Where(c => c.IsSelected && !c.AlreadyImported).ToList();
+        var batchContext = _measurementContext;
+        var batchProtocol = _measurementProtocol;
+        var batchHasPoints = Anchors.Count > 0;
+        foreach (var candidate in acceptedRuns)
+        {
+            var currentRun = doc.Runs.FirstOrDefault(r => r.FolderName == candidate.Run.FolderName);
+            var currentAnalysis = _testStore.LoadRunAnalysis(doc.FolderName, candidate.Run.FolderName);
+            if (currentRun is null || currentAnalysis is null || currentAnalysis.RevisionNumber != candidate.Analysis.RevisionNumber)
+            { StatusMessage = "A revisão mudou; abra novamente a seleção de corridas."; return; }
+            var latestAttempt = doc.Runs.Where(r => r.ConditionId == currentRun.ConditionId &&
+                r.ReplicateNumber == currentRun.ReplicateNumber && KlaSequence.IsAccepted(r))
+                .OrderByDescending(r => r.CompletedUtc).ThenByDescending(r => r.AttemptNumber).FirstOrDefault();
+            if (latestAttempt?.RunId != currentRun.RunId)
+            { StatusMessage = "A tentativa aceita mudou; abra novamente a seleção de corridas."; return; }
+            var refusal = KlaMeasurementImportPolicy.Refusal(doc, currentRun, currentAnalysis, batchProtocol, batchContext, batchHasPoints);
+            if (refusal is not null) { StatusMessage = refusal; return; }
+            batchContext ??= currentRun.Context ?? currentRun.Definition?.Context ?? doc.Context;
+            batchProtocol ??= currentRun.Definition?.Protocol ?? doc.EffectiveProtocol;
+            batchHasPoints = true;
+        }
 
         if (acceptedRuns.Count == 0)
         {
@@ -676,6 +703,8 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         }
 
         var importedCount = 0;
+        if (acceptedRuns.Count > 0 && batchContext is null &&
+            !_dialogs.Confirm("Contexto histórico ausente", "Estas medições antigas não registram meio, cultivo ou origem de simulação. Importar como grupo histórico sem contexto?", "Importar legado", "Cancelar")) return;
         foreach (var candidate in acceptedRuns)
         {
             var run = candidate.Run;
@@ -685,9 +714,17 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
             {
                 continue;
             }
+            var sameReplicateRuns = doc.Runs.Where(r => r.ConditionId == run.ConditionId && r.ReplicateNumber == run.ReplicateNumber)
+                .Select(r => r.RunId).ToHashSet();
+            for (var i = 0; i < _importedMeasurements.Count; i++)
+                if (_importedMeasurements[i].SourceTestId == doc.TestId && sameReplicateRuns.Contains(_importedMeasurements[i].SourceRunId))
+                    _importedMeasurements[i] = _importedMeasurements[i] with { Included = false, ExclusionReason = "Substituída por revisão ou tentativa posterior da mesma réplica" };
 
             _importedMeasurements.Add(new KlaImportedMeasurement
             {
+                Context = run.Context ?? run.Definition?.Context ?? doc.Context,
+                Protocol = run.Definition?.Protocol ?? doc.EffectiveProtocol,
+                AcquiredAtUtc = run.StartedUtc,
                 SourceTestId = doc.TestId,
                 SourceRunId = run.RunId,
                 SourceAnalysisRevision = analysis.RevisionNumber,
@@ -703,6 +740,12 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
                 RawSha256 = analysis.RawDataSha256,
             });
             importedCount++;
+        }
+        if (acceptedRuns.Count > 0)
+        {
+            var first = acceptedRuns[0].Run;
+            _measurementContext ??= first.Context ?? first.Definition?.Context ?? doc.Context;
+            _measurementProtocol ??= first.Definition?.Protocol ?? doc.EffectiveProtocol;
         }
 
         foreach (var group in _importedMeasurements.Where(m => m.Included)
@@ -1009,6 +1052,7 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
             Broth = Broth.Trim(),
             RunCode = RunCode.Trim(),
             Notes = Notes.Trim(),
+            MeasurementContext = _measurementContext, MeasurementProtocol = _measurementProtocol,
             Domain = new KlaDomain(AirflowMinimum, AirflowMaximum, AgitationMinimum, AgitationMaximum),
             Anchors = anchors.ToArray(),
             MeasurementFingerprint = _importedMeasurements.Count == 0 ? "" : KlaFingerprint.ForObject(_importedMeasurements
@@ -1063,6 +1107,8 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
     {
         _loading = true;
         var snapshot = document.Snapshot;
+        _measurementContext = snapshot.MeasurementContext;
+        _measurementProtocol = snapshot.MeasurementProtocol;
         _importedMeasurements.Clear();
         _importedMeasurements.AddRange(document.ImportedMeasurements);
         ExperimentName = snapshot.Name;
@@ -1208,6 +1254,12 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
 
     private async Task PersistCurrentAsync(KlaExperimentSnapshot snapshot)
     {
+        if (_documents.TryGetValue(snapshot.Id, out var published) && published.IsAvailableForControl &&
+            (Stage != KlaWorkflowStage.Published || snapshot.ScientificFingerprint() != published.Snapshot.ScientificFingerprint()))
+        {
+            // Saving measurements creates a draft; replacing a control map requires explicit publication.
+            snapshot = snapshot with { Id = Guid.NewGuid(), Name = UniqueName(snapshot.Name + " (revisão)") };
+        }
         KlaSurfaceData? surfaceData = Surface is not null
             ? new KlaSurfaceData(Surface.Diagnostics, Surface.Fingerprint)
             : _documents.TryGetValue(snapshot.Id, out var existingDoc) ? existingDoc.SurfaceData : null;
@@ -1239,6 +1291,8 @@ public sealed partial class KlaMappingViewModel : ObservableObject, IDisposable
         };
         _documents[snapshot.Id] = document;
         await _store.SaveExperimentAsync(document);
+        var previousLoading = _loading;
+        _loading = true; ExperimentName = snapshot.Name; _loading = previousLoading;
         HasUnsavedChanges = false;
         RebuildExperimentList(snapshot.Id);
         RefreshComputedProperties();

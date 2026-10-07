@@ -1,0 +1,38 @@
+{
+  "releaseExecutableUpdated": false,
+  "validatedUtc": "2026-10-07T03:04:53.4262836Z",
+  "pending": [
+    "E5 sequences and optional maps",
+    "E6 recipe contract",
+    "E7 validation and distribution",
+    "RecipeEngine monitor-loop timeout investigation"
+  ],
+  "testEvidence": [
+    {
+      "failed": 0,
+      "file": "evidence/kla-e4-interface-approved.trx",
+      "total": 26,
+      "passed": 26,
+      "sha256": "4895c787017e3036a4aebcfdbd2312d11e843e9bd4a2df697adec3b1f1d854c2"
+    },
+    {
+      "failed": 1,
+      "file": "evidence/kla-e4-approved.trx",
+      "total": 512,
+      "passed": 511,
+      "sha256": "5639cfb89a44587884047cfea8afdf2988c41c7df2a6530f92b412bb0667e316"
+    },
+    {
+      "failed": 1,
+      "file": "evidence/kla-e4-recipe-recheck.trx",
+      "total": 1,
+      "passed": 0,
+      "sha256": "22059673d3c6f0ff879f7ce9baacb3f665a490e7b29e33e0edb52143628ef68d"
+    }
+  ],
+  "keyboardScope": "WPF Tab cycle and bound Escape command; interactive keyboard verification pending E7",
+  "stage": "E4",
+  "buildConfiguration": "KlaE4Validation",
+  "interfaceValidation": "26 E4 checks passed; broader regression 511 passed / 1 recipe monitor timeout; isolated recipe timeout reproduced and remains to investigate",
+  "physicalEquipmentValidation": false
+}

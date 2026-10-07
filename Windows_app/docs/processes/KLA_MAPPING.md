@@ -11,6 +11,12 @@
 
 ## 1. Boundary
 
+The E4–E6 assay workflow and optional contextual import are described in
+[Determinar kLa — procedimento comum](KLA_ASSAY.md). Imports enforce protocol, medium,
+cultivation/time window and physical/simulation origin. A newer accepted attempt replaces the
+same replicate's contribution while keeping the earlier record excluded. Saving changed
+measurements in a published experiment creates a separate draft and preserves the published file.
+
 `Mapeamento kLa` is an experimental workspace, not a library of built-in broths. A clean
 installation contains no experiment and no operational profile. The operator supplies the
 measured triples

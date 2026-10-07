@@ -255,18 +255,20 @@ public sealed class RecipeEngineTests
         await Task.Delay(30);
         Assert.Equal(RecipeRunState.Running, engine.State);
 
-        device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done") with
+        // The bath hold starts when its waiter processes an in-band observation, after
+        // flow confirmation. Advancing 31 seconds after an arbitrary 20 ms sleep races
+        // that transition on a busy test host. Drive a continuing, settled sequence.
+        var settled = BathFrame(37.1, 37, pending: false, state: "done") with
         {
             FlowmeterOnline = true,
             FlowSetpoint = 2.5,
-        });
-        await Task.Delay(20);
-        clock.Advance(TimeSpan.FromSeconds(31));
-        device.PushTelemetry(BathFrame(37.1, 37, pending: false, state: "done") with
+        };
+        for (var second = 0; second < 90 && engine.State == RecipeRunState.Running; second++)
         {
-            FlowmeterOnline = true,
-            FlowSetpoint = 2.5,
-        });
+            device.PushTelemetry(settled);
+            await Task.Delay(10);
+            clock.Advance(TimeSpan.FromSeconds(1));
+        }
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
     }
@@ -345,6 +347,7 @@ public sealed class RecipeEngineTests
         for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25); await Task.Delay(10); }
         Assert.Equal(RecipeRunState.Running, engine.State);
 
+        await WaitForCascadeStartedAsync(engine);
         // Past the 30 s duration. Several frames, so the loop is certain to observe one even if the
         // engine has not re-entered its frame wait when the first is pushed.
         clock.Advance(TimeSpan.FromSeconds(40));
@@ -366,6 +369,19 @@ public sealed class RecipeEngineTests
         // Temperature reaches the exit condition.
         PushFrame(device, clock, oxygen: 25, temperature: 45);
 
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    [Fact]
+    public async Task Cascade_observes_the_latest_exit_frame_even_when_no_further_frame_arrives()
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 40);
+        await engine.StartAsync(recipe);
+        // No scheduling delays and no follow-up frame: the final observation must not be lost.
+        for (var i = 0; i < 20; i++) PushFrame(device, clock, oxygen: 25, temperature: 30);
+        PushFrame(device, clock, oxygen: 25, temperature: 45);
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
     }
@@ -403,10 +419,43 @@ public sealed class RecipeEngineTests
         await engine.StartAsync(recipe);
         for (var i = 0; i < 2; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
         Assert.Equal(RecipeRunState.Running, engine.State);
-
+        await WaitForCascadeStartedAsync(engine);
         clock.Advance(TimeSpan.FromSeconds(40));
         for (var i = 0; i < 4; i++) { PushFrame(device, clock, oxygen: 25, temperature: 30); await Task.Delay(10); }
 
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(RecipeRunState.Completed, engine.State);
+    }
+
+    private static async Task WaitForCascadeStartedAsync(RecipeEngine engine)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (engine.CascadeTermsFor("casc") is null)
+        {
+            Assert.False(engine.Completion.IsCompleted, $"Cascade ended before initialization: {engine.State} — {engine.StatusReason}");
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task Cascade_exit_deadline_does_not_depend_on_another_telemetry_frame(bool timerExit)
+    {
+        var (engine, device, _, clock) = Build();
+        var recipe = CascadeWithMonitorRecipe(MeasuredVariable.Temperature, ComparisonOperator.GreaterOrEqual, 400);
+        if (timerExit)
+        {
+            recipe.Nodes.Remove(recipe.Node("mon")!);
+            var timer = RecipeNode.Create(NodeType.Timer, id: "mon");
+            timer.Set("duracao", 30.0); timer.Set("unidade", nameof(TimeUnit.Seconds));
+            recipe.Nodes.Add(timer);
+        }
+        else recipe.Node("mon")!.Set("tempoLimiteMs", 30_000);
+        await engine.StartAsync(recipe);
+        PushFrame(device, clock, oxygen: 25, temperature: 30);
+        await WaitForCascadeStartedAsync(engine);
+        clock.Advance(TimeSpan.FromSeconds(40));
+        // Deliberately send no more telemetry. Deadline handling is independent of sensor cadence.
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(RecipeRunState.Completed, engine.State);
     }

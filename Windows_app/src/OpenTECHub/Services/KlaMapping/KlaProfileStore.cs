@@ -646,6 +646,8 @@ public sealed class KlaProfileStore : IKlaProfileStore
             Notes = snapshot.Notes.Trim(),
             ReviewNote = doc.ReviewNote,
             Domain = snapshot.Domain,
+            MeasurementContext = snapshot.MeasurementContext,
+            MeasurementProtocol = snapshot.MeasurementProtocol,
             Anchors = snapshot.Anchors,
             Algorithm = snapshot.Algorithm,
             AlgorithmIdentity = KlaMappingEngine.AlgorithmIdentity(snapshot.Algorithm),

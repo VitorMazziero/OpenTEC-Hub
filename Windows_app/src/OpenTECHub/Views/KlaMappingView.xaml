@@ -626,6 +626,7 @@
                             <DataGridTextColumn Header="Condição" Binding="{Binding Condition}" IsReadOnly="True" Width="125" />
                             <DataGridTextColumn Header="Resultado / revisão" Binding="{Binding Result}" IsReadOnly="True" Width="*" />
                             <DataGridTextColumn Header="Estado" Binding="{Binding ImportStatus}" IsReadOnly="True" Width="95" />
+                            <DataGridTextColumn Header="Compatibilidade" Binding="{Binding Compatibility}" IsReadOnly="True" Width="180" />
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

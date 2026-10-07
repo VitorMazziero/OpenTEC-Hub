@@ -63,6 +63,7 @@
 
        <WrapPanel Margin="0,6,0,0"><Button Content="Novo teste" Command="{Binding OpenCreateDialogCommand}" IsEnabled="{Binding CanEditProtocol}"/><Button Content="Abrir salvo" Command="{Binding OpenLoadTestDialogCommand}" IsEnabled="{Binding CanEditProtocol}"/><Button Content="Parâmetros" Command="{Binding OpenAdvancedSettingsDialogCommand}" IsEnabled="{Binding CanEditPreparation}"/></WrapPanel>
        <TextBlock Text="{Binding CurrentTest.Name}" FontWeight="SemiBold" Margin="0,4,0,0"/>
+       <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource Label}" Margin="0,3,0,4"/>
        <TextBlock Text="{Binding LegacyRigMessage}" Style="{StaticResource Label}" Visibility="{Binding IsLegacyRigTest, Converter={StaticResource BoolToVis}}"/>
        <StackPanel Visibility="{Binding IsSingleCapture, Converter={StaticResource BoolToVis}}">
         <UniformGrid Columns="2"><StackPanel><TextBlock Text="N (rpm)" Style="{StaticResource Label}"/><TextBlock Text="{Binding CurrentTest.Conditions[0].AgitationRpm, StringFormat={}{0:F0}}" FontSize="20"/></StackPanel><StackPanel><TextBlock Text="Q (L/min)" Style="{StaticResource Label}"/><TextBlock Text="{Binding CurrentTest.Conditions[0].AirflowLpm, StringFormat={}{0:F2}}" FontSize="20"/></StackPanel></UniformGrid>
@@ -86,6 +87,11 @@
          <StackPanel><TextBlock Text="Réplicas" Style="{StaticResource Label}"/><TextBox Text="{Binding NewConditionReplicates}"/></StackPanel>
         </UniformGrid>
         <WrapPanel Margin="0,8,0,0"><Button Content="Adicionar" Command="{Binding AddManualConditionCommand}" IsEnabled="{Binding CanStartSequence}"/><Button Content="Executar matriz" Command="{Binding OpenStartSequenceDialogCommand}" IsEnabled="{Binding CanStartSequence}"/></WrapPanel>
+        <CheckBox Content="Avançar após aceitar" IsChecked="{Binding AutoAdvanceQueue}" Margin="0,6,0,0"/>
+        <StackPanel Visibility="{Binding HasQueuedRuns, Converter={StaticResource BoolToVis}}">
+         <TextBlock Text="{Binding QueueStatus}" Style="{StaticResource Label}"/>
+         <WrapPanel><Button Content="Próxima corrida" Command="{Binding ContinueQueueCommand}" IsEnabled="{Binding CanEditPreparation}"/><Button Content="Encerrar fila" Command="{Binding StopQueueCommand}"/></WrapPanel>
+        </StackPanel>
        </StackPanel>
        <CheckBox Content="Confirmo N₂ aberto na fonte" IsChecked="{Binding NitrogenSourceConfirmed}" Visibility="{Binding IsAbiotic, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0"/>
        <CheckBox Content="Confirmo N₂ fechado e isolado na fonte" IsChecked="{Binding NitrogenIsolationConfirmed}" Visibility="{Binding IsBiotic, Converter={StaticResource BoolToVis}}" Margin="0,10,0,0"/>

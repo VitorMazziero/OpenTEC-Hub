@@ -5,28 +5,28 @@
   "buildConfiguration": "KlaE2Validation",
   "testEvidence": [
     {
-      "file": "tests/OpenTECHub.Tests/TestResults/kla-e2.trx",
+      "file": "docs/evidence/kla-e2-e3/kla-e2.trx",
       "sha256": "756d2f3a8d152d034fc3c5091f944f53a6bc8b6e7747d18ef74dfbf339aeaecc",
       "total": 48,
       "passed": 48,
       "failed": 0
     },
     {
-      "file": "tests/OpenTECHub.Tests/TestResults/kla-e3.trx",
+      "file": "docs/evidence/kla-e2-e3/kla-e3.trx",
       "sha256": "6dfc41404448455dbf36efae8ada01304eb8fd498edb24d756a8d74c9adafd61",
       "total": 21,
       "passed": 21,
       "failed": 0
     },
     {
-      "file": "tests/OpenTECHub.Tests/TestResults/kla-e2-e3-regression.trx",
+      "file": "docs/evidence/kla-e2-e3/kla-e2-e3-regression.trx",
       "sha256": "1031db364bb8afc24016444434c0d2b1bea33957f60111a731d206d8994b4eef",
       "total": 306,
       "passed": 306,
       "failed": 0
     },
     {
-      "file": "tests/OpenTECHub.Tests/TestResults/kla-e2-e3-final.trx",
+      "file": "docs/evidence/kla-e2-e3/kla-e2-e3-final.trx",
       "sha256": "b8d52d3baeb1daaf3a803d66192caac8defc1ee52180bf3fdce4a9072dd4c51e",
       "total": 77,
       "passed": 77,

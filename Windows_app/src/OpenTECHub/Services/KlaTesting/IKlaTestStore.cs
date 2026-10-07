@@ -36,6 +36,8 @@ public interface IKlaTestStore
         doc.Protocol = definition.Protocol;
         doc.CaptureMode = definition.CaptureMode;
         doc.ProtocolSettings = definition.ProtocolSettings;
+        doc.Context = definition.Context;
+        doc.SequenceLimits = definition.SequenceLimits;
         doc.Nature = definition.Protocol == KlaAssayProtocol.Biotic ? "Biotico" : "Abiotico";
         SaveTestManifest(doc);
         return doc;

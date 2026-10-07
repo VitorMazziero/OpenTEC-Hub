@@ -66,7 +66,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         ISettingsService settings,
         TimeProvider? time = null,
         ILogger<KlaTestRunner>? log = null,
-        ICascadeService? cascade = null, IOurSoftSensor? our = null)
+        ICascadeService? cascade = null, IOurSoftSensor? our = null, KlaActuationRelease? actuationRelease = null)
     {
         _device = device ?? throw new ArgumentNullException(nameof(device));
         _arbiter = arbiter ?? throw new ArgumentNullException(nameof(arbiter));
@@ -78,6 +78,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         _log = log ?? NullLogger<KlaTestRunner>.Instance;
         _routeCoordinator = new MotorRouteCoordinator(_arbiter, _device, CommandOwner.KlaAssay);
         _assayCoordinator = new(_arbiter, cascade, our);
+        _actuationRelease = actuationRelease ?? new();
 
         _device.TelemetryReceived += OnTelemetryReceived;
         _device.StateChanged += OnDeviceStateChanged;
@@ -85,6 +86,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     }
 
     public MotorRouteCoordinator RouteCoordinator => _routeCoordinator;
+    private readonly KlaActuationRelease _actuationRelease;
 
     public KlaTestDocument? CurrentTest => _currentTest;
     public KlaTestRun? CurrentRun => _currentRun;
@@ -243,6 +245,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         {
             throw new InvalidOperationException("Retomada anterior falhou. Confirme a recuperação manual antes de preparar outra sessão.");
         }
+        _actuationRelease.EnsureCanRun(_currentTest.EffectiveProtocol);
         _assayCoordinator.Validate();
         if (_currentTest.Runs.Any(r => r.Outcome?.Restoration is KlaRestorationState.Pending or KlaRestorationState.Failed))
         {
@@ -254,6 +257,12 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             throw new InvalidOperationException("Ensaio abiótico requer controle manual; encerre a cascata antes de iniciar.");
         }
         var runDefinition = KlaRunDefinition.Create(_currentTest, condition, replicateNumber);
+        if (_currentTest.SequenceLimits is not null)
+        {
+            var ready = KlaSequence.Check(_currentTest,
+                new(condition.ConditionId, replicateNumber, runDefinition.AttemptNumber), _time.GetUtcNow());
+            if (!ready.CanStart) throw new InvalidOperationException(ready.Reason);
+        }
 
         if (_device.State != ConnectionState.Connected)
         {
@@ -334,6 +343,8 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             _currentRun = new KlaTestRun
             {
                 Definition = runDefinition,
+                AttemptNumber = runDefinition.AttemptNumber,
+                Context = runDefinition.Context,
                 Acquisition = new(_settings.Current.Calibration.OxygenA, _settings.Current.Calibration.OxygenB,
                     _time.GetUtcNow(), OperationalSettings.OxygenSampleTimeoutSeconds,
                     IsBiotic ? InitialReturnRpm : null, IsBiotic ? _device.Latest!.FlowSetpoint : null),
@@ -454,6 +465,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             _currentRun.LatestAnalysis = analysis;
             _currentRun.CompletedUtc = _time.GetUtcNow();
             _currentRun.CurrentPhase = RunPhase.Accepted;
+            _currentRun.RemovalSeconds = KlaSequence.RemovalExposure(_runPoints);
 
             // Save raw data and analysis. The store returns the hash the file will carry, so the
             // seal does not wait for the queued write.
@@ -463,18 +475,13 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             _store.SaveRunAnalysis(_currentTest.FolderName, _currentRun.FolderName, analysis);
             _store.SaveRunResult(_currentTest.FolderName, _currentRun.FolderName, _currentRun, analysis);
 
-            // Update conditions and summary
-            _currentCondition.CompletedReplicates++;
-            _currentCondition.AcceptedReplicates++;
-            if (_currentCondition.AcceptedReplicates >= _currentCondition.RequestedReplicates)
-            {
-                _currentCondition.Status = ConditionStatus.Completed;
-            }
-
             _currentTest.Runs.RemoveAll(r => r.RunId == _currentRun.RunId);
             _currentTest.Runs.Add(new KlaTestRunSummary
             {
                 RunId = _currentRun.RunId,
+                AttemptNumber = _currentRun.AttemptNumber,
+                Context = _currentRun.Context,
+                RemovalSeconds = KlaSequence.RemovalExposure(_runPoints),
                 ConditionId = _currentRun.ConditionId,
                 ReplicateNumber = _currentRun.ReplicateNumber,
                 FolderName = _currentRun.FolderName,
@@ -493,6 +500,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
                 SwitchDoPercent = _currentRun.SwitchDoPercent,
             });
 
+            KlaSequence.RefreshCounters(_currentTest, _currentCondition);
             _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
             _store.SaveTestManifest(_currentTest);
             _store.UpdateResultsSummary(_currentTest.FolderName, _currentTest);
@@ -541,6 +549,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             _currentRun.LatestAnalysis = analysis;
             _currentRun.CompletedUtc = _time.GetUtcNow();
             _currentRun.CurrentPhase = RunPhase.Rejected;
+            _currentRun.RemovalSeconds = KlaSequence.RemovalExposure(_runPoints);
 
             analysis.RawDataSha256 = _store.SaveRunRawData(_currentTest.FolderName, _currentRun.FolderName, _runPoints);
             _currentRun.AnalysisHistory.Add(KlaTestFileContracts.DeserializeAnalysis(KlaTestFileContracts.SerializeAnalysis(analysis))!);
@@ -548,13 +557,13 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             _store.SaveRunAnalysis(_currentTest.FolderName, _currentRun.FolderName, analysis);
             _store.SaveRunResult(_currentTest.FolderName, _currentRun.FolderName, _currentRun, analysis);
 
-            _currentCondition.CompletedReplicates++;
-            _currentCondition.RejectedReplicates++;
-
             _currentTest.Runs.RemoveAll(r => r.RunId == _currentRun.RunId);
             _currentTest.Runs.Add(new KlaTestRunSummary
             {
                 RunId = _currentRun.RunId,
+                AttemptNumber = _currentRun.AttemptNumber,
+                Context = _currentRun.Context,
+                RemovalSeconds = KlaSequence.RemovalExposure(_runPoints),
                 ConditionId = _currentRun.ConditionId,
                 ReplicateNumber = _currentRun.ReplicateNumber,
                 FolderName = _currentRun.FolderName,
@@ -573,6 +582,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
                 SwitchDoPercent = _currentRun.SwitchDoPercent,
             });
 
+            KlaSequence.RefreshCounters(_currentTest, _currentCondition);
             _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
             _store.SaveTestManifest(_currentTest);
             _store.UpdateResultsSummary(_currentTest.FolderName, _currentTest);
@@ -676,6 +686,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
                             : ConditionStatus.Pending;
                     }
                 }
+                foreach (var condition in _currentTest.Conditions) KlaSequence.RefreshCounters(_currentTest, condition);
                 _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
                 _store.SaveTestManifest(_currentTest);
             }
@@ -1365,6 +1376,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
                         : (cond.AcceptedReplicates > 0 ? ConditionStatus.Completed : ConditionStatus.Pending);
                 }
             }
+            foreach (var condition in _currentTest.Conditions) KlaSequence.RefreshCounters(_currentTest, condition);
             _store.SaveConditionsTable(_currentTest.FolderName, _currentTest.Conditions);
             _store.SaveTestManifest(_currentTest);
             _store.FlushAsync().GetAwaiter().GetResult();

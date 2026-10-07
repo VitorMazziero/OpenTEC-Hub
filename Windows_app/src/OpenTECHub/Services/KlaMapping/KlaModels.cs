@@ -20,6 +20,12 @@ public sealed record KlaAnchor(double AirflowLpm, double AgitationRpm, double Kl
 
 public sealed record KlaImportedMeasurement
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KlaTesting.KlaMeasurementContext? Context { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KlaTesting.KlaAssayProtocol? Protocol { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? AcquiredAtUtc { get; init; }
     public Guid MeasurementId { get; init; } = Guid.NewGuid();
     public Guid SourceTestId { get; init; }
     public Guid SourceRunId { get; init; }
@@ -170,6 +176,10 @@ public sealed record KlaAlgorithmSettings
 /// <summary>An immutable numerical input captured before background work starts.</summary>
 public sealed record KlaExperimentSnapshot
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KlaTesting.KlaMeasurementContext? MeasurementContext { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KlaTesting.KlaAssayProtocol? MeasurementProtocol { get; init; }
     public Guid Id { get; init; } = Guid.NewGuid();
 
     public string Name { get; init; } = "";
@@ -190,7 +200,12 @@ public sealed record KlaExperimentSnapshot
 
     public DateTimeOffset UpdatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
-    public string ScientificFingerprint() => KlaFingerprint.ForObject(new
+    public string ScientificFingerprint() => MeasurementContext is not null || MeasurementProtocol is not null
+        ? KlaFingerprint.ForObject(new
+        {
+            Domain, Anchors = Anchors.OrderByDescending(anchor => anchor.AgitationRpm).ThenBy(anchor => anchor.AirflowLpm).ToArray(),
+            MeasurementFingerprint, Algorithm, MeasurementContext, MeasurementProtocol,
+        }) : KlaFingerprint.ForObject(new
     {
         Domain,
         Anchors = Anchors
@@ -403,6 +418,10 @@ public sealed record KlaSearchProgress(
 /// <summary>Fingerprint-bearing immutable scientific payload stored in a receipt.</summary>
 public sealed record KlaPublicationPayload
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KlaTesting.KlaMeasurementContext? MeasurementContext { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KlaTesting.KlaAssayProtocol? MeasurementProtocol { get; init; }
     public int FormatVersion { get; init; } = 1;
 
     public required Guid ProfileId { get; init; }

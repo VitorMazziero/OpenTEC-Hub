@@ -1,0 +1,83 @@
+{
+  "stage": "E7",
+  "status": "software-validated; local review candidate produced; physical/scientific validation pending",
+  "uniqueChecksPassed": 397,
+  "scope": "397 distinct checks: 393 integrated, 2 additional reopen cases, 1 API lifetime case, 1 refused-interval case; subsequent release checks overlap these.",
+  "testEvidence": [
+    {
+      "file": "evidence/kla-e7-approved-software.trx",
+      "total": 393,
+      "passed": 393,
+      "failed": 0,
+      "sha256": "0b5345408db2e9778a43c977b14b820bb6a97ea383385465c8163104c5723d32"
+    },
+    {
+      "file": "evidence/kla-e7-control-recheck.trx",
+      "total": 62,
+      "passed": 62,
+      "failed": 0,
+      "sha256": "36daf2ed720fae0d2b788a8ada332b9acc1eed1dc458d543f30e26114cd393e6"
+    },
+    {
+      "file": "evidence/kla-e7-reopen.trx",
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "sha256": "da67fe9f5268d098dd127624bcf6ed904a499e9361c21fb53bdf4ec3c39265bf"
+    },
+    {
+      "file": "evidence/kla-e7-release-smoke.trx",
+      "total": 39,
+      "passed": 39,
+      "failed": 0,
+      "sha256": "a765100753ce35611a690446eb97cc8fd6dd4f85d5b5b1eebb56a49974d9ca1c"
+    },
+    {
+      "file": "evidence/kla-e7-release-layout.trx",
+      "total": 14,
+      "passed": 14,
+      "failed": 0,
+      "sha256": "bad8cc7e2acc564ed8805ecb6a5ce4de472b3cc607476a9091b8bf82ee85cd8c"
+    },
+    {
+      "file": "evidence/kla-e7-inconclusive-interval.trx",
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "sha256": "44c277dee0f0080172966b1a7c3df60a19a1e27176c579599576cc3e5b755055"
+    },
+    {
+      "file": "evidence/kla-e7-review-b-release.trx",
+      "total": 16,
+      "passed": 16,
+      "failed": 0,
+      "sha256": "273780825e188b9e020c840053e7c7ca71a34a2a448f818f77a32251a8b5d6f0"
+    }
+  ],
+  "compiledAppSha256": "340b568993dfc9a91006bc467dd3691fa659d40056cc25eae5a0dc5c5ba6c190",
+  "corpus": {
+    "biotic": 17,
+    "sha256": "eb42cb47a5caf8c5251e5ed1d32b5877a633abf0a02c5def5b2416d89ba601ab",
+    "curves": 92,
+    "inconclusive": 92,
+    "scope": "Strict metadata audit, not accuracy evaluation"
+  },
+  "physicalEquipmentValidation": false,
+  "physicalBioticActuationEnabled": false,
+  "recipeAssayActuationEnabled": false,
+  "pending": [
+    "Physical return and cancellation bench evidence",
+    "Independent biological/probe validation and uncertainty coverage",
+    "Interactive operator PC review",
+    "Numerical corpus validation with gas-event provenance"
+  ],
+  "buildReceipt": "build-receipt-b.json",
+  "releaseBuildWarnings": "Nonfatal style warnings (including IDE0011); publish exited successfully; no claim of warning-free build.",
+  "syntheticNoiseAudit": {
+    "file": "noise-audit.json",
+    "sha256": "71970ec2254e47202a138fe35253c14442a1352156f8ca1947b58beee41839d5",
+    "trajectories": 160,
+    "criteriaRetuned": false,
+    "nominalCoverageValidated": false
+  }
+}

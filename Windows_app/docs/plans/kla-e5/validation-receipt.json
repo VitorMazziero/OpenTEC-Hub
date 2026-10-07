@@ -1,0 +1,12 @@
+{
+  "stage": "E5",
+  "validatedUtc": "2026-10-07T03:43:46.2103292Z",
+  "scope": "All Kla*, RecipeEngineTests and CompactLayoutTests",
+  "total": 298,
+  "passed": 298,
+  "failed": 0,
+  "hardware": "mock/offscreen only",
+  "evidence": "Windows_app/docs/evidence/kla-e5/kla-e5-release-check.trx",
+  "sha256": "9b4207d54d8621c7d84b89baaf400fb6197388a3b501e85c3fa92c9b2d6aeeb4",
+  "recipeTests": 32
+}

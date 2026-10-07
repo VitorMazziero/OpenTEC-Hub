@@ -42,10 +42,16 @@ public sealed partial class RecipeEngine
         // A Monitorar Variável keeps the debounce and timeout it obeys in the normal flow, so the
         // same block does not mean two different things depending on where it is wired.
         var monitorConfirmations = 0;
+        // Begin with the current observation, then preserve subsequent frames for debounce.
+        long observedFrame;
+        lock (_lock) observedFrame = _frameVersion - 1;
         var monitorDeadline = condition is { Type: NodeType.MonitorVariable } cond
                               && cond.Number("tempoLimiteMs") > 0
             ? loopStarted + TimeSpan.FromMilliseconds(cond.Number("tempoLimiteMs"))
             : (DateTimeOffset?)null;
+        var exitDeadline = condition is { Type: NodeType.Timer } timed
+            ? loopStarted + TimeSpan.FromSeconds(DurationSeconds(timed.Number("duracao"), timed.Enum<TimeUnit>("unidade")))
+            : monitorDeadline;
 
         try
         {
@@ -75,18 +81,29 @@ public sealed partial class RecipeEngine
                     break;
                 }
 
-                await WaitNextFrameAsync(ct).ConfigureAwait(false);
+                var frame = await WaitCascadeFrameAsync(observedFrame, exitDeadline, ct).ConfigureAwait(false);
+                if (frame.Snapshot is null)
+                {
+                    Log(RecipeLogSeverity.Info, "Controle de O₂ encerrado pelo prazo da condição de saída.", node.Id);
+                    break;
+                }
+                if (observedFrame >= 0 && frame.Version > observedFrame + 1) monitorConfirmations = 0;
+                observedFrame = frame.Version;
 
                 // Automatic exit, evaluated BEFORE the cascade's own O₂ guard: a condition on
                 // temperature or pH must not be held hostage by a silent O₂ probe, and the timeout
                 // has to be able to fire even when no reading is arriving at all.
                 if (condition is { Type: NodeType.MonitorVariable } monitor
-                    && MonitorExitReached(monitor, _latest, ref monitorConfirmations, monitorDeadline, node.Id))
+                    && MonitorExitReached(monitor, frame.Snapshot, ref monitorConfirmations, monitorDeadline, node.Id))
                 {
                     break;
                 }
 
-                if (_latest is not { } snapshot || snapshot.OxygenCalibrated <= SensorReadings.NotReceived)
+                // Conditions consume every buffered observation, but actuators use only the newest.
+                if (frame.Version < Volatile.Read(ref _frameVersion)) continue;
+
+                var snapshot = frame.Snapshot;
+                if (snapshot.OxygenCalibrated <= SensorReadings.NotReceived)
                 {
                     continue; // flying blind without a usable O₂ reading; wait for the next frame
                 }

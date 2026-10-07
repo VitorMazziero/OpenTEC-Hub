@@ -322,6 +322,7 @@ public partial class App : Application
         services.AddSingleton(sp => new BackgroundFileWriter(logger: sp.GetRequiredService<ILogger<BackgroundFileWriter>>()));
         services.AddSingleton<IKlaTestStore>(sp => new KlaTestStore(AppPaths.KlaTestsDirectory, sp.GetRequiredService<BackgroundFileWriter>()));
         services.AddSingleton<IKlaAnalysisEngine, KlaAnalysisEngine>();
+        services.AddSingleton(_ => new KlaActuationRelease(playback is not null));
         services.AddSingleton<IKlaTestRunner, KlaTestRunner>();
         services.AddSingleton<IKlaDeterministicAnalysisEngine>(sp =>
             (IKlaDeterministicAnalysisEngine)sp.GetRequiredService<IKlaAnalysisEngine>());

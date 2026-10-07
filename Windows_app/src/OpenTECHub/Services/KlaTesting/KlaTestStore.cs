@@ -377,11 +377,14 @@ public sealed class KlaTestStore : IKlaTestStore
                     : existing?.Phase ?? RunPhase.Reviewing,
                 Outcome = MergePhysicalOutcome(runPath, analysis?.Outcome ?? existing?.Outcome),
                 Definition = LoadRunDefinition(doc.FolderName, runFolder) ?? existing?.Definition,
+                AttemptNumber = LoadRunDefinition(doc.FolderName, runFolder)?.AttemptNumber ?? existing?.AttemptNumber ?? 1,
+                Context = LoadRunDefinition(doc.FolderName, runFolder)?.Context ?? existing?.Context,
+                RemovalSeconds = KlaSequence.RemovalExposure(raw),
                 Decision = analysis?.Quality ?? existing?.Decision,
                 KlaPerHour = analysis?.KlaPerHour ?? existing?.KlaPerHour,
                 AnalysisR2 = analysis?.AnalysisR2 ?? existing?.AnalysisR2,
                 StartedUtc = raw.FirstOrDefault()?.TimestampUtc ?? existing?.StartedUtc ?? Directory.GetCreationTimeUtc(runPath),
-                CompletedUtc = analysis is not null ? analysis.AnalyzedUtc : existing?.CompletedUtc,
+                CompletedUtc = existing?.CompletedUtc ?? (analysis is not null ? raw.LastOrDefault()?.TimestampUtc ?? analysis.AnalyzedUtc : null),
             };
 
             if (existingIndex >= 0)
@@ -401,6 +404,13 @@ public sealed class KlaTestStore : IKlaTestStore
 
         foreach (var condition in doc.Conditions)
         {
+            if (doc.SequenceLimits is not null)
+            {
+                var before = (condition.CompletedReplicates, condition.AcceptedReplicates, condition.RejectedReplicates, condition.Status);
+                KlaSequence.RefreshCounters(doc, condition);
+                changed |= before != (condition.CompletedReplicates, condition.AcceptedReplicates, condition.RejectedReplicates, condition.Status);
+                continue;
+            }
             var runs = doc.Runs.Where(r => r.ConditionId == condition.ConditionId).ToList();
             var completed = runs.Count(r => r.Phase is RunPhase.Accepted or RunPhase.Rejected);
             var accepted = runs.Count(r => r.Phase == RunPhase.Accepted &&
@@ -497,6 +507,8 @@ public sealed class KlaTestStore : IKlaTestStore
                 Protocol = definition?.Protocol ?? KlaAssayProtocol.Abiotic,
                 CaptureMode = definition?.CaptureMode ?? KlaCaptureMode.Multiple,
                 ProtocolSettings = definition?.ProtocolSettings,
+                Context = definition?.Context,
+                SequenceLimits = definition?.SequenceLimits,
                 LinkedMap = linkedMap,
                 Settings = settings,
                 SettingsRevision = 1,
@@ -594,6 +606,8 @@ public sealed class KlaTestStore : IKlaTestStore
             Directory.CreateDirectory(runPath);
             if (run.Definition is { } definition)
             {
+                run.AttemptNumber = attempt - 1;
+                run.Definition = definition = definition with { AttemptNumber = run.AttemptNumber };
                 WriteAllTextAtomic(Path.Combine(runPath, KlaTestFileContracts.RunDefinitionFileName),
                     KlaTestFileContracts.SerializeRunDefinition(definition));
             }
@@ -674,40 +688,42 @@ public sealed class KlaTestStore : IKlaTestStore
                 var parts = line.Split(',');
                 if (parts.Length < 11)
                 {
-                    continue;
+                    throw new InvalidDataException($"Linha {i + 1} incompleta no arquivo bruto de kLa.");
                 }
 
                 if (!DateTimeOffset.TryParse(parts[0], CultureInfo.InvariantCulture, DateTimeStyles.None, out var ts))
                 {
-                    continue;
+                    throw new InvalidDataException($"Instante inválido na linha {i + 1} do arquivo bruto de kLa.");
                 }
-                if (!double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var relSec))
+                if (!double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var relSec) || !double.IsFinite(relSec))
                 {
-                    continue;
+                    throw new InvalidDataException($"Tempo relativo inválido na linha {i + 1} do arquivo bruto de kLa.");
                 }
-                if (!Enum.TryParse<RunPhase>(parts[2], out var phase))
+                if (!Enum.TryParse<RunPhase>(parts[2], out var phase) || !Enum.IsDefined(phase))
                 {
-                    phase = RunPhase.Idle;
+                    if (parts[2] == "OpeningVent") phase = RunPhase.LegacyOpeningVent;
+                    else throw new InvalidDataException($"Fase inválida na linha {i + 1} do arquivo bruto de kLa.");
                 }
                 if (!double.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out var doRaw))
                 {
-                    continue;
+                    doRaw = double.NaN;
                 }
                 if (!double.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out var doFilt))
                 {
-                    doFilt = doRaw;
+                    // ADC has different units. Keep invalid observations for scientific refusal.
+                    doFilt = double.NaN;
                 }
                 if (!double.TryParse(parts[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var flowM))
                 {
-                    flowM = 0;
+                    flowM = double.NaN;
                 }
                 if (!double.TryParse(parts[6], NumberStyles.Float, CultureInfo.InvariantCulture, out var flowSp))
                 {
-                    flowSp = 0;
+                    flowSp = double.NaN;
                 }
                 if (!double.TryParse(parts[7], NumberStyles.Float, CultureInfo.InvariantCulture, out var rpmSp))
                 {
-                    rpmSp = 0;
+                    rpmSp = double.NaN;
                 }
                 var v1 = parts[8] is "1" or "True";
                 var v2 = parts[9] is "1" or "True";
@@ -818,11 +834,14 @@ public sealed class KlaTestStore : IKlaTestStore
             {
                 var acceptedRuns = doc.Runs
                     .Where(r => r.ConditionId == cond.ConditionId &&
-                               (r.Decision == DecisionQuality.Acceptable || r.Decision == DecisionQuality.AcceptableWithWarning) &&
+                               KlaSequence.IsAccepted(r) &&
                                r.KlaPerHour.HasValue)
+                    .GroupBy(r => r.ReplicateNumber)
+                    .Select(g => g.OrderByDescending(r => r.CompletedUtc).ThenByDescending(r => r.AttemptNumber).First())
                     .ToList();
 
-                var completedCount = doc.Runs.Count(r => r.ConditionId == cond.ConditionId && (r.Phase == RunPhase.Accepted || r.Phase == RunPhase.Rejected));
+                var completedCount = doc.Runs.Where(r => r.ConditionId == cond.ConditionId && (r.Phase == RunPhase.Accepted || r.Phase == RunPhase.Rejected))
+                    .Select(r => r.ReplicateNumber).Distinct().Count();
                 var acceptedCount = acceptedRuns.Count;
 
                 double meanKla = 0;

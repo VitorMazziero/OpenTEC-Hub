@@ -140,6 +140,7 @@ public sealed partial class KlaDeterminationViewModelTests : IDisposable
         _vm.CreateNewTest();
         // The historical live-series contract does not provide confirmed gas-event evidence.
         _vm.CurrentTest!.ProtocolSettings = null;
+        _vm.CurrentTest.SequenceLimits = null;
         _vm.NewConditionRpm = 300;
         _vm.NewConditionFlow = 2.0;
         _vm.AddManualCondition();
@@ -222,6 +223,7 @@ public sealed partial class KlaDeterminationViewModelTests : IDisposable
         _vm.CreateNewTest();
         // Historical files without confirmed gas events retain the legacy analysis API.
         _vm.CurrentTest!.ProtocolSettings = null;
+        _vm.CurrentTest.SequenceLimits = null;
 
         // Simulate synthetic reoxygenation data in LivePoints (kla = 36 /h = 0.01 /s)
         var trueKlaSec = 0.01;
@@ -387,6 +389,7 @@ public sealed partial class KlaDeterminationViewModelTests : IDisposable
         _vm.NewTestName = "Ensaio Avanco Automatico";
         _vm.CreateNewTest();
         _vm.CurrentTest!.ProtocolSettings = null;
+        _vm.CurrentTest.SequenceLimits = null;
 
         _vm.NewConditionRpm = 300;
         _vm.NewConditionFlow = 2.0;
@@ -559,6 +562,7 @@ public sealed partial class KlaDeterminationViewModelTests : IDisposable
         _vm.SettingAutoLinearEndPercent = 70.0;
         _vm.CreateNewTest();
         _vm.CurrentTest!.ProtocolSettings = null;
+        _vm.CurrentTest.SequenceLimits = null;
         _vm.AutoAcceptRuns = true;
 
         _vm.NewConditionRpm = 400;
@@ -616,6 +620,7 @@ public sealed partial class KlaDeterminationViewModelTests : IDisposable
         _vm.CreateNewTest();
         // This performance contract exercises the historical live diagnostic implementation.
         _vm.CurrentTest!.ProtocolSettings = null;
+        _vm.CurrentTest.SequenceLimits = null;
         var resets = 0;
         _vm.InstantaneousKlaSeries.CollectionChanged += (_, e) =>
         {
@@ -733,6 +738,7 @@ public sealed partial class KlaDeterminationViewModelTests : IDisposable
         _vm.CreateNewTest();
         // Imported historical analysis has no gas-event evidence or new protocol contract.
         _vm.CurrentTest!.ProtocolSettings = null;
+        _vm.CurrentTest.SequenceLimits = null;
 
         _vm.NewConditionRpm = 450;
         _vm.NewConditionFlow = 2.5;

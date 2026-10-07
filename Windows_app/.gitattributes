@@ -25,6 +25,14 @@
 *.snk    binary
 *.pth    binary
 
+# Scientific reference bytes and validation receipts are sealed by SHA-256.
+# Git must not change these bytes on a Windows checkout.
+*.trx -text
+tests/fixtures/kla-e0/** -text
+tests/fixtures/kla-e3-python-v1.json -text
+docs/plans/kla-e7/corpus-audit.json -text whitespace=cr-at-eol
+docs/plans/kla-e7/noise-audit.json -text whitespace=cr-at-eol
+
 # Diff hints: show a useful hunk header for C# instead of a random brace line.
 *.cs     diff=csharp
 

@@ -147,7 +147,53 @@ public sealed partial class KlaDeterminationViewModel
         "independent_oxygen_balance_inconsistent" => "OUR e balanço de oxigênio incompatíveis",
         "concentration_conversion_unavailable_without_reference" => "Conversão indisponível sem Cref e origem",
         "ols_interval_is_conditional_on_equilibrium_and_correlated_errors" => "Intervalo condicionado a Ceq e correlação dos erros",
-        _ => reason.Replace('_', ' '),
+        "invalid_or_repeated_oxygen_observation" => "OD inválido ou amostra repetida",
+        "oxygen_sample_gap_exceeds_configured_span" => "Lacuna de OD excede o intervalo permitido",
+        "time_not_strictly_monotonic" => "Tempos repetidos ou fora de ordem",
+        "invalid_or_unconfirmed_gas_event" => "Comutação de gás inválida ou sem confirmação",
+        "invalid_protocol_or_insufficient_samples" => "Protocolo inválido ou amostras insuficientes",
+        "protocol_removal_mode_mismatch" => "Remoção de oxigênio incompatível com o protocolo",
+        "invalid_manual_phase_provenance" => "Fase manual sem origem válida",
+        "manual_phase_conflicts_with_confirmed_gas_route" => "Fase manual diverge da rota confirmada",
+        "noncontinuous_recovery_episode" => "Reoxigenação interrompida por outra fase",
+        "one_recovery_episode_required" => "Selecione um único episódio de reoxigenação",
+        "recovery_event_outside_episode" => "Comutação fora do episódio selecionado",
+        "our_window_outside_respiration_phase" => "Janela de OUR fora da fase de consumo",
+        "physical_saturation_unavailable_balance_not_checked" => "C* físico ausente: balanço independente não verificado",
+        "independent_our_and_physical_balance_disagree" => "OUR e balanço independente divergem",
+        "invalid_probe_response_time" => "Tempo de resposta da sonda inválido",
+        "invalid_physical_saturation" => "Saturação física inválida",
+        "invalid_concentration_reference" => "Referência de concentração inválida",
+        "invalid_manual_equilibrium" => "Ceq informado incompatível com a curva",
+        "operator_supplied_equilibrium" => "Ceq informado pelo operador",
+        "insufficient_equilibrium_points" => "Poucos pontos para estimar Ceq",
+        "invalid_equilibrium_observation" => "Leitura inválida na estimativa de Ceq",
+        "equilibrium_signal_not_identifiable" => "Curva não permite identificar Ceq",
+        "equilibrium_fit_low_information" => "Informação insuficiente no ajuste de Ceq",
+        "equilibrium_covariance_singular" => "Incerteza de Ceq não identificável",
+        "equilibrium_fit_at_configured_boundary" => "Ceq atingiu um limite do ajuste",
+        "no_interior_exponential_solution" => "Não foi encontrado ajuste exponencial identificável",
+        "insufficient_respiratory_window" => "Poucos pontos na janela de consumo",
+        "invalid_or_disturbed_respiratory_window" => "Janela de consumo contém leitura inválida ou perturbação",
+        "short_or_noncontinuous_respiratory_window" => "Janela de consumo curta ou descontínua",
+        "nonpositive_or_undefined_our" => "Consumo não positivo ou indefinido",
+        "our_not_applicable_to_nitrogen_stripping" => "Remoção por N₂ não permite medir OUR",
+        "our_slope_uncertain" => "Inclinação do consumo com incerteza excessiva",
+        "respiration_curved_or_oxygen_limited" => "Consumo varia ou apresenta limitação por OD",
+        "respiratory_fit_r2_below_threshold" => "Ajuste do consumo abaixo do critério de qualidade",
+        "respiratory_signal_too_small" => "Variação de OD insuficiente para medir consumo",
+        "correlated_respiratory_residuals" => "Erros do ajuste respiratório correlacionados",
+        "invalid_or_short_window" => "Janela inválida ou curta",
+        "invalid_or_disturbed_observation_in_window" => "Janela contém leitura inválida ou perturbação",
+        "log_fit_r2_below_threshold" => "Ajuste linear abaixo do critério de qualidade",
+        "insufficient_signal_to_noise" => "Variação insuficiente em relação ao ruído",
+        "slope_uncertain" => "Inclinação com incerteza excessiva",
+        "correlated_log_residuals" => "Erros do ajuste linear correlacionados",
+        "nonconstant_rate_in_subwindows" => "Taxa varia entre trechos da janela",
+        "ceq_sensitive_or_invalid_deficit" => "Resultado sensível a Ceq ou força motriz inválida",
+        "endpoint_sensitive" => "Resultado sensível às extremidades da janela",
+        "operator_phase_timing_invalid" => "Tempos das fases informados inválidos",
+        _ => $"Diagnóstico adicional: {reason}",
     };
 
     partial void OnIsBioticChanged(bool value)
@@ -179,6 +225,7 @@ public sealed partial class KlaDeterminationViewModel
             CaptureMode = IsSingleCapture ? KlaCaptureMode.Single : KlaCaptureMode.Multiple,
             Settings = settings with { AutoAcceptRuns = false },
             ProtocolSettings = BuildProtocolSettings(),
+            Context = BuildMeasurementContext(), SequenceLimits = BuildSequenceLimits(),
             Conditions = planned.Select(KlaAssayCondition.From).ToImmutableArray(),
         };
         try { definition.Validate(requireConditions: false); error = ""; return true; }
@@ -193,7 +240,8 @@ public sealed partial class KlaDeterminationViewModel
         RemovalTargetDoPercent = SettingDOMin,
         Probe = new() { Technology = ProbeTechnology, Model = ProbeModel, ResponseTimeSeconds = ProbeResponseSeconds },
         AerationReturn = new() { MinimumDoPercent = MinimumReturnDo, MaximumDoDropPoints = MaximumDoDrop,
-            MaximumGasOffSeconds = SettingMaxDegassingMinutes * 60, MaximumRecoverySeconds = SettingMaxReoxygenationMinutes * 60 },
+            MaximumGasOffSeconds = SettingMaxDegassingMinutes * 60, MaximumRecoverySeconds = SettingMaxReoxygenationMinutes * 60,
+            MinimumInterAssaySeconds = MinimumInterAssaySeconds },
         OxygenSampleTimeoutSeconds = OxygenTimeout, CommandConfirmationTimeoutSeconds = CommandTimeout,
         InitialStabilitySeconds = InitialStability, RecoveryStabilitySeconds = RecoveryStability,
         ReturnAgitationRpm = ReturnAgitation, ReturnAgitationToleranceRpm = ReturnRpmTolerance, ReturnFlowToleranceLpm = ReturnFlowTolerance,
@@ -204,6 +252,7 @@ public sealed partial class KlaDeterminationViewModel
         var previous = _isLoadingSettings; _isLoadingSettings = true;
         try
         {
+            LoadSequenceSettings(doc);
             IsBiotic = doc.EffectiveProtocol == KlaAssayProtocol.Biotic;
             IsSingleCapture = doc.EffectiveCaptureMode == KlaCaptureMode.Single;
             NitrogenSourceConfirmed = false; NitrogenIsolationConfirmed = false;
@@ -226,6 +275,7 @@ public sealed partial class KlaDeterminationViewModel
 
     private void RefreshCommonState()
     {
+        NotifyQueue();
         foreach (var name in new[] { nameof(IsAbiotic), nameof(IsMultipleCapture), nameof(CanEditPreparation), nameof(ShowPreparation), nameof(CanEditProtocol),
             nameof(CanRunSingle), nameof(CanDecideRun), nameof(CanAcceptAnalysis), nameof(CanRepeatLiveRun), nameof(PrimaryActionLabel),
             nameof(SavedPath), nameof(RestorationLabel), nameof(NextEvent), nameof(IsDeterministicReview), nameof(IsLegacyReview), nameof(ShowOur),

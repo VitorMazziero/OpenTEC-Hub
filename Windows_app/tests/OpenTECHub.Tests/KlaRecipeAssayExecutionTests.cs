@@ -46,9 +46,10 @@ public sealed class KlaRecipeAssayExecutionTests
         var directory = Path.Combine(Path.GetTempPath(), "recipe-execution-" + Guid.NewGuid().ToString("N"));
         KlaAssayApi? activeApi = null;
         Guid activeRequest = Guid.Empty;
+        // Recovery during failure cleanup must finish before disposing its writer.
+        using var writer = new BackgroundFileWriter(synchronous: true);
         try
         {
-            using var writer = new BackgroundFileWriter(synchronous: true);
             var store = new KlaTestStore(directory, writer);
             var invocation = RecipeExecutionContractTests.Request(protocol);
             invocation = invocation with

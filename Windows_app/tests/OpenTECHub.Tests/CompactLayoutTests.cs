@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -26,6 +26,28 @@ public sealed class CompactLayoutTests
     /// Content width left by the smallest supported window: 1024 DIP less the 56 DIP
     /// compact navigation rail and the page margins the shell applies around a page.
     /// </summary>
+    [Theory]
+    [InlineData(0, 936.0, 534.0)]
+    [InlineData(1, 936.0, 534.0)]
+    [InlineData(0, 1680.0, 980.0)]
+    [InlineData(1, 1680.0, 980.0)]
+    public void Shared_sensor_calibration_tabs_fit_supported_windows(int tab, double width, double height)
+    {
+        var issues = WpfRenderingHost.Run(() =>
+        {
+            var shell = WpfRenderingHost.Services.GetRequiredService<ShellViewModel>();
+            shell.Calibration.SelectedTabIndex = tab;
+            try
+            {
+                return ArrangeAndInspect(new CalibrationView { DataContext = shell.Calibration }, width, height);
+            }
+            finally
+            {
+                shell.Calibration.SelectedTabIndex = 0;
+            }
+        });
+        Assert.True(issues.Count == 0, string.Join(Environment.NewLine, issues.Take(25)));
+    }
     private const double CompactContentWidth = 936;
 
     /// <summary>
@@ -127,8 +149,10 @@ public sealed class CompactLayoutTests
                 shortHeight >= 190,
                 $"The single visible plot got {shortHeight:F0} DIP, less than the 190 DIP floor.");
 
+            shell.KlaDetermination.ShowAllPlots = true;
             var (tallHosts, _) = ArrangeAndMeasurePlots(view, 1680, 980);
             Assert.Equal(3, tallHosts);
+            shell.KlaDetermination.ShowAllPlots = false;
         });
     }
 
@@ -254,7 +278,7 @@ public sealed class CompactLayoutTests
         }
     }
 
-    private static List<string> ArrangeAndInspect(FrameworkElement view, double width, double height)
+    internal static List<string> ArrangeAndInspect(FrameworkElement view, double width, double height)
     {
         // A Border host mirrors how the shell hands a page its slice of the window, and
         // gives CheckHorizontalOverflow a root whose width is the real usable area.

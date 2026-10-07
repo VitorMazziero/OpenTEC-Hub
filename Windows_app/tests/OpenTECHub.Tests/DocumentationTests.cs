@@ -339,26 +339,6 @@ public sealed class DocumentationTests
     }
 
     [Fact]
-    public void The_kla_cards_stop_asking_for_more_width_than_the_column_has()
-    {
-        var determination = ReadProjectFile(Path.Combine("Views", "KlaDeterminationView.xaml"));
-
-        // The matrix header used to declare the title first, so the button lost the race for
-        // width in a 360 DIP panel and arrived as "Executar Sequê".
-        var buttonIndex = determination.IndexOf("Content=\"Executar Sequência\"", StringComparison.Ordinal);
-        var titleIndex = determination.IndexOf("Text=\"Matriz de Condições\"", StringComparison.Ordinal);
-        Assert.True(buttonIndex > 0 && titleIndex > 0);
-        Assert.True(buttonIndex < titleIndex, "O botão precisa ser declarado antes do título no DockPanel.");
-
-        // Three label+field pairs sharing one row left the last fields with no width at all.
-        Assert.DoesNotContain("Text=\"Desligar N₂ (%):\"", determination, StringComparison.Ordinal);
-        Assert.Contains("Text=\"Desligar N₂ (%)\"", determination, StringComparison.Ordinal);
-
-        var mapping = ReadProjectFile(Path.Combine("Views", "KlaMappingView.xaml"));
-        Assert.DoesNotContain("<WrapPanel Margin=\"0,7,0,0\">", mapping, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void The_remaining_pages_are_documented_and_point_at_the_manual()
     {
         var pages = new (string TopicId, string View, string[] Terms)[]

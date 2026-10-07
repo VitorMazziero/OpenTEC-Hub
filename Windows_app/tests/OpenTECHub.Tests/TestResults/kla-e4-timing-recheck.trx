@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="7c0408ab-90f4-4569-aa8c-b40247fdacf0" name="vitor@NOTEBOOK-ACER-A 2026-10-06 23:57:53" runUser="NOTEBOOK-ACER-A\vitor" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-06T23:57:53.4177044-03:00" queuing="2026-10-06T23:57:53.4177047-03:00" start="2026-10-06T23:57:50.8883464-03:00" finish="2026-10-06T23:57:54.8981791-03:00" />
+  <TestSettings name="default" id="a576a085-0a8d-46f7-9b5b-b789cc09f18b">
+    <Deployment runDeploymentRoot="vitor_NOTEBOOK-ACER-A_2026-10-06_23_57_53" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="bbc569b4-da4f-4ea8-ba30-bf977bfdb228" testId="ddfe3f99-f024-5151-2991-2d11c896a016" testName="OpenTECHub.Tests.RecipeEngineTests.Cascade_loop_exits_when_its_saida_loop_timer_elapses" computerName="NOTEBOOK-ACER-A" duration="00:00:00.2688005" startTime="2026-10-06T23:57:53.1416936-03:00" endTime="2026-10-06T23:57:53.1417773-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bbc569b4-da4f-4ea8-ba30-bf977bfdb228" />
+    <UnitTestResult executionId="c1cc9455-6b6d-456f-9c9d-721751e3f6e0" testId="5da766c1-5f70-e7ef-7ccb-b0a84916199d" testName="OpenTECHub.Tests.KlaRunnerSimulatorTests.A_shut_N2_source_never_reaches_the_floor_and_the_degassing_ceiling_aborts" computerName="NOTEBOOK-ACER-A" duration="00:00:01.6037442" startTime="2026-10-06T23:57:54.7618386-03:00" endTime="2026-10-06T23:57:54.7618391-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c1cc9455-6b6d-456f-9c9d-721751e3f6e0" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="OpenTECHub.Tests.RecipeEngineTests.Cascade_loop_exits_when_its_saida_loop_timer_elapses" storage="c:\users\vitor\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\klae4validation\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="ddfe3f99-f024-5151-2991-2d11c896a016">
+      <Execution id="bbc569b4-da4f-4ea8-ba30-bf977bfdb228" />
+      <TestMethod codeBase="C:\Users\vitor\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\KlaE4Validation\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.RecipeEngineTests" name="Cascade_loop_exits_when_its_saida_loop_timer_elapses" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaRunnerSimulatorTests.A_shut_N2_source_never_reaches_the_floor_and_the_degassing_ceiling_aborts" storage="c:\users\vitor\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\klae4validation\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="5da766c1-5f70-e7ef-7ccb-b0a84916199d">
+      <Execution id="c1cc9455-6b6d-456f-9c9d-721751e3f6e0" />
+      <TestMethod codeBase="C:\Users\vitor\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\KlaE4Validation\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaRunnerSimulatorTests" name="A_shut_N2_source_never_reaches_the_floor_and_the_degassing_ceiling_aborts" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="ddfe3f99-f024-5151-2991-2d11c896a016" executionId="bbc569b4-da4f-4ea8-ba30-bf977bfdb228" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5da766c1-5f70-e7ef-7ccb-b0a84916199d" executionId="c1cc9455-6b6d-456f-9c9d-721751e3f6e0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados que não estão em uma lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos os resultados carregados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="2" executed="2" passed="2" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 10.0.11)&#xD;
+[xUnit.net 00:00:00.28]   Discovering: OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.82]   Discovered:  OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.83]   Starting:    OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:02.84]   Finished:    OpenTECHub.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

@@ -15,7 +15,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
-public sealed class KlaDeterminationViewModelTests : IDisposable
+public sealed partial class KlaDeterminationViewModelTests : IDisposable
 {
     private readonly string _testRoot;
     private readonly KlaTestStore _store;
@@ -138,6 +138,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         // The fake runner completes every call synchronously, so the awaits below never block.
         _vm.NewTestName = "Ensaio Repetir";
         _vm.CreateNewTest();
+        // The historical live-series contract does not provide confirmed gas-event evidence.
+        _vm.CurrentTest!.ProtocolSettings = null;
         _vm.NewConditionRpm = 300;
         _vm.NewConditionFlow = 2.0;
         _vm.AddManualCondition();
@@ -218,6 +220,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
     {
         _vm.NewTestName = "Ensaio Analise";
         _vm.CreateNewTest();
+        // Historical files without confirmed gas events retain the legacy analysis API.
+        _vm.CurrentTest!.ProtocolSettings = null;
 
         // Simulate synthetic reoxygenation data in LivePoints (kla = 36 /h = 0.01 /s)
         var trueKlaSec = 0.01;
@@ -382,6 +386,7 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
     {
         _vm.NewTestName = "Ensaio Avanco Automatico";
         _vm.CreateNewTest();
+        _vm.CurrentTest!.ProtocolSettings = null;
 
         _vm.NewConditionRpm = 300;
         _vm.NewConditionFlow = 2.0;
@@ -424,6 +429,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         _vm.RecomputeReviewAnalysis();
 
         // Operator accepts run
+        _runner.Phase = RunPhase.Reviewing;
+        _vm.IsReviewOpen = true;
         await _vm.AcceptCurrentRunAsync();
 
         // Runner should now have automatically advanced to condition 2 (600 rpm, 4.0 L/min)
@@ -551,6 +558,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         _vm.SettingAutoLinearStartPercent = 45.0;
         _vm.SettingAutoLinearEndPercent = 70.0;
         _vm.CreateNewTest();
+        _vm.CurrentTest!.ProtocolSettings = null;
+        _vm.AutoAcceptRuns = true;
 
         _vm.NewConditionRpm = 400;
         _vm.NewConditionFlow = 2.0;
@@ -605,6 +614,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
     {
         _vm.NewTestName = "Ensaio Derivadas";
         _vm.CreateNewTest();
+        // This performance contract exercises the historical live diagnostic implementation.
+        _vm.CurrentTest!.ProtocolSettings = null;
         var resets = 0;
         _vm.InstantaneousKlaSeries.CollectionChanged += (_, e) =>
         {
@@ -720,6 +731,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
     {
         _vm.NewTestName = "Ensaio Edit Run";
         _vm.CreateNewTest();
+        // Imported historical analysis has no gas-event evidence or new protocol contract.
+        _vm.CurrentTest!.ProtocolSettings = null;
 
         _vm.NewConditionRpm = 450;
         _vm.NewConditionFlow = 2.5;
@@ -801,6 +814,14 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         Assert.Equal(2, loadedAnalysis.RevisionNumber);
         Assert.Equal(15.0, loadedAnalysis.TStartSeconds);
         Assert.Equal(35.0, loadedAnalysis.TEndSeconds);
+        var previousRevisionPath = Path.Combine(_store.RootDirectory, _vm.CurrentTest.FolderName,
+            "Corridas", run.FolderName, "analise-rev-002.json");
+        var previousRevision = File.ReadAllBytes(previousRevisionPath);
+        _vm.ReviewTStart = 20.0;
+        _vm.RecomputeReviewAnalysis();
+        await _vm.AcceptCurrentRunAsync();
+        Assert.Equal(3, _store.LoadRunAnalysis(_vm.CurrentTest.FolderName, run.FolderName)!.RevisionNumber);
+        Assert.Equal(previousRevision, File.ReadAllBytes(previousRevisionPath));
     }
 
     [Fact]
@@ -901,7 +922,8 @@ public sealed class KlaDeterminationViewModelTests : IDisposable
         public Task StartRunAsync(KlaTestCondition condition, int replicateNumber, CancellationToken cancellationToken = default)
         {
             CurrentCondition = condition;
-            CurrentRun = new KlaTestRun { ConditionId = condition.ConditionId, ReplicateNumber = replicateNumber };
+            CurrentRun = new KlaTestRun { ConditionId = condition.ConditionId, ReplicateNumber = replicateNumber,
+                Definition = CurrentTest is null ? null : KlaRunDefinition.Create(CurrentTest, condition, replicateNumber) };
             Phase = RunPhase.Deoxygenating;
             StateChanged?.Invoke();
             return Task.CompletedTask;

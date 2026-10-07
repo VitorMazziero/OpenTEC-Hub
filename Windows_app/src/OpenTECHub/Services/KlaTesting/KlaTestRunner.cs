@@ -443,7 +443,8 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             {
                 throw new InvalidOperationException("Uma análise inconclusiva não pode ser aceita. Ajuste a região/Ceq ou rejeite a corrida.");
             }
-            analysis.RevisionNumber = _currentRun.AnalysisHistory.Count + 1;
+            analysis.RevisionNumber = Math.Max(_currentRun.AnalysisHistory.Select(a => a.RevisionNumber).DefaultIfEmpty(0).Max(),
+                _store.LoadRunAnalysis(_currentTest.FolderName, _currentRun.FolderName)?.RevisionNumber ?? 0) + 1;
             analysis.Outcome = (analysis.Outcome ?? KlaRunOutcome.FromLegacy(analysis.Quality)) with
             {
                 OperatorDecision = KlaOperatorDecision.Accepted,
@@ -528,7 +529,8 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             };
 
             analysis.Quality = DecisionQuality.Inconclusive;
-            analysis.RevisionNumber = _currentRun.AnalysisHistory.Count + 1;
+            analysis.RevisionNumber = Math.Max(_currentRun.AnalysisHistory.Select(a => a.RevisionNumber).DefaultIfEmpty(0).Max(),
+                _store.LoadRunAnalysis(_currentTest.FolderName, _currentRun.FolderName)?.RevisionNumber ?? 0) + 1;
             analysis.RejectionReason = reason;
             analysis.Outcome = (analysis.Outcome ?? KlaRunOutcome.FromLegacy(analysis.Quality)) with
             {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
@@ -218,7 +219,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             var klaSettings = settings.Current.KlaTest;
             SettingDOMin = klaSettings.DOMinPercent;
             SettingDOMax = klaSettings.DOMaxPercent;
-            SettingDegassingAgitation = klaSettings.DegassingAgitationRpm;
+            SettingDegassingAgitation = klaSettings.DegassingAgitationRpm == new KlaTestSettings().DegassingAgitationRpm
+                ? 100 : klaSettings.DegassingAgitationRpm;
             SettingSmoothingWindow = klaSettings.SmoothingWindowSize;
             SettingMaxDegassingMinutes = klaSettings.MaxDegassingTimeMinutes;
             SettingMaxReoxygenationMinutes = klaSettings.MaxReoxygenationTimeMinutes;
@@ -480,17 +482,20 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [ObservableProperty]
     private KlaAnalysisRevision? _currentAnalysis;
 
-    public string DisplayReviewKla => IsReviewOpen && CurrentAnalysis != null ? $"{ReviewKla:F1} h⁻¹" : "—";
+    public string DisplayReviewKla => IsReviewOpen && CurrentAnalysis != null &&
+        (CurrentAnalysis.DeterministicResult is null || CurrentAnalysis.DeterministicResult.KlaPerHour.HasValue) ? $"{ReviewKla:F1} h⁻¹" : "—";
     public string DisplayReviewR2 => IsReviewOpen && CurrentAnalysis != null ? $"R²: {ReviewR2:F4}" : "R²: —";
     public string DisplayReviewRmse => IsReviewOpen && CurrentAnalysis != null ? $"RMSE: {ReviewRmse:F4}" : "RMSE: —";
-    public string DisplayReviewCi95 => IsReviewOpen && CurrentAnalysis != null ? $"IC 95%: [{ReviewCi95Low:F1}; {ReviewCi95High:F1}]" : "IC 95%: [—; —]";
+    public string DisplayReviewCi95 => IsReviewOpen && CurrentAnalysis != null &&
+        (CurrentAnalysis.DeterministicResult is null || CurrentAnalysis.DeterministicResult.ConditionalCi95Low.HasValue)
+        ? $"IC 95% cond.: [{ReviewCi95Low:F1}; {ReviewCi95High:F1}]" : "IC 95%: [—; —]";
     public string DisplayReviewSens => IsReviewOpen && CurrentAnalysis != null ? $"[{ReviewSensLow:F1}; {ReviewSensHigh:F1}] h⁻¹" : "[—; —] h⁻¹";
     public string DisplayReviewQuality => !IsReviewOpen || CurrentAnalysis == null
         ? "Inativo"
         : ReviewQuality switch
         {
             DecisionQuality.Acceptable => "Aceitável",
-            DecisionQuality.AcceptableWithWarning => "Atenção / Ruído",
+            DecisionQuality.AcceptableWithWarning => "Condicionado às hipóteses",
             DecisionQuality.Inconclusive => "Inconclusivo",
             _ => ReviewQuality.ToString()
         };
@@ -510,6 +515,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private void NotifyDisplayReviewChanged()
     {
+        RefreshCommonState();
         OnPropertyChanged(nameof(DisplayReviewKla));
         OnPropertyChanged(nameof(DisplayReviewR2));
         OnPropertyChanged(nameof(DisplayReviewRmse));
@@ -606,7 +612,9 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     public bool HasActiveTest => CurrentTest is not null;
     public bool IsRunning => _runner.IsRunning;
     public bool IsIdle => !IsRunning && !IsReviewOpen;
-    public bool CanStartSequence => HasActiveTest && IsIdle && !IsLegacyRigTest;
+    public bool CanStartSequence => HasActiveTest && IsIdle && !IsLegacyRigTest &&
+        CurrentTest!.Status != KlaTestStatus.Completed &&
+        !CurrentTest.Runs.Any(r => r.EffectiveOutcome.Restoration is KlaRestorationState.Pending or KlaRestorationState.Failed);
 
     /// <summary>An assay recorded before the A/B/C rig: reviewable, never continued (plan §3.5).</summary>
     public bool IsLegacyRigTest => CurrentTest?.IsLegacyRig == true;
@@ -646,6 +654,10 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         RunPhase.Rejected => "Corrida Rejeitada",
         RunPhase.Completed => "Teste Concluído",
         RunPhase.Faulted => "Falha / Interrompido",
+        RunPhase.DivertingAir => "Desviando ar ao escape",
+        RunPhase.MeasuringConsumption => "Medindo consumo respiratório",
+        RunPhase.RestoringCultivation => "Confirmando retomada do cultivo",
+        RunPhase.Aborting => "Cancelando com finalização",
         _ => Phase.ToString(),
     };
 
@@ -657,6 +669,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void OpenCreateDialog()
     {
+        if (IsRunning) return;
         NewTestName = $"Ensaio_kLa_{DateTime.Now:yyyy-MM-dd_HHmm}";
         RefreshAvailableMaps();
         IsCreateDialogOpen = true;
@@ -666,6 +679,19 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     public void CloseCreateDialog()
     {
         IsCreateDialogOpen = false;
+        if (CurrentTest is not null)
+        {
+            _isLoadingSettings = true;
+            try
+            {
+                LoadCommonSettings(CurrentTest);
+                SettingDOMin = CurrentTest.Settings.DOMinPercent; SettingDOMax = CurrentTest.Settings.DOMaxPercent;
+                SettingDegassingAgitation = CurrentTest.Settings.DegassingAgitationRpm;
+                SettingMaxDegassingMinutes = CurrentTest.Settings.MaxDegassingTimeMinutes;
+                SettingMaxReoxygenationMinutes = CurrentTest.Settings.MaxReoxygenationTimeMinutes;
+            }
+            finally { _isLoadingSettings = false; }
+        }
     }
 
     [RelayCommand]
@@ -760,7 +786,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             (mapRef, initialConditions) = KlaMapImportHelper.ImportConditionsFromMap(SelectedMapForImport, 1);
         }
 
-        var doc = _store.CreateTest(NewTestName, settings, mapRef, initialConditions);
+        if (!TryBuildDefinition(settings, initialConditions, out var definition, out var definitionError))
+        {
+            StatusMessage = definitionError;
+            return;
+        }
+        var doc = _store.CreateTest(NewTestName, definition, IsSingleCapture ? null : mapRef);
         _settings.Update(s => s with { KlaTest = settings });
         IsCreateDialogOpen = false;
 
@@ -793,6 +824,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         }
 
         CurrentTest = doc;
+        LoadCommonSettings(doc);
         SelectedMatrixRow = null;
         _currentlyEditingRun = null;
         _currentlyEditingRow = null;
@@ -861,7 +893,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void LoadMatrixRow(KlaMatrixRowViewModel? row)
     {
-        if (row is null || CurrentTest is null)
+        if (row is null || CurrentTest is null || IsRunning)
         {
             return;
         }
@@ -943,59 +975,17 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             LivePoints.Add(p);
         }
 
-        // 3. Load or initialize analysis
+        // Loading a historical revision is read-only; it never recalculates or saves it.
         var analysis = _store.LoadRunAnalysis(CurrentTest.FolderName, run.FolderName);
-        if (analysis is not null)
-        {
-            ReviewTStart = analysis.TStartSeconds;
-            ReviewTEnd = analysis.TEndSeconds;
-            ReviewCeqTStart = analysis.CeqTStartSeconds > 0 ? analysis.CeqTStartSeconds : analysis.TStartSeconds;
-            ReviewCeqTEnd = analysis.CeqTEndSeconds > 0 ? analysis.CeqTEndSeconds : analysis.TEndSeconds;
-            ReviewCeq = analysis.CeqPercent;
-            ReviewCeqIsManual = analysis.IsCeqManual;
-            CurrentAnalysis = analysis;
-            ReviewKla = analysis.KlaPerHour;
-            ReviewR2 = analysis.AnalysisR2;
-            ReviewRmse = analysis.AnalysisRmse;
-            ReviewCi95Low = analysis.ConfidenceInterval95Low;
-            ReviewCi95High = analysis.ConfidenceInterval95High;
-            ReviewSensLow = analysis.KlaSensitivityLow;
-            ReviewSensHigh = analysis.KlaSensitivityHigh;
-            ReviewQuality = analysis.Quality;
-            ReviewWarning = analysis.WarningJustification;
-            ReviewRejectionReason = analysis.RejectionReason;
-
-            var times = LivePoints.Select(p => p.RelativeSeconds).ToList();
-            var dos = LivePoints.Select(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw).ToList();
-
-            LogLinearSeries.Clear();
-            foreach (var lp in _analysisEngine.ComputeLogLinearPoints(times, dos, ReviewCeq, ReviewTStart, ReviewTEnd))
-            {
-                LogLinearSeries.Add(lp);
-            }
-
-            InstantaneousKlaSeries.Clear();
-            foreach (var ip in _analysisEngine.CalculateInstantaneousKlaSeries(times, dos, ReviewCeq, SettingSmoothingWindow))
-            {
-                InstantaneousKlaSeries.Add(ip);
-            }
-
-            ReviewMinTime = Math.Floor(times.First());
-            ReviewMaxTime = Math.Ceiling(times.Last());
-            IsReviewOpen = true;
-        }
-        else
-        {
-            OpenReviewDrawer();
-        }
-
+        if (analysis is not null) LoadReviewAnalysis(analysis);
+        else OpenReviewDrawer();
         StatusMessage = $"Ensaio carregado: #{row.OrderIndex} - {row.AgitationRpm:F0} rpm · {row.AirflowLpm:F2} L/min (Réplica {row.ReplicateIndex})";
     }
 
     [RelayCommand]
     public void AddManualCondition()
     {
-        if (CurrentTest is null)
+        if (CurrentTest is null || IsRunning || CurrentTest.EffectiveCaptureMode == KlaCaptureMode.Single)
         {
             return;
         }
@@ -1010,6 +1000,14 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             Origin = ConditionOrigin.Manual,
             Status = ConditionStatus.Pending,
         };
+
+        try
+        {
+            var definition = KlaAssayDefinition.FromDocument(CurrentTest) with
+            { Conditions = CurrentTest.Conditions.Append(cond).Select(KlaAssayCondition.From).ToImmutableArray() };
+            definition.Validate();
+        }
+        catch (ArgumentException ex) { StatusMessage = ex.Message; return; }
 
         CurrentTest.Conditions.Add(cond);
         _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
@@ -1187,12 +1185,15 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
-        if (!NitrogenSourceConfirmed)
+        if (CurrentTest.EffectiveProtocol == KlaAssayProtocol.Abiotic && !NitrogenSourceConfirmed)
         {
             StatusMessage = "Confirme que o N₂ está aberto na fonte antes de iniciar.";
             return;
         }
-        RecordNitrogenSourceConfirmation();
+        if (!EnsureNitrogenSourceConfirmed())
+        {
+            return;
+        }
 
         _activeSequenceQueue = SequencePreviewQueue.Select(c => c.Model).ToList();
         IsStartSequenceDialogOpen = false;
@@ -1206,7 +1207,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
             var nextRep = firstCondition.CompletedReplicates + 1;
             StatusMessage = $"Iniciando sequência: condição #{firstCondition.OrderIndex + 1} ({firstCondition.AgitationRpm:F0} rpm, {firstCondition.AirflowLpm:F2} L/min - réplica {nextRep}/{firstCondition.RequestedReplicates})...";
-            await _runner.StartRunAsync(firstCondition, nextRep);
+            await StartRunSafelyAsync(firstCondition, nextRep);
         }
     }
 
@@ -1247,7 +1248,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         InstantaneousKlaSeries.Clear();
         LogLinearSeries.Clear();
 
-        await _runner.StartRunAsync(cond, nextRep);
+        await StartRunSafelyAsync(cond, nextRep);
     }
 
     /// <summary>
@@ -1259,6 +1260,17 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         if (CurrentTest is null)
         {
             return false;
+        }
+        if (CurrentTest.EffectiveProtocol == KlaAssayProtocol.Biotic)
+        {
+            if (!NitrogenIsolationConfirmed)
+            {
+                StatusMessage = "Confirme que o N₂ está fechado e fisicamente isolado na fonte.";
+                return false;
+            }
+            CurrentTest.NitrogenIsolationConfirmedUtc = DateTimeOffset.UtcNow;
+            _store.SaveTestManifest(CurrentTest);
+            return true;
         }
         if (CurrentTest.NitrogenSourceConfirmedUtc is not null || NitrogenSourceConfirmed)
         {
@@ -1309,6 +1321,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
+        if (CurrentTest.ProtocolSettings is not null && !IsRunning && !IsCreateDialogOpen)
+        {
+            var candidate = KlaAssayDefinition.FromDocument(CurrentTest) with { Settings = newSettings, ProtocolSettings = BuildProtocolSettings() };
+            try { candidate.Validate(requireConditions: false); }
+            catch (ArgumentException ex) { StatusMessage = ex.Message; return; }
+            CurrentTest.ProtocolSettings = candidate.ProtocolSettings;
+        }
         CurrentTest.Settings = newSettings;
         _runner.UpdateLiveSettings(newSettings);
         _store.SaveTestManifest(CurrentTest);
@@ -1336,7 +1355,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private void AutoApplyLiveSettings()
     {
-        if (_isLoadingSettings)
+        if (_isLoadingSettings || IsCreateDialogOpen || IsRunning)
         {
             return;
         }
@@ -1356,7 +1375,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     partial void OnAutoAcceptRunsChanged(bool value)
     {
-        if (CurrentTest is not null && !_isLoadingSettings)
+        if (CurrentTest is not null && !_isLoadingSettings && !IsCreateDialogOpen && CurrentTest.ProtocolSettings is null)
         {
             CurrentTest.Settings = CurrentTest.Settings with { AutoAcceptRuns = value };
             _runner.UpdateLiveSettings(CurrentTest.Settings);
@@ -1369,7 +1388,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         settings = CurrentTest?.Settings ?? new KlaTestSettings();
         error = "";
         if (!double.IsFinite(SettingDOMin) || !double.IsFinite(SettingDOMax) ||
-            SettingDOMin < 0 || SettingDOMax > 110 || SettingDOMin >= SettingDOMax)
+            SettingDOMin < 0 || SettingDOMin >= SettingDOMax)
         {
             error = "DO de desligamento do N₂ deve ser menor que DO final, dentro de 0–110%.";
             return false;
@@ -1402,12 +1421,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             error = "Revise tolerância de vazão, confirmações e tempo máximo da pré-estabilização do ar por C.";
             return false;
         }
-        if (!double.IsFinite(SettingDefaultCeq) || SettingDefaultCeq <= SettingDOMax || SettingDefaultCeq > 200 ||
+        if (!double.IsFinite(SettingDefaultCeq) || SettingDefaultCeq <= 0 ||
             !double.IsFinite(SettingAutoLinearStartPercent) || !double.IsFinite(SettingAutoLinearEndPercent) ||
             SettingAutoLinearStartPercent < 0 || SettingAutoLinearEndPercent > 100 ||
             SettingAutoLinearStartPercent >= SettingAutoLinearEndPercent)
         {
-            error = "Ceq deve superar o DO final e a faixa automática deve ser crescente dentro de 0–100%.";
+            error = "Referência legada e faixa automática devem conter valores válidos.";
             return false;
         }
 
@@ -1454,6 +1473,13 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             StatusMessage = error;
             return;
         }
+        if (CurrentTest is not null && CurrentTest.ProtocolSettings is not null && !IsRunning)
+        {
+            var candidate = KlaAssayDefinition.FromDocument(CurrentTest) with { Settings = settings, ProtocolSettings = BuildProtocolSettings() };
+            try { candidate.Validate(requireConditions: false); }
+            catch (ArgumentException ex) { StatusMessage = ex.Message; return; }
+            CurrentTest.ProtocolSettings = candidate.ProtocolSettings;
+        }
         _settings.Update(s => s with { KlaTest = settings });
         ApplyLiveSettings();
         IsAdvancedSettingsDialogOpen = false;
@@ -1462,6 +1488,16 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public void RecomputeReviewAnalysis()
     {
+        if (_isRecomputing) return;
+        _isRecomputing = true;
+        try { if (TryRecomputeDeterministic()) return; }
+        finally { _isRecomputing = false; }
+        if (CurrentTest?.EffectiveProtocol == KlaAssayProtocol.Biotic || CurrentTest?.ProtocolSettings is not null)
+        {
+            CurrentAnalysis = null;
+            ReviewMessage = "Não há definição/eventos confirmados suficientes para analisar pelo novo núcleo.";
+            return;
+        }
         if (LivePoints.Count < 5)
         {
             return;
@@ -1478,14 +1514,14 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         try
         {
             var times = recovery.Select(p => p.RelativeSeconds).ToList();
-            var dos = recovery.Select(p => p.DORaw).ToList();
+            var dos = recovery.Select(p => p.DOFiltered).ToList();
 
             var ceqPoints = recovery.Where(p => p.RelativeSeconds >= ReviewCeqTStart && p.RelativeSeconds <= ReviewCeqTEnd).ToList();
 
             // 1. Ceq Fit / Override
             var ceqResult = _analysisEngine.EstimateCeq(
                 ceqPoints.Select(p => p.RelativeSeconds).ToList(),
-                ceqPoints.Select(p => p.DORaw).ToList(),
+                ceqPoints.Select(p => p.DOFiltered).ToList(),
                 ReviewCeqIsManual ? ReviewCeq : null);
 
             if (!ReviewCeqIsManual && ceqResult.Converged)
@@ -1552,6 +1588,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public async Task AcceptCurrentRunAsync()
     {
+        if (!CanDecideRun) { ReviewMessage = "A decisão exige finalização física confirmada."; return; }
         if (CurrentAnalysis is null)
         {
             RecomputeReviewAnalysis();
@@ -1562,7 +1599,9 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             return;
         }
 
-        if (CurrentAnalysis.Quality == DecisionQuality.Inconclusive)
+        if (CurrentAnalysis.Quality == DecisionQuality.Inconclusive ||
+            CurrentAnalysis.Outcome?.KlaQuality is KlaScientificQuality.Inconclusive or
+                KlaScientificQuality.NotEvaluated or KlaScientificQuality.NotApplicable)
         {
             _dialogs.Confirm("Análise inconclusiva", CurrentAnalysis.RejectionReason ?? "Ajuste a análise ou rejeite a corrida.", "OK", "");
             return;
@@ -1579,7 +1618,12 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
             var nextCondition = _activeSequenceQueue.FirstOrDefault()
                 ?? (AutoAcceptRuns ? Conditions.FirstOrDefault(c => c.Model.AcceptedReplicates < c.Model.RequestedReplicates)?.Model : null);
 
-            if (nextCondition is not null && CurrentTest is not null)
+            if (nextCondition is not null && CurrentTest?.EffectiveProtocol == KlaAssayProtocol.Biotic)
+            {
+                StatusMessage = "Cultivo retomado. Confirme o próximo teste na matriz quando desejar continuar.";
+                _activeSequenceQueue.Clear();
+            }
+            else if (nextCondition is not null && CurrentTest is not null)
             {
                 var cond = nextCondition;
                 var nextRep = cond.CompletedReplicates + 1;
@@ -1589,7 +1633,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
                 LogLinearSeries.Clear();
 
                 StatusMessage = $"Iniciando automaticamente condição #{cond.OrderIndex + 1} ({cond.AgitationRpm:F0} rpm, {cond.AirflowLpm:F2} L/min - réplica {nextRep}/{cond.RequestedReplicates})...";
-                await _runner.StartRunAsync(cond, nextRep);
+                await StartRunSafelyAsync(cond, nextRep);
             }
             else
             {
@@ -1603,13 +1647,21 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         else if (_currentlyEditingRun is not null && CurrentTest is not null)
         {
             // Saving edited analysis on an existing / imported run
-            CurrentAnalysis.RevisionNumber++;
+            var latestRevision = _store.LoadRunAnalysis(CurrentTest.FolderName, _currentlyEditingRun.FolderName)?.RevisionNumber ?? 0;
+            CurrentAnalysis.RevisionNumber = Math.Max(CurrentAnalysis.RevisionNumber, latestRevision) + 1;
             CurrentAnalysis.AnalyzedUtc = DateTimeOffset.UtcNow;
+            CurrentAnalysis.Outcome = (CurrentAnalysis.Outcome ?? KlaRunOutcome.FromLegacy(CurrentAnalysis.Quality)) with
+            {
+                OperatorDecision = KlaOperatorDecision.Accepted,
+                Restoration = _currentlyEditingRun.EffectiveOutcome.Restoration,
+                RestorationReason = _currentlyEditingRun.EffectiveOutcome.RestorationReason,
+            };
             _store.SaveRunAnalysis(CurrentTest.FolderName, _currentlyEditingRun.FolderName, CurrentAnalysis);
 
             var existingRunIndex = CurrentTest.Runs.FindIndex(r => r.RunId == _currentlyEditingRun.RunId || r.FolderName == _currentlyEditingRun.FolderName);
             var updatedRunSummary = _currentlyEditingRun with
             {
+                Outcome = CurrentAnalysis.Outcome,
                 Phase = RunPhase.Accepted,
                 Decision = CurrentAnalysis.Quality,
                 KlaPerHour = CurrentAnalysis.KlaPerHour,
@@ -1644,7 +1696,36 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public async Task RejectCurrentRunAsync()
     {
+        if (!CanDecideRun) return;
         var reason = ReviewRejectionReason ?? "Rejeitado pelo operador na revisão.";
+        if (_currentlyEditingRun is not null && CurrentTest is not null)
+        {
+            var folder = _currentlyEditingRun.FolderName;
+            var revision = CurrentAnalysis ?? new KlaAnalysisRevision { Quality = DecisionQuality.Inconclusive };
+            revision.RevisionNumber = (_store.LoadRunAnalysis(CurrentTest.FolderName, folder)?.RevisionNumber ?? 0) + 1;
+            revision.AnalyzedUtc = DateTimeOffset.UtcNow;
+            revision.RejectionReason = reason;
+            revision.Outcome = (revision.Outcome ?? new()) with
+            {
+                OperatorDecision = KlaOperatorDecision.Rejected,
+                Restoration = _currentlyEditingRun.EffectiveOutcome.Restoration,
+                RestorationReason = _currentlyEditingRun.EffectiveOutcome.RestorationReason,
+            };
+            _store.SaveRunAnalysis(CurrentTest.FolderName, folder, revision);
+            var index = CurrentTest.Runs.FindIndex(r => r.FolderName == folder);
+            if (index >= 0) CurrentTest.Runs[index] = _currentlyEditingRun with { Phase = RunPhase.Rejected, Outcome = revision.Outcome };
+            var condition = CurrentTest.Conditions.FirstOrDefault(c => c.ConditionId == _currentlyEditingRun.ConditionId);
+            if (condition is not null)
+            {
+                condition.AcceptedReplicates = CurrentTest.Runs.Count(r => r.ConditionId == condition.ConditionId && r.EffectiveOutcome.OperatorDecision == KlaOperatorDecision.Accepted);
+                condition.RejectedReplicates = CurrentTest.Runs.Count(r => r.ConditionId == condition.ConditionId && r.EffectiveOutcome.OperatorDecision == KlaOperatorDecision.Rejected);
+                _store.SaveConditionsTable(CurrentTest.FolderName, CurrentTest.Conditions);
+            }
+            _store.SaveTestManifest(CurrentTest);
+            await _store.FlushAsync();
+            IsReviewOpen = false; RefreshConditionsList(); UpdateUiState();
+            return;
+        }
         await _runner.RejectRunAsync(reason);
         IsReviewOpen = false;
         RefreshConditionsList();
@@ -1653,6 +1734,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
     [RelayCommand]
     public async Task RepeatCurrentRunAsync()
     {
+        if (!CanRepeatLiveRun) return;
         IsReviewOpen = false;
         await _runner.RepeatRunAsync();
     }
@@ -1728,6 +1810,9 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         // "repetir" from the review, the automatic advance).
         if (_runner.IsRunning && _runner.CurrentRun is { } run && run.RunId != _liveRunId)
         {
+            _currentlyEditingRun = null;
+            _currentlyEditingRow = null;
+            CurrentAnalysis = null;
             _liveRunId = run.RunId;
             ResetLiveSeries();
         }
@@ -1803,6 +1888,23 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private void RecomputeLiveDerivedSeries()
     {
+        if (CurrentTest?.ProtocolSettings is not null)
+        {
+            InstantaneousKlaSeries.Clear(); LogLinearSeries.Clear();
+            if (CurrentRun?.Definition is { } definition && CurrentRun.GasEvents.Any(e => e.Kind == KlaGasEventKind.GasOnConfirmed) &&
+                _analysisEngine is IKlaDeterministicAnalysisEngine deterministic)
+            {
+                var request = KlaDeterministicRequestFactory.FromRun(definition, LivePoints.ToArray(), CurrentRun.GasEvents);
+                var provisional = deterministic.AnalyzeDeterministic(request);
+                foreach (var d in provisional.RateDiagnostics.Where(d => d.EquilibriumRatioPerHour.HasValue))
+                    InstantaneousKlaSeries.Add(new(request.Samples[d.Index].Seconds, request.Samples[d.Index].CalibratedDoPercent,
+                        request.Samples[d.Index].CalibratedDoPercent, d.EquilibriumRatioPerHour, d.EquilibriumRatioPerHour));
+                if (provisional.Equilibrium.Percent is { } ceqDeterministic && provisional.SelectedWindow is { } selected)
+                    foreach (var p in _analysisEngine.ComputeLogLinearPoints(request.Samples.Select(p => p.Seconds).ToArray(), request.Samples.Select(p => p.CalibratedDoPercent).ToArray(),
+                        ceqDeterministic, request.Samples[selected.Window.Start].Seconds, request.Samples[selected.Window.End].Seconds)) LogLinearSeries.Add(p);
+            }
+            return;
+        }
         if (_reoxygenationStart < 0)
         {
             return;
@@ -1818,7 +1920,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
                 continue;
             }
             times.Add(p.RelativeSeconds);
-            values.Add(p.DOFiltered > 0 ? p.DOFiltered : p.DORaw);
+            values.Add(p.DOFiltered);
         }
 
         if (times.Count < 5)
@@ -1862,6 +1964,8 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private async void OpenReviewDrawer()
     {
+        _isRecomputing = true;
+        ResetReviewInputs();
         if (LivePoints.Count > 0)
         {
             var times = LivePoints.Select(p => p.RelativeSeconds).ToList();
@@ -1878,15 +1982,15 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
                 var startFraction = Math.Clamp(SettingAutoLinearStartPercent / 100.0, 0.01, 0.95);
                 var endFraction = Math.Clamp(SettingAutoLinearEndPercent / 100.0, startFraction + 0.05, 0.99);
 
-                var minDO = reoxPoints.Min(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw);
-                var maxDO = reoxPoints.Max(p => p.DOFiltered > 0 ? p.DOFiltered : p.DORaw);
+                var minDO = reoxPoints.Min(p => p.DOFiltered);
+                var maxDO = reoxPoints.Max(p => p.DOFiltered);
                 var doSpan = maxDO - minDO;
                 if (doSpan > 5.0)
                 {
                     var targetStartDO = minDO + (doSpan * startFraction);
                     var targetEndDO = minDO + (doSpan * endFraction);
-                    var ptStart = reoxPoints.FirstOrDefault(p => (p.DOFiltered > 0 ? p.DOFiltered : p.DORaw) >= targetStartDO);
-                    var ptEnd = reoxPoints.FirstOrDefault(p => (p.DOFiltered > 0 ? p.DOFiltered : p.DORaw) >= targetEndDO);
+                    var ptStart = reoxPoints.FirstOrDefault(p => (p.DOFiltered) >= targetStartDO);
+                    var ptEnd = reoxPoints.FirstOrDefault(p => (p.DOFiltered) >= targetEndDO);
                     ReviewTStart = ptStart != null ? Math.Round(ptStart.RelativeSeconds, 1) : Math.Round(minT + (startFraction * tSpan), 1);
                     ReviewTEnd = ptEnd != null ? Math.Round(ptEnd.RelativeSeconds, 1) : Math.Round(minT + (endFraction * tSpan), 1);
                 }
@@ -1911,9 +2015,10 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
             ReviewCeqIsManual = false;
             IsReviewOpen = true;
+            _isRecomputing = false;
             RecomputeReviewAnalysis();
 
-            if (AutoAcceptRuns)
+            if (AutoAcceptRuns && CurrentTest?.ProtocolSettings is null)
             {
                 await Task.Delay(100);
                 if (IsReviewOpen)
@@ -1926,6 +2031,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
         {
             IsReviewOpen = true;
         }
+        _isRecomputing = false;
     }
 
     public void RefreshTestsList()
@@ -2090,6 +2196,7 @@ public sealed partial class KlaDeterminationViewModel : ObservableObject, IDispo
 
     private void UpdateUiState()
     {
+        RefreshCommonState();
         OnPropertyChanged(nameof(HasActiveTest));
         OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(IsIdle));

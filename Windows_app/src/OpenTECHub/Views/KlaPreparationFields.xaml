@@ -1,0 +1,59 @@
+<UserControl x:Class="OpenTECHub.Views.KlaPreparationFields"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:conv="clr-namespace:OpenTECHub.Converters">
+ <UserControl.Resources>
+  <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+  <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="FontSize" Value="11"/><Setter Property="Margin" Value="0,6,0,2"/></Style>
+  <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="MinWidth" Value="48"/><Setter Property="Margin" Value="0,0,8,2"/></Style>
+ </UserControl.Resources>
+ <StackPanel>
+  <TextBlock Text="Remoção e recuperação" FontWeight="Bold" FontSize="13"/>
+  <UniformGrid Columns="2">
+   <StackPanel><TextBlock Text="Alvo de remoção · OD (%)"/><TextBox Text="{Binding SettingDOMin, UpdateSourceTrigger=LostFocus}"/></StackPanel>
+   <StackPanel><TextBlock Text="Agitação de remoção (rpm)"/><TextBox Text="{Binding SettingDegassingAgitation, UpdateSourceTrigger=LostFocus}"/></StackPanel>
+   <StackPanel><TextBlock Text="Máximo sem ar / N₂ (min)"/><TextBox Text="{Binding SettingMaxDegassingMinutes, UpdateSourceTrigger=LostFocus}"/></StackPanel>
+   <StackPanel><TextBlock Text="Máximo de recuperação (min)"/><TextBox Text="{Binding SettingMaxReoxygenationMinutes, UpdateSourceTrigger=LostFocus}"/></StackPanel>
+   <StackPanel Visibility="{Binding IsAbiotic, Converter={StaticResource BoolToVis}}"><TextBlock Text="OD final abiótico (%)"/><TextBox Text="{Binding SettingDOMax, UpdateSourceTrigger=LostFocus}"/></StackPanel>
+  </UniformGrid>
+  <Expander Header="Faixas e confirmação da retomada" Margin="0,8,0,0">
+   <UniformGrid Columns="2">
+    <StackPanel><TextBlock Text="N mínimo (rpm)"/><TextBox Text="{Binding MinimumRpm}"/></StackPanel>
+    <StackPanel><TextBlock Text="N máximo (rpm)"/><TextBox Text="{Binding MaximumRpm}"/></StackPanel>
+    <StackPanel><TextBlock Text="Q mínimo (L/min)"/><TextBox Text="{Binding MinimumFlow}"/></StackPanel>
+    <StackPanel><TextBlock Text="Q máximo (L/min)"/><TextBox Text="{Binding MaximumFlow}"/></StackPanel>
+    <StackPanel><TextBlock Text="OD usual mínimo (%)"/><TextBox Text="{Binding MinimumOperatingDo}"/></StackPanel>
+    <StackPanel><TextBlock Text="OD usual máximo (%)"/><TextBox Text="{Binding MaximumOperatingDo}"/></StackPanel>
+    <StackPanel><TextBlock Text="Alvo permitido mínimo (%)"/><TextBox Text="{Binding MinimumRemovalTarget}"/></StackPanel>
+    <StackPanel><TextBlock Text="Alvo permitido máximo (%)"/><TextBox Text="{Binding MaximumRemovalTarget}"/></StackPanel>
+    <StackPanel><TextBlock Text="Prazo sem novo OD (s)"/><TextBox Text="{Binding OxygenTimeout}"/></StackPanel>
+    <StackPanel><TextBlock Text="Confirmação do comando (s)"/><TextBox Text="{Binding CommandTimeout}"/></StackPanel>
+    <StackPanel><TextBlock Text="Estabilidade inicial (s)"/><TextBox Text="{Binding InitialStability}"/></StackPanel>
+    <StackPanel><TextBlock Text="Estabilidade de retomada (s)"/><TextBox Text="{Binding RecoveryStability}"/></StackPanel>
+    <StackPanel><TextBlock Text="Tolerância N (rpm)"/><TextBox Text="{Binding ReturnRpmTolerance}"/></StackPanel>
+    <StackPanel><TextBlock Text="Tolerância Q (L/min)"/><TextBox Text="{Binding ReturnFlowTolerance}"/></StackPanel>
+    <StackPanel><TextBlock Text="N de retorno · vazio = medido"/><TextBox Text="{Binding ReturnAgitation, TargetNullValue=''}"/></StackPanel>
+    <StackPanel><TextBlock Text="Queda máxima OD · opcional (pp)"/><TextBox Text="{Binding MaximumDoDrop, TargetNullValue=''}"/></StackPanel>
+    <StackPanel><TextBlock Text="OD de retomada antecipada · opcional (%)"/><TextBox Text="{Binding MinimumReturnDo, TargetNullValue=''}"/></StackPanel>
+   </UniformGrid>
+  </Expander>
+  <Expander Header="Sonda e estabilidade" Margin="0,8,0,0">
+   <UniformGrid Columns="2">
+    <StackPanel><TextBlock Text="Tecnologia da sonda"/><TextBox Text="{Binding ProbeTechnology}"/></StackPanel>
+    <StackPanel><TextBlock Text="Modelo"/><TextBox Text="{Binding ProbeModel}"/></StackPanel>
+    <StackPanel><TextBlock Text="Tempo de resposta conhecido (s)"/><TextBox Text="{Binding ProbeResponseSeconds, TargetNullValue=''}"/></StackPanel>
+    <StackPanel><TextBlock Text="Janela de estabilidade (s)"/><TextBox Text="{Binding SettingStabilityDerivativeSpanSeconds}"/></StackPanel>
+    <StackPanel><TextBlock Text="Variação estável máxima (%/s)"/><TextBox Text="{Binding SettingStabilityDerivativeThreshold}"/></StackPanel>
+    <StackPanel><TextBlock Text="Confirmações de estabilidade"/><TextBox Text="{Binding SettingStabilityRequiredSamples}"/></StackPanel>
+   </UniformGrid>
+  </Expander>
+  <Expander Header="Pré-estabilização abiótica" Margin="0,8,0,0" Visibility="{Binding IsAbiotic, Converter={StaticResource BoolToVis}}">
+   <UniformGrid Columns="2">
+    <StackPanel><TextBlock Text="Antecipação do ar (pp OD)"/><TextBox Text="{Binding SettingAirPrestageLeadPercent}"/></StackPanel>
+    <StackPanel><TextBlock Text="Tolerância de vazão (L/min)"/><TextBox Text="{Binding SettingPrestageFlowTolerance}"/></StackPanel>
+    <StackPanel><TextBlock Text="Confirmações de vazão"/><TextBox Text="{Binding SettingPrestageFlowStableSamples}"/></StackPanel>
+    <StackPanel><TextBlock Text="Prazo de pré-estabilização (s)"/><TextBox Text="{Binding SettingMaxPrestageSeconds}"/></StackPanel>
+   </UniformGrid>
+  </Expander>
+ </StackPanel>
+</UserControl>

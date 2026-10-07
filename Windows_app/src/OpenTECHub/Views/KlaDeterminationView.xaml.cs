@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -102,6 +103,16 @@ public partial class KlaDeterminationView : UserControl
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         var name = e.PropertyName ?? "";
+        var modal = name switch
+        {
+            nameof(KlaDeterminationViewModel.IsCreateDialogOpen) when ViewModel?.IsCreateDialogOpen == true => CreateModal,
+            nameof(KlaDeterminationViewModel.IsAdvancedSettingsDialogOpen) when ViewModel?.IsAdvancedSettingsDialogOpen == true => AdvancedModal,
+            nameof(KlaDeterminationViewModel.IsLoadTestDialogOpen) when ViewModel?.IsLoadTestDialogOpen == true => LoadModal,
+            nameof(KlaDeterminationViewModel.IsStartSequenceDialogOpen) when ViewModel?.IsStartSequenceDialogOpen == true => SequenceModal,
+            _ => null,
+        };
+        if (modal is not null && IsLoaded)
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () => modal.MoveFocus(new TraversalRequest(FocusNavigationDirection.First)));
         if (name.StartsWith("Review", StringComparison.Ordinal) ||
             name.StartsWith("Setting", StringComparison.Ordinal) ||
             name is nameof(KlaDeterminationViewModel.IsReviewOpen) or nameof(KlaDeterminationViewModel.CurrentAnalysis))
@@ -118,7 +129,7 @@ public partial class KlaDeterminationView : UserControl
         {
             foreach (KlaRawDataPoint point in e.NewItems)
             {
-                _doRaw.Add(point.RelativeSeconds, point.DORaw);
+                _doRaw.Add(point.RelativeSeconds, point.DOFiltered);
                 _doFiltered.Add(point.RelativeSeconds, point.DOFiltered);
             }
         }
@@ -268,6 +279,8 @@ public partial class KlaDeterminationView : UserControl
             _doRaw.LineWidth = 1;
             _doRaw.MarkerSize = 0;
             _doRaw.ManageAxisLimits = false;
+            // ADC has a different unit; keep it in the file, never on the OD (%) axis.
+            _doRaw.IsVisible = false;
             _doFiltered = plot.Add.DataLogger();
             _doFiltered.Color = PlotColor.FromHex("#2563EB");
             _doFiltered.LineWidth = 2;
@@ -275,7 +288,7 @@ public partial class KlaDeterminationView : UserControl
             _doFiltered.ManageAxisLimits = false;
             foreach (var point in vm.LivePoints)
             {
-                _doRaw.Add(point.RelativeSeconds, point.DORaw);
+                _doRaw.Add(point.RelativeSeconds, point.DOFiltered);
                 _doFiltered.Add(point.RelativeSeconds, point.DOFiltered);
             }
             _doNeedsRebuild = false;
@@ -295,13 +308,35 @@ public partial class KlaDeterminationView : UserControl
         lineMin.LinePattern = LinePattern.Dashed;
         _doOverlays.Add(lineMin);
 
-        var lineMax = plot.Add.HorizontalLine(vm.SettingDOMax);
+        var upperDo = vm.CurrentTest?.EffectiveProtocol == KlaAssayProtocol.Biotic
+            ? vm.CurrentTest.ProtocolSettings?.OperatingRange?.MaximumOperatingDoPercent ?? vm.MaximumOperatingDo
+            : vm.SettingDOMax;
+        var lineMax = plot.Add.HorizontalLine(upperDo);
         lineMax.Color = PlotColor.FromHex("#10B981");
         lineMax.LinePattern = LinePattern.Dashed;
         _doOverlays.Add(lineMax);
 
         if (vm.IsReviewOpen)
         {
+            if (vm.CurrentAnalysis?.DeterministicResult is { Input: { } input } scientific)
+            {
+                foreach (var group in scientific.Phases.GroupAdjacentByPhase())
+                {
+                    var start = input.Samples[group[0].Index].Seconds;
+                    var end = input.Samples[group[^1].Index].Seconds;
+                    if (end <= start) continue;
+                    var color = group[0].Phase switch
+                    {
+                        KlaScientificPhase.GasOffConsumption => "#F59E0B",
+                        KlaScientificPhase.GasOnRecovery => "#3B82F6",
+                        KlaScientificPhase.Steady => "#10B981",
+                        _ => "#9CA3AF",
+                    };
+                    var band = plot.Add.HorizontalSpan(start, end);
+                    band.FillColor = PlotColor.FromHex(color).WithAlpha(0.08);
+                    _doOverlays.Add(band);
+                }
+            }
             // Linear region vertical lines (Amber)
             if (vm.ReviewTStart < vm.ReviewTEnd)
             {

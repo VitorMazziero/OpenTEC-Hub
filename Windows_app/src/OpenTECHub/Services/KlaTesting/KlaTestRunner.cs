@@ -148,6 +148,17 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     public KlaTestRun? CurrentRun => _currentRun;
     internal bool UsesRecipeAuthority => _recipeLease is not null;
     internal RecipeAssayResourceLease? RecipeAuthorityLease => _recipeLease;
+    internal bool HasReadyInitialObservation(KlaTestCondition condition)
+    {
+        if (!_hasOxygenSample || _lastOxygenRejected || !_lastFlowmeterOnline || _device.State != ConnectionState.Connected ||
+            GetMonotonicSeconds() - _lastOxygenMonotonic > OperationalSettings.OxygenSampleTimeoutSeconds) return false;
+        if (IsBiotic)
+        {
+            try { ValidateBioticPreflight(condition); }
+            catch (InvalidOperationException) { return false; }
+        }
+        return true;
+    }
     public KlaTestCondition? CurrentCondition => _currentCondition;
     public RunPhase Phase => _phase;
     public bool IsRunning => _phase is not (RunPhase.Idle or RunPhase.Completed or RunPhase.Faulted);

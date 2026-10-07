@@ -10,10 +10,12 @@ public sealed class KlaRecipeAcquisition
 {
     private readonly KlaTestRunner _runner;
     private int _started;
-    public KlaRecipeAcquisition(KlaTestRunner runner)
+    private readonly Func<CancellationToken, Task>? _beforeRun;
+    public KlaRecipeAcquisition(KlaTestRunner runner, Func<CancellationToken, Task>? beforeRun = null)
     {
         if (!runner.UsesRecipeAuthority) throw new ArgumentException("Aquisição autônoma requer autoridade de receita.");
         _runner = runner;
+        _beforeRun = beforeRun;
     }
 
     public async Task<KlaRecipeAcquisitionResult> ExecuteAsync(KlaTestDocument document, KlaTestCondition condition,
@@ -34,6 +36,7 @@ public sealed class KlaRecipeAcquisition
         try
         {
             await _runner.StartTestAsync(document, acquisitionCancellation).ConfigureAwait(false);
+            if (_beforeRun is not null) await _beforeRun(acquisitionCancellation).ConfigureAwait(false);
             await _runner.StartRunAsync(condition, replicateNumber, acquisitionCancellation).ConfigureAwait(false);
             Observe();
             return await terminal.Task.WaitAsync(acquisitionCancellation).ConfigureAwait(false);

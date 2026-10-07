@@ -12,7 +12,7 @@ public sealed class KlaRecipePulseLifecycle(KlaTestRunner runner, RecipeAssayRes
     private int _started;
     public async Task<KlaRecipePulseLifecycleResult> ExecuteAsync(KlaTestDocument document, KlaTestCondition condition,
         int replicateNumber, KlaRecipeRestorationContract contract, RecipeAssayRecoveryCriteria criteria,
-        CancellationToken acquisitionCancellation)
+        CancellationToken acquisitionCancellation, Func<CancellationToken, Task>? beforeRun = null)
     {
         if (!ReferenceEquals(runner.RecipeAuthorityLease, lease))
             throw new ArgumentException("Runner e recuperação devem usar a mesma reserva.");
@@ -22,7 +22,7 @@ public sealed class KlaRecipePulseLifecycle(KlaTestRunner runner, RecipeAssayRes
         KlaRecipeAcquisitionResult acquisition;
         try
         {
-            acquisition = await new KlaRecipeAcquisition(runner).ExecuteAsync(document, condition, replicateNumber,
+            acquisition = await new KlaRecipeAcquisition(runner, beforeRun).ExecuteAsync(document, condition, replicateNumber,
                 acquisitionCancellation).ConfigureAwait(false);
         }
         catch (Exception ex)

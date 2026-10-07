@@ -194,9 +194,8 @@ public static class RecipeSerializer
         var typeName = element["type"]?.GetValue<string>();
         if (typeName is null || !TryParseType(typeName, out var type))
         {
-            // An unknown block type from a newer or foreign document is dropped rather than
-            // failing the whole load; the validator then reports the missing connections.
-            return null;
+            // Never silently drop an assay/ramp (or a future safety block) and run a partial recipe.
+            throw new RecipeFormatException($"Tipo de bloco desconhecido: {typeName ?? "ausente"}.");
         }
 
         var node = new RecipeNode

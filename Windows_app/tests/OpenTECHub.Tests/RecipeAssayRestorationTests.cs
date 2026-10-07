@@ -11,6 +11,95 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeAssayRestorationTests
 {
+    [Fact]
+    public async Task AutonomousAcquisitionCompletesFromTelemetryWithoutAcceptingAReplicate()
+    {
+        using var fixture = new Fixture(); await fixture.Initialize();
+        var directory = Path.Combine(Path.GetTempPath(), "recipe-completion-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new KlaTestStore(directory);
+            var settings = new MemorySettingsService(new AppSettings { GasRig = GasRigSettings.From(fixture.Rig) });
+            using var runner = new KlaTestRunner(fixture.Device, fixture.Arbiter, store, new KlaAnalysisEngine(), settings,
+                fixture.Clock, actuationRelease: new(isIsolatedSimulation: true), recipeLease: fixture.Lease, recipeReturnSnapshot: fixture.Snapshot);
+            var document = store.CreateTest("automatic completion", new KlaTestSettings
+            {
+                DOMinPercent = 10, DOMaxPercent = 85, AirPrestageLeadPercent = 0, MaxPrestageSeconds = 60,
+                StabilityDerivativeSpanSeconds = 2, StabilityDerivativeThresholdPercentPerSecond = .05, StabilityRequiredSamples = 3,
+                PrestageFlowToleranceLpm = .2, PrestageFlowStableSamples = 3, PrestageFlowStabilityStdDevLpm = 0
+            });
+            document.NitrogenSourceConfirmedUtc = fixture.Clock.GetUtcNow();
+            var condition = new KlaTestCondition { AgitationRpm = 450, AirflowLpm = 3, RequestedReplicates = 1 };
+            document.Conditions.Add(condition);
+            void Push(double oxygen, double flow, GasRoute route, long command)
+            {
+                fixture.Clock.Advance(TimeSpan.FromSeconds(1));
+                fixture.Device.PushTelemetry(fixture.Sample(450, flow, route, command: command, oxygen: oxygen));
+            }
+            Push(80, 2, GasRoute.Reactor, 1);
+            var task = new KlaRecipeAcquisition(runner).ExecuteAsync(document, condition, 1, CancellationToken.None);
+            Push(80, 0, GasRoute.Closed, 2);
+            Push(70, 0, GasRoute.VentAndNitrogen, 3);
+            Push(10, 0, GasRoute.VentAndNitrogen, 3);
+            for (var index = 0; index < 6; index++) Push(10, 3, GasRoute.VentAndNitrogen, 4);
+            Push(20, 3, GasRoute.Reactor, 5);
+            for (var index = 0; index < 12; index++) Push(90, 3, GasRoute.Reactor, 5);
+            for (var index = 0; index < 3; index++) Push(90, 0, GasRoute.Closed, 6);
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(KlaRecipeAcquisitionState.Completed, result.State);
+            Assert.Equal(RunPhase.Reviewing, result.AcquisitionPhase);
+            Assert.Equal(KlaRestorationState.Pending, runner.CurrentRun!.Outcome!.Restoration);
+            Assert.DoesNotContain(document.Runs, run => run.Phase == RunPhase.Accepted);
+            Assert.Equal(CommandOwner.KlaAssay, fixture.Arbiter.OwnerOf(ActuatorId.Agitation));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AutonomousAcquisitionSealsCommandsOnCancellationOrPreparationFailure(bool failPreparation)
+    {
+        using var fixture = new Fixture();
+        await fixture.Initialize();
+        var directory = Path.Combine(Path.GetTempPath(), "recipe-acquisition-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new KlaTestStore(directory);
+            var settings = new MemorySettingsService(new AppSettings { GasRig = GasRigSettings.From(fixture.Rig) });
+            using var runner = new KlaTestRunner(fixture.Device, fixture.Arbiter, store, new KlaAnalysisEngine(), settings,
+                fixture.Clock, actuationRelease: new(isIsolatedSimulation: true), recipeLease: fixture.Lease,
+                recipeReturnSnapshot: fixture.Snapshot, beforeActuation: (_, _, _) => failPreparation
+                    ? Task.FromException(new IOException("controlled preparation failure")) : Task.CompletedTask);
+            var document = store.CreateTest("autonomous acquisition", new KlaTestSettings { DOMinPercent = 10, AirPrestageLeadPercent = 0 });
+            document.NitrogenSourceConfirmedUtc = fixture.Clock.GetUtcNow();
+            var condition = new KlaTestCondition { AgitationRpm = 450, AirflowLpm = 3, RequestedReplicates = 1 };
+            document.Conditions.Add(condition);
+            fixture.Clock.Advance(TimeSpan.FromSeconds(1));
+            fixture.Device.PushTelemetry(fixture.Sample(285, 2, command: 1, oxygen: 80));
+            using var cancellation = new CancellationTokenSource();
+            var acquisition = new KlaRecipeAcquisition(runner);
+            var task = acquisition.ExecuteAsync(document, condition, 1, cancellation.Token);
+            if (!failPreparation)
+            {
+                await WaitUntil(() => fixture.Device.Sent.Count > 0);
+                cancellation.Cancel();
+            }
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(failPreparation ? KlaRecipeAcquisitionState.Failed : KlaRecipeAcquisitionState.Cancelled, result.State);
+            if (failPreparation) Assert.Empty(fixture.Device.Sent);
+            Assert.Equal(CommandOwner.KlaAssay, fixture.Arbiter.OwnerOf(ActuatorId.Agitation));
+            Assert.Equal(KlaRestorationState.Pending, runner.CurrentRun!.Outcome!.Restoration);
+            fixture.Device.Sent.Clear();
+            fixture.Clock.Advance(TimeSpan.FromSeconds(20));
+            fixture.Device.PushTelemetry(fixture.Sample(0, 0, GasRoute.Closed, oxygen: 1));
+            runner.CheckWatchdog();
+            Assert.Empty(fixture.Device.Sent);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => acquisition.ExecuteAsync(document, condition, 1, CancellationToken.None));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     internal sealed class Fixture : IDisposable
     {
         public readonly TestClock Clock = new(DateTimeOffset.Parse("2026-10-07T12:00:00Z"));
@@ -318,6 +407,7 @@ public sealed class RecipeAssayRestorationTests
             var result = await task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.Equal(KlaRestorationState.Confirmed, result.Restoration);
             runner.RecordRecipeRecovery(result);
+            runner.SealRecipeAcquisitionForRecovery(); // Repeated cleanup must preserve confirmed recovery.
             Assert.Equal(KlaRestorationState.Confirmed, runner.CurrentRun.Outcome!.Restoration);
             Assert.Throws<InvalidOperationException>(runner.ConfirmRecipeReturn);
             await Fixture.ReturnWithStore(fixture.Lease, fixture.Contract(), fixture.Clock, new(new() { Restoration = result.Restoration }, 40)

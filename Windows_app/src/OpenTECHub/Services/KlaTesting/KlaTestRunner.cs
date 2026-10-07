@@ -110,6 +110,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     public void SealRecipeAcquisitionForRecovery()
     {
         if (_recipeReturnSnapshot is null) throw new InvalidOperationException("Runner não pertence a uma receita.");
+        if (_recipeAcquisitionSealed) return;
         ((ReservedKlaCommandArbiter)_arbiter).Seal();
         _recipeAcquisitionSealed = true;
         _device.TelemetryReceived -= OnTelemetryReceived;
@@ -145,6 +146,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public KlaTestDocument? CurrentTest => _currentTest;
     public KlaTestRun? CurrentRun => _currentRun;
+    internal bool UsesRecipeAuthority => _recipeLease is not null;
     public KlaTestCondition? CurrentCondition => _currentCondition;
     public RunPhase Phase => _phase;
     public bool IsRunning => _phase is not (RunPhase.Idle or RunPhase.Completed or RunPhase.Faulted);

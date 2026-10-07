@@ -27,7 +27,7 @@
 
 # Scientific reference bytes and validation receipts are sealed by SHA-256.
 # Git must not change these bytes on a Windows checkout.
-*.trx -text
+*.trx -text whitespace=cr-at-eol
 tests/fixtures/kla-e0/** -text
 tests/fixtures/kla-e3-python-v1.json -text
 docs/plans/kla-e7/corpus-audit.json -text whitespace=cr-at-eol

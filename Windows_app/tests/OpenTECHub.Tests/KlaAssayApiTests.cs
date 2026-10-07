@@ -168,7 +168,7 @@ public sealed class KlaAssayApiTests : IDisposable
         using (var api = new KlaAssayApi(Journal, new Executor()))
             Assert.Throws<IOException>(() => new KlaAssayApi(Journal, new Executor()));
         File.WriteAllText(Journal, "invalid");
-        Assert.Throws<JsonException>(() => new KlaAssayApi(Journal, new Executor()));
+        Assert.ThrowsAny<JsonException>(() => new KlaAssayApi(Journal, new Executor()));
     }
 
     [Fact]

@@ -318,7 +318,7 @@ public sealed class RecipeExecutionContractTests
         Assert.Throws<RecipeFormatException>(() => RecipeSerializer.Deserialize(json));
     }
 
-    private static KlaRecipeRequest Request(KlaAssayProtocol protocol = KlaAssayProtocol.Abiotic,
+    internal static KlaRecipeRequest Request(KlaAssayProtocol protocol = KlaAssayProtocol.Abiotic,
         KlaCaptureMode mode = KlaCaptureMode.Single)
     {
         var context = new RecipeInvocationContext { RecipeRunId = Guid.NewGuid(), InvocationId = Guid.NewGuid(),

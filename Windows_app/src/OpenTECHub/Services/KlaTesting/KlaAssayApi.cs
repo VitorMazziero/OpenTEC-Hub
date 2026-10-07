@@ -16,6 +16,8 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
     private readonly Dictionary<Guid, KlaAssayApiObservation> _requests;
     private readonly Dictionary<Guid, (CancellationTokenSource Cancellation, Task Completion)> _running = new();
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private sealed record Journal(int SchemaVersion, KlaAssayApiObservation[] Requests);
+    private const int JournalVersion = 2;
 
     public KlaAssayApi(string journalPath, IKlaAssayExecution execution, TimeProvider? time = null)
     {
@@ -26,10 +28,7 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
         _lease = new FileStream(_journalPath + ".lease", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         try
         {
-        _requests = File.Exists(_journalPath)
-            ? (JsonSerializer.Deserialize<KlaAssayApiObservation[]>(File.ReadAllText(_journalPath), JsonOptions)
-                ?? throw new InvalidDataException("Registro de solicitações vazio/inválido.")).ToDictionary(r => r.Request.RequestId)
-            : new();
+        _requests = File.Exists(_journalPath) ? ReadJournal().ToDictionary(r => r.Request.RequestId) : new();
         // A persisted reservation could have emitted commands. Never re-dispatch or infer recovery on reopen.
         foreach (var item in _requests.Values.ToArray())
         {
@@ -80,11 +79,14 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
                 return Task.FromResult(record);
             }
             if (!_execution.IsValidated) throw new InvalidOperationException("Execução por receita requer validação operacional em bancada.");
+            if (record.Request.RecipePulse is not null && _execution.Capabilities is null)
+                throw new InvalidOperationException("Execução de receita requer capacidades por instalação e perfil.");
+            _execution.Capabilities?.EnsureAllows(record.Request);
             if (_running.Count > 0) throw new InvalidOperationException("Outro ensaio detém a execução; aguarde a recuperação.");
             var cultivation = _requests.Values.Where(r => string.Equals(r.Request.CultivationId.Trim(),
                 record.Request.CultivationId.Trim(), StringComparison.OrdinalIgnoreCase) && r.StartedUtc.HasValue).ToArray();
-            if (_requests.Values.Any(r => r.State is KlaAssayApiState.Interrupted or KlaAssayApiState.RestorationFailed))
-                throw new InvalidOperationException("Há um retorno físico sem confirmação; execução bloqueada.");
+            if (_requests.Values.Any(r => r.State is KlaAssayApiState.Interrupted or KlaAssayApiState.RestorationFailed or KlaAssayApiState.PersistenceFailed))
+                throw new InvalidOperationException("Há retorno ou persistência sem confirmação; execução bloqueada.");
             // Saved limits can become stricter, never be loosened by a subsequent request in the same cultivation.
             var maxRuns = cultivation.Select(r => r.Request.Limits.MaximumRuns).Append(record.Request.Limits.MaximumRuns).Min();
             var maxExposure = cultivation.Select(r => r.Request.Limits.MaximumReservedRemovalSeconds)
@@ -101,18 +103,21 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
             if (delay > TimeSpan.FromMilliseconds(uint.MaxValue - 1))
                 throw new ArgumentException("Deadline excede a janela suportada pelo temporizador.");
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cancellation.CancelAfter(delay);
+            var timer = _time.CreateTimer(_ =>
+            {
+                try { cancellation.Cancel(); } catch (ObjectDisposedException) { }
+            }, null, delay, Timeout.InfiniteTimeSpan);
             record = record with { State = KlaAssayApiState.Running, StartedUtc = now };
-            try { Persist(record); } catch { cancellation.Dispose(); throw; }
+            try { Persist(record); } catch { timer.Dispose(); cancellation.Dispose(); throw; }
             // Reserve before dispatch and publish the task before execution can finish synchronously.
             var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _running.Add(requestId, (cancellation, completion.Task));
-            _ = ExecuteAsync(record, cancellation, completion);
+            _ = ExecuteAsync(record, cancellation, timer, completion);
             return Task.FromResult(Require(requestId));
         }
     }
 
-    private async Task ExecuteAsync(KlaAssayApiObservation record, CancellationTokenSource cancellation, TaskCompletionSource completion)
+    private async Task ExecuteAsync(KlaAssayApiObservation record, CancellationTokenSource cancellation, ITimer timer, TaskCompletionSource completion)
     {
         // Do not call an adapter while the caller's StartAsync lock is held.
         await Task.Yield();
@@ -125,12 +130,15 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
         }
         lock (_gate)
         {
-            var restorationConfirmed = record.Request.Definition.Protocol == KlaAssayProtocol.Biotic
-                ? result.Outcome.Restoration == KlaRestorationState.Confirmed
-                : result.Outcome.Restoration is KlaRestorationState.Confirmed or KlaRestorationState.NotRequired;
+            var binding = record.Request.RecipePulse;
+            var restorationConfirmed = result.Outcome.Restoration == KlaRestorationState.Confirmed &&
+                (binding is null || result.ReturnSnapshotId == binding.Invocation.Restoration.BeforeAssay.SnapshotId);
+            var persisted = binding is null || !string.IsNullOrWhiteSpace(result.PersistenceReceiptId);
+            var qualityAccepted = KlaRecipeQualityEvaluator.Accepts(record.Request, result);
             var state = !restorationConfirmed ? KlaAssayApiState.RestorationFailed
+                : !persisted ? KlaAssayApiState.PersistenceFailed
                 : cancellation.IsCancellationRequested || _time.GetUtcNow() >= record.Request.DeadlineUtc ? KlaAssayApiState.Cancelled
-                : result.Outcome.KlaQuality is KlaScientificQuality.Valid or KlaScientificQuality.Conditional &&
+                : qualityAccepted &&
                     result.KlaPerHour is { } value && double.IsFinite(value) && value > 0
                     ? KlaAssayApiState.Completed : KlaAssayApiState.Inconclusive;
             record = record with { State = state, CompletedUtc = _time.GetUtcNow(), Result = result, Reason = result.Reason };
@@ -143,17 +151,31 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
             catch (Exception error)
             {
                 // Persisted Running reservation remains fail-closed on restart; failed write blocks new requests now too.
-                _requests[record.Request.RequestId] = record with { State = KlaAssayApiState.RestorationFailed,
+                _requests[record.Request.RequestId] = record with { State = KlaAssayApiState.PersistenceFailed,
                     Reason = $"Falha ao registrar término: {error.Message}" };
                 _running.Remove(record.Request.RequestId);
                 completion.TrySetException(error);
             }
-            finally { cancellation.Dispose(); }
+            finally { timer.Dispose(); cancellation.Dispose(); }
         }
     }
 
     public KlaAssayApiObservation Observe(Guid requestId) { lock (_gate) return Require(requestId); }
     public KlaAssayApiResult? GetResult(Guid requestId) => Observe(requestId).Result;
+
+    /// <summary>Waiting cancellation stops observation only; use CancelWithRecoveryAsync to cancel acquisition.</summary>
+    public async Task<KlaAssayApiObservation> WaitForCompletionAsync(Guid requestId, CancellationToken ct = default)
+    {
+        Task? completion;
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            Require(requestId);
+            completion = _running.TryGetValue(requestId, out var active) ? active.Completion : null;
+        }
+        if (completion is not null) await completion.WaitAsync(ct).ConfigureAwait(false);
+        return Observe(requestId);
+    }
 
     public async Task<KlaAssayApiObservation> CancelWithRecoveryAsync(Guid requestId)
     {
@@ -189,10 +211,23 @@ public sealed class KlaAssayApi : IKlaAssayApi, IDisposable
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_journalPath)!);
         var temporary = _journalPath + ".tmp";
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(_requests.Values.ToArray(), JsonOptions);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new Journal(JournalVersion, _requests.Values.ToArray()), JsonOptions);
         using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
         { stream.Write(bytes); stream.Flush(flushToDisk: true); }
         File.Move(temporary, _journalPath, overwrite: true);
+    }
+
+    private KlaAssayApiObservation[] ReadJournal()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(_journalPath));
+        if (document.RootElement.ValueKind == JsonValueKind.Array)
+            return document.RootElement.Deserialize<KlaAssayApiObservation[]>(JsonOptions)
+                ?? throw new InvalidDataException("Registro legado vazio/inválido.");
+        var journal = document.RootElement.Deserialize<Journal>(JsonOptions)
+            ?? throw new InvalidDataException("Registro de solicitações vazio/inválido.");
+        if (journal.SchemaVersion != JournalVersion || journal.Requests is null)
+            throw new InvalidDataException("Versão de diário de kLa desconhecida.");
+        return journal.Requests;
     }
 
     private static string Fingerprint(KlaAssayApiRequest request) => Convert.ToHexString(

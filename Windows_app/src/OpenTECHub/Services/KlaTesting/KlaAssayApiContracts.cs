@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace OpenTECHub.Services.KlaTesting;
 
-public enum KlaAssayApiState { Created, Running, Completed, Inconclusive, Cancelled, RestorationFailed, Skipped, Interrupted }
+public enum KlaAssayApiState { Created, Running, Completed, Inconclusive, Cancelled, RestorationFailed, Skipped, Interrupted, PersistenceFailed }
 public enum KlaAssayFailurePolicy { HaltRecipe, ContinueAfterConfirmedReturn }
 public enum KlaConditionSelection { Explicit, Current }
 
@@ -22,6 +22,8 @@ public sealed record KlaAssayApiRequest(Guid RequestId, string CultivationId, Kl
     KlaConditionSelection ConditionSelection, DateTimeOffset StartDeadlineUtc, DateTimeOffset DeadlineUtc,
     KlaCultivationAssayLimits Limits, KlaAssayFailurePolicy FailurePolicy = KlaAssayFailurePolicy.HaltRecipe)
 {
+    public KlaRecipePulseBinding? RecipePulse { get; init; }
+
     public void Validate()
     {
         if (RequestId == Guid.Empty || string.IsNullOrWhiteSpace(CultivationId) ||
@@ -36,6 +38,7 @@ public sealed record KlaAssayApiRequest(Guid RequestId, string CultivationId, Kl
             throw new ArgumentException("Contexto e solicitação devem identificar o mesmo cultivo.");
         if (!double.IsFinite(ReservedRemovalSeconds) || ReservedRemovalSeconds <= 0)
             throw new ArgumentException("O prazo de remoção precisa ser finito e positivo.");
+        RecipePulse?.ValidateAgainst(this);
     }
 
     public double ReservedRemovalSeconds => (Definition.Protocol == KlaAssayProtocol.Biotic
@@ -52,22 +55,43 @@ public sealed record KlaAssayApiRequest(Guid RequestId, string CultivationId, Kl
 }
 
 public sealed record KlaAssayApiResult(KlaRunOutcome Outcome, double? KlaPerHour,
-    string? TestFolder = null, string? RunFolder = null, string? Reason = null);
+    string? TestFolder = null, string? RunFolder = null, string? Reason = null)
+{
+    public ImmutableArray<string> ReasonCodes { get; init; } = [];
+    public Guid? ReturnSnapshotId { get; init; }
+    public string? PersistenceReceiptId { get; init; }
+}
 
 public sealed record KlaAssayApiObservation(KlaAssayApiRequest Request, KlaAssayApiState State,
     DateTimeOffset? StartedUtc = null, DateTimeOffset? CompletedUtc = null,
     KlaAssayApiResult? Result = null, string? Reason = null)
 {
-    public bool MayContinueRecipe => State == KlaAssayApiState.Completed ||
+    public bool MayContinueRecipe => Result?.Outcome.Restoration == KlaRestorationState.Confirmed &&
+        (Request.RecipePulse is null || Result.ReturnSnapshotId == Request.RecipePulse.Invocation.Restoration.BeforeAssay.SnapshotId &&
+            !string.IsNullOrWhiteSpace(Result.PersistenceReceiptId)) &&
+        (State == KlaAssayApiState.Completed && KlaRecipeQualityEvaluator.Accepts(Request, Result) ||
         (Request.FailurePolicy == KlaAssayFailurePolicy.ContinueAfterConfirmedReturn &&
-         State is KlaAssayApiState.Inconclusive or KlaAssayApiState.Cancelled &&
-         Result?.Outcome.Restoration is KlaRestorationState.Confirmed or KlaRestorationState.NotRequired);
+         State is KlaAssayApiState.Inconclusive or KlaAssayApiState.Cancelled));
+}
+
+public static class KlaRecipeQualityEvaluator
+{
+    public static bool Accepts(KlaAssayApiRequest request, KlaAssayApiResult result)
+    {
+        if (result.KlaPerHour is not { } value || !double.IsFinite(value) || value <= 0) return false;
+        var policy = request.RecipePulse?.Invocation.Quality;
+        if (policy?.RequireValidOur == true && result.Outcome.OurQuality != KlaScientificQuality.Valid) return false;
+        return result.Outcome.KlaQuality == KlaScientificQuality.Valid ||
+            policy is not null && result.Outcome.KlaQuality == KlaScientificQuality.Conditional &&
+            !result.ReasonCodes.IsDefaultOrEmpty && result.ReasonCodes.All(policy.AllowedConditionalReasonCodes.Contains);
+    }
 }
 
 public interface IKlaAssayApi
 {
     KlaAssayApiObservation Create(KlaAssayApiRequest request);
     Task<KlaAssayApiObservation> StartAsync(Guid requestId, CancellationToken ct = default);
+    Task<KlaAssayApiObservation> WaitForCompletionAsync(Guid requestId, CancellationToken ct = default);
     KlaAssayApiObservation Observe(Guid requestId);
     Task<KlaAssayApiObservation> CancelWithRecoveryAsync(Guid requestId);
     KlaAssayApiResult? GetResult(Guid requestId);
@@ -82,6 +106,7 @@ public interface IKlaAssayApi
 public interface IKlaAssayExecution
 {
     bool IsValidated { get; }
+    KlaAssayExecutionCapabilities? Capabilities => null;
     Task<KlaAssayApiResult> ExecuteWithRecoveryAsync(KlaAssayApiRequest request, CancellationToken acquisitionCancellation);
 }
 

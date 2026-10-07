@@ -70,6 +70,75 @@ public sealed class KlaTestRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task SuccessfulPreparationBarrierAllowsTheCommonRunnerToStart()
+    {
+        var (doc, condition) = await StartTestAsync("Successful preparation", 10);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var runner = new KlaTestRunner(_device, _arbiter, _store, _analysisEngine, _settings, _clock,
+            actuationRelease: new(isIsolatedSimulation: true), beforeActuation: async (_, _, token) =>
+            { entered.TrySetResult(); await release.Task.WaitAsync(token); });
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        _device.PushTelemetry(new() { OxygenCalibrated = 10, OxygenRaw = 10, FlowmeterOnline = true });
+        await runner.StartTestAsync(doc);
+        var starting = runner.StartRunAsync(condition, 1);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Empty(_device.Sent);
+        Assert.Throws<InvalidOperationException>(() => runner.PrepareTest(doc));
+        Assert.Throws<InvalidOperationException>(() => runner.UpdateLiveSettings(FastSettings()));
+        release.TrySetResult();
+        await starting.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.NotEmpty(_device.Sent);
+        Assert.Equal(CommandOwner.KlaAssay, _arbiter.OwnerOf(ActuatorId.Agitation));
+    }
+
+    [Fact]
+    public async Task PreparationBarrierPrecedesAnyActuationAndRechecksTelemetry()
+    {
+        var (doc, condition) = await StartTestAsync("Preparation barrier", 10);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var runner = new KlaTestRunner(_device, _arbiter, _store, _analysisEngine, _settings, _clock,
+            actuationRelease: new(isIsolatedSimulation: true), beforeActuation: async (test, run, token) =>
+            {
+                Assert.Equal(doc.TestId, run.TestId);
+                Assert.True(Directory.Exists(Path.Combine(_store.RootDirectory, test.FolderName, "Corridas", run.FolderName)));
+                entered.TrySetResult();
+                await release.Task.WaitAsync(token);
+            });
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        _device.PushTelemetry(new() { OxygenCalibrated = 10, OxygenRaw = 10, FlowmeterOnline = true });
+        await runner.StartTestAsync(doc);
+        var starting = runner.StartRunAsync(condition, 1);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Empty(_device.Sent);
+        _clock.Advance(TimeSpan.FromMinutes(2));
+        runner.CheckWatchdog();
+        _device.PushTelemetry(new() { OxygenCalibrated = 10, OxygenRaw = 10, FlowmeterOnline = false });
+        Assert.Empty(_device.Sent);
+        release.TrySetResult();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => starting);
+        Assert.Empty(_device.Sent);
+        Assert.Equal(RunPhase.Faulted, runner.Phase);
+    }
+
+    [Fact]
+    public async Task PreparationWriteFailureCannotEmitAcquisitionCommands()
+    {
+        var (doc, condition) = await StartTestAsync("Failed preparation", 10);
+        using var runner = new KlaTestRunner(_device, _arbiter, _store, _analysisEngine, _settings, _clock,
+            actuationRelease: new(isIsolatedSimulation: true), beforeActuation: (_, _, _) =>
+                Task.FromException(new IOException("Injected checkpoint failure")));
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        _device.PushTelemetry(new() { OxygenCalibrated = 10, OxygenRaw = 10, FlowmeterOnline = true });
+        await runner.StartTestAsync(doc);
+        await Assert.ThrowsAsync<IOException>(() => runner.StartRunAsync(condition, 1));
+        Assert.Empty(_device.Sent);
+        Assert.Equal(RunPhase.Faulted, runner.Phase);
+        Assert.NotNull(runner.CurrentRun);
+    }
+
+    [Fact]
     public async Task E7_PhysicalBioticReleaseIsBlockedBeforeAnyActuatorCommand()
     {
         var (doc, condition) = await StartTestAsync("Biotic release gate", 80);

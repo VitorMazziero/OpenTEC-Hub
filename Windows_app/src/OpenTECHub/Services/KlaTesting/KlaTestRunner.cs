@@ -27,6 +27,8 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
     private readonly KlaReturnSnapshot? _recipeReturnSnapshot;
     private readonly RecipeAssayResourceLease? _recipeLease;
     private volatile bool _recipeAcquisitionSealed;
+    private volatile bool _preparationPending;
+    private readonly Func<KlaTestDocument, KlaTestRun, CancellationToken, Task>? _beforeActuation;
 
     private readonly object _gate = new();
     private readonly List<KlaRawDataPoint> _runPoints = [];
@@ -71,7 +73,8 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         TimeProvider? time = null,
         ILogger<KlaTestRunner>? log = null,
         ICascadeService? cascade = null, IOurSoftSensor? our = null, KlaActuationRelease? actuationRelease = null,
-        RecipeAssayResourceLease? recipeLease = null, KlaReturnSnapshot? recipeReturnSnapshot = null)
+        RecipeAssayResourceLease? recipeLease = null, KlaReturnSnapshot? recipeReturnSnapshot = null,
+        Func<KlaTestDocument, KlaTestRun, CancellationToken, Task>? beforeActuation = null)
     {
         if ((recipeLease is null) != (recipeReturnSnapshot is null))
             throw new ArgumentException("Runner de receita requer reserva e snapshot juntos.");
@@ -81,6 +84,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             RecipeAssayReturnState.Validate(recipeReturnSnapshot!);
         }
         _recipeReturnSnapshot = recipeReturnSnapshot; _recipeLease = recipeLease;
+        _beforeActuation = beforeActuation;
         _device = device ?? throw new ArgumentNullException(nameof(device));
         ArgumentNullException.ThrowIfNull(arbiter);
         _arbiter = recipeLease is null ? arbiter : new ReservedKlaCommandArbiter(arbiter, recipeLease);
@@ -215,6 +219,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public void PrepareTest(KlaTestDocument doc)
     {
+        if (_preparationPending) throw new InvalidOperationException("Preparação persistida em andamento.");
         ArgumentNullException.ThrowIfNull(doc);
         if (_phase is RunPhase.DivertingAir or RunPhase.MeasuringConsumption or RunPhase.SwitchingToReactor or
             RunPhase.RestoringCultivation or RunPhase.Reoxygenating or RunPhase.Deoxygenating or RunPhase.PrestagingAir)
@@ -412,6 +417,8 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
                 StartedUtc = _time.GetUtcNow(),
             };
 
+            _preparationPending = _beforeActuation is not null;
+
             var runFolder = _store.InitializeRunFolder(_currentTest.FolderName, _currentRun);
             _currentRun.FolderName = runFolder;
             _store.SaveRunAcquisition(_currentTest.FolderName, runFolder, _currentRun.Acquisition);
@@ -430,6 +437,34 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
             (IsBiotic ? " — respiração; ar no escape e N₂ isolado."
                 : startAtFloor ? " — já no piso, sem fase de N₂." : $" — N₂ aberto na fonte confirmado em {_currentTest.NitrogenSourceConfirmedUtc:HH:mm:ss} UTC."));
         RaiseStateChanged();
+
+        if (_beforeActuation is not null)
+        {
+            try
+            {
+                await _beforeActuation(_currentTest, _currentRun, ct).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
+                if (_phase != RunPhase.Preflight || IsStorageCompromised || _device.State != ConnectionState.Connected || !_lastFlowmeterOnline ||
+                    _lastOxygenRejected || GetMonotonicSeconds() - _lastOxygenMonotonic > OperationalSettings.OxygenSampleTimeoutSeconds ||
+                    _currentRun.Acquisition?.OxygenCalibrationA != _settings.Current.Calibration.OxygenA ||
+                    _currentRun.Acquisition?.OxygenCalibrationB != _settings.Current.Calibration.OxygenB ||
+                    _startAtFloor != (_currentDO <= _currentTest.Settings.DOMinPercent + Math.Max(0.0, _currentTest.Settings.AirPrestageLeadPercent)) ||
+                    _recipeLease is not null && !_recipeLease.IsAssayAuthorityCurrent)
+                    throw new InvalidOperationException("Pré-voo inválido após a persistência da preparação.");
+                if (IsBiotic) ValidateBioticPreflight(condition);
+            }
+            catch
+            {
+                lock (_gate)
+                {
+                    _phase = RunPhase.Faulted;
+                    _currentRun.CurrentPhase = RunPhase.Faulted;
+                    _statusMessage = "Preparação não confirmada; aquisição não iniciada.";
+                }
+                throw;
+            }
+            finally { _preparationPending = false; }
+        }
 
         // 1. Claim ownership of Agitation and Aeration
         _assayCoordinator.Acquire($"Ensaio kLa: {_currentRun.FolderName}");
@@ -768,6 +803,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public void UpdateLiveSettings(KlaTestSettings settings)
     {
+        if (_preparationPending) throw new InvalidOperationException("Preparação persistida em andamento.");
         if (_recipeAcquisitionSealed) throw new InvalidOperationException("Configuração da tentativa encerrada é imutável.");
         ValidateSettings(settings);
         lock (_gate)
@@ -797,6 +833,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     public void SetDegassingAgitation(double rpm)
     {
+        if (_preparationPending) throw new InvalidOperationException("Preparação persistida em andamento.");
         if (_recipeAcquisitionSealed) throw new InvalidOperationException("Configuração da tentativa encerrada é imutável.");
         if (!double.IsFinite(rpm) || rpm <= 0)
         {
@@ -890,7 +927,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
         _lastFlowmeterOnline = s.FlowmeterOnline;
         _lastFlowCommandId = s.FlowCommandId;
 
-        if (_currentTest is null || _phase is RunPhase.Idle or RunPhase.Completed or RunPhase.Faulted)
+        if (_preparationPending || _currentTest is null || _phase is RunPhase.Idle or RunPhase.Completed or RunPhase.Faulted)
         {
             return;
         }
@@ -1318,6 +1355,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     private void OnDeviceStateChanged(ConnectionStateChange change)
     {
+        if (_preparationPending) return;
         if (change.State != ConnectionState.Connected && IsBiotic && _phase == RunPhase.RestoringCultivation)
         {
             FailCultivationRestoration("Comunicação perdida durante a retomada.");
@@ -1331,7 +1369,7 @@ public sealed partial class KlaTestRunner : IKlaTestRunner
 
     internal void CheckWatchdog()
     {
-        if (_recipeAcquisitionSealed) return;
+        if (_recipeAcquisitionSealed || _preparationPending) return;
         if (!IsRunning || _phase == RunPhase.Reviewing)
         {
             return;

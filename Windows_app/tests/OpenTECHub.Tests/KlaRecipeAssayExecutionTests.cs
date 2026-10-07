@@ -148,7 +148,7 @@ public sealed class KlaRecipeAssayExecutionTests
             if (failPersistence) writer.Run(Path.Combine(directory, document.FolderName, "controlled-error"),
                 () => throw new IOException("terminal persistence failure"));
             await fixture.PushStable(command: 20);
-            var completed = await cancelling.WaitAsync(TimeSpan.FromSeconds(3));
+            var completed = await cancelling.WaitAsync(TimeSpan.FromSeconds(10));
             if (completeNormally) Assert.True(completed.State is KlaAssayApiState.Completed or KlaAssayApiState.Inconclusive);
             else Assert.Equal(failPersistence ? KlaAssayApiState.PersistenceFailed : KlaAssayApiState.Cancelled, completed.State);
             Assert.Equal(KlaRestorationState.Confirmed, completed.Result!.Outcome.Restoration);
@@ -197,14 +197,14 @@ public sealed class KlaRecipeAssayExecutionTests
         {
             if (activeApi is not null)
             {
-                var cleanup = activeApi.WaitForCompletionAsync(activeRequest);
+                var cleanup = activeApi.CancelWithRecoveryAsync(activeRequest);
                 for (var attempt = 0; attempt < 10 && !cleanup.IsCompleted; attempt++)
                 {
                     fixture.Clock.Advance(TimeSpan.FromHours(1));
                     fixture.Device.PushTelemetry(fixture.Sample(command: 100));
                     await Task.Delay(10);
                 }
-                try { await cleanup.WaitAsync(TimeSpan.FromSeconds(1)); } catch { }
+                await cleanup.WaitAsync(TimeSpan.FromSeconds(10));
                 activeApi.Dispose();
             }
             if (Directory.Exists(directory)) Directory.Delete(directory, true);

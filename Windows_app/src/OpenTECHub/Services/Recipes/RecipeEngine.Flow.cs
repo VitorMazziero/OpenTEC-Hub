@@ -80,13 +80,13 @@ public sealed partial class RecipeEngine
 
     private async Task FanOutAsync(IReadOnlyList<RecipeConnection> outputs, CancellationToken ct)
     {
-        var branches = outputs.Select(edge =>
+        var branches = outputs.Select(edge => (Func<CancellationToken, Task>)(branchToken =>
         {
             MarkTraversed(edge);
-            return ExecuteFlowAsync(Current!.Node(edge.TargetNodeId), edge, ct);
-        });
+            return ExecuteFlowAsync(Current!.Node(edge.TargetNodeId), edge, branchToken);
+        })).ToArray();
 
-        await Task.WhenAll(branches).ConfigureAwait(false);
+        await RecipeParallelGroup.RunAsync(branches, ct).ConfigureAwait(false);
     }
 
     /// <summary>

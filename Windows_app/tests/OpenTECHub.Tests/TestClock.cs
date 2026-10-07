@@ -19,6 +19,8 @@ internal sealed class TestClock(DateTimeOffset now, bool manualWatchdog = false,
     public override DateTimeOffset GetUtcNow() => _now;
     public override long GetTimestamp() => _timestamp;
     public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public int PendingTimers { get { lock (_timerGate) return _timers.Count; } }
+    public void ShiftUtc(TimeSpan delta) => _now += delta;
 
     // Runner fixtures explicitly call CheckWatchdog after driving telemetry. A wall-clock
     // callback racing a 130-second simulated loop otherwise makes assertions depend on CPU load.

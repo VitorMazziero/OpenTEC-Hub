@@ -12,8 +12,11 @@ public sealed partial class RecipeEngine
         switch (node.Type)
         {
             case NodeType.KlaAssay:
+                await ExecuteKlaWorkAsync(node, null, ct).ConfigureAwait(false);
+                break;
             case NodeType.Periodic:
-                throw new InvalidOperationException("Execução autônoma ainda requer o provedor qualificado dos blocos.");
+                await ExecutePeriodicNodeAsync(node, ct).ConfigureAwait(false);
+                break;
             case NodeType.Start:
             case NodeType.End:
             case NodeType.And:

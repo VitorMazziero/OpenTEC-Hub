@@ -146,7 +146,45 @@ public static class RecipeValidator
 
         ValidateCascadeContinuations(recipe, findings);
         ValidatePeriodicCascadeReferences(recipe, reachable, findings);
+        ValidateAssayResourceConflicts(recipe, findings);
     }
+
+    private static void ValidateAssayResourceConflicts(RecipeDocument recipe, List<RecipeFinding> findings)
+    {
+        var bindings = new List<RecipePeriodicBinding>();
+        foreach (var periodic in recipe.Nodes.Where(n => n.Type == NodeType.Periodic))
+        {
+            try { bindings.Add(RecipePeriodicTopology.ReadBinding(recipe, periodic)); }
+            catch (ArgumentException) { }
+        }
+        foreach (var assay in recipe.Nodes.Where(n => n.Type == NodeType.KlaAssay))
+        {
+            var cascade = bindings.FirstOrDefault(b => b.TargetNodeId == assay.Id)?.CascadeNodeId;
+            foreach (var producer in recipe.Nodes.Where(n => n.Id != assay.Id && CommandsAssayResources(n)))
+            {
+                if (!RecipePeriodicTopology.CanOverlap(recipe, assay.Id, producer.Id)) continue;
+                if (producer.Type == NodeType.CascadeControl && producer.Id == cascade) continue;
+                if (producer.Type == NodeType.KlaAssay && cascade is not null &&
+                    bindings.FirstOrDefault(b => b.TargetNodeId == producer.Id)?.CascadeNodeId == cascade) continue;
+                findings.Add(Error($"'{Title(producer)}' pode disputar N/Q/O₂ com o ensaio; " +
+                    "use execução sequencial ou o grupo periódico coordenado.", assay.Id));
+            }
+        }
+    }
+
+    private static bool CommandsAssayResources(RecipeNode node) => node.Type switch
+    {
+        NodeType.CascadeControl or NodeType.KlaAssay or NodeType.ResetVariables => true,
+        NodeType.SetSetpoint => node.Text("variavel") is nameof(SetpointVariable.Agitation) or
+            nameof(SetpointVariable.Flow) or nameof(SetpointVariable.Oxygen),
+        NodeType.MultiSetpoint => node.Rows("pontos").OfType<System.Text.Json.Nodes.JsonObject>().Any(row =>
+            row["variavel"] is System.Text.Json.Nodes.JsonValue value && value.TryGetValue<string>(out var variable) &&
+            variable is nameof(SetpointVariable.Agitation) or nameof(SetpointVariable.Flow) or nameof(SetpointVariable.Oxygen)),
+        NodeType.SetLoop => node.Text("malha") == nameof(ControlLoop.Aeration),
+        NodeType.MultiLoop => node.Rows("controles").OfType<System.Text.Json.Nodes.JsonObject>().Any(row =>
+            row["malha"] is System.Text.Json.Nodes.JsonValue value && value.TryGetValue<string>(out var loop) && loop == nameof(ControlLoop.Aeration)),
+        _ => false
+    };
 
     private static void ValidatePeriodicCascadeReferences(
         RecipeDocument recipe, HashSet<string> reachable, List<RecipeFinding> findings)

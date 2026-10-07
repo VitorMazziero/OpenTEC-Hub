@@ -1,5 +1,7 @@
 using System.IO;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
 using OpenTECHub.Services.KlaTesting;
@@ -11,16 +13,29 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipePeriodicKlaIntegrationTests
 {
-    private sealed class Source(Func<RecipeResourceCoordinator, Guid, RecipePeriodicWork> create) : IRecipePeriodicWorkSource
+    private sealed class Source(Func<RecipeResourceCoordinator, Guid, string, RecipePeriodicWork> create) : IRecipePeriodicWorkSource
     {
         public IReadOnlyList<RecipePeriodicWork> CreateWork(RecipeDocument recipe, Guid executionId, RecipeResourceCoordinator? resources)
-            => [create(resources!, executionId)];
+            => [create(resources!, executionId, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(RecipeSerializer.Serialize(recipe)))).ToLowerInvariant())];
+    }
+    private sealed class GraphSource(Source source, KlaAssayExecutionCapabilities capability, Func<KlaRecipeResult> result) : IRecipeAutonomousWorkSource
+    {
+        public bool CanExecute(RecipeDocument recipe, out string? reason) { reason = null; return true; }
+        public RecipeAutonomousExecutionPlan CreateWork(RecipeDocument recipe, Guid executionId, RecipeResourceCoordinator resources)
+        {
+            var work = source.CreateWork(recipe, executionId, resources).Single();
+            return new([new("kla", capability, async (invocation, ct) => { await work.Execute(invocation!, ct); return result(); })],
+                [new(work.Identity, work.DispatchTolerance, work.Record)]);
+        }
     }
     [Theory]
     [InlineData(KlaAssayProtocol.Abiotic, false, false)] [InlineData(KlaAssayProtocol.Biotic, false, false)]
     [InlineData(KlaAssayProtocol.Abiotic, true, false)] [InlineData(KlaAssayProtocol.Biotic, true, false)]
     [InlineData(KlaAssayProtocol.Abiotic, false, true)] [InlineData(KlaAssayProtocol.Biotic, false, true)]
-    public async Task Cascade_exit_pause_or_emergency_during_common_assay_awaits_terminal_group(KlaAssayProtocol protocol, bool pause, bool emergency)
+    [InlineData(KlaAssayProtocol.Abiotic, false, false, true)] [InlineData(KlaAssayProtocol.Biotic, false, false, true)]
+    [InlineData(KlaAssayProtocol.Abiotic, true, false, true)] [InlineData(KlaAssayProtocol.Biotic, true, false, true)]
+    [InlineData(KlaAssayProtocol.Abiotic, false, true, true)] [InlineData(KlaAssayProtocol.Biotic, false, true, true)]
+    public async Task Cascade_exit_pause_or_emergency_during_common_assay_awaits_terminal_group(KlaAssayProtocol protocol, bool pause, bool emergency, bool graph = false)
     {
         var root = Path.Combine(Path.GetTempPath(), "periodic-kla-" + Guid.NewGuid().ToString("N"));
         using var fixture = new RecipeAssayRestorationTests.Fixture(virtualTimers: true);
@@ -64,9 +79,9 @@ public sealed class RecipePeriodicKlaIntegrationTests
         KlaRecipeRequest? request = null; KlaRecipeResult? result = null;
         Task<KlaRecipeResult>? matrix = null;
         RecipePeriodicJournal? journal = null; Guid scheduleId = Guid.Empty;
-        var source = new Source((resources, runId) =>
+        var source = new Source((resources, runId, hash) =>
         {
-            journal = new RecipePeriodicJournal(Path.Combine(root, "recipe-journal"), runId, template.Context.RecipeSha256, writer, clock);
+            journal = new RecipePeriodicJournal(Path.Combine(root, "recipe-journal"), runId, hash, writer, clock);
             var preparer = new KlaRecipePulsePreparer(resources, factory, settings, clock, capabilities,
                 new() { MaximumTelemetryAgeSeconds = 5, MinimumOxygenPercent = protocol == KlaAssayProtocol.Biotic ? 30 : null,
                     MaximumOxygenPercent = protocol == KlaAssayProtocol.Biotic ? 100 : null,
@@ -76,7 +91,7 @@ public sealed class RecipePeriodicKlaIntegrationTests
                 CoordinatedCascadeNodeId = "casc", SlotIndex = 0, Schedule = new() { InitialDelaySeconds = 5, PeriodSeconds = 600 } },
                 TimeSpan.FromSeconds(1), async (invocation, ct) =>
                 {
-                    var context = template.Context with { RecipeRunId = runId };
+                    var context = template.Context with { RecipeRunId = runId, NodeId = "kla", RecipeSha256 = hash };
                     var initial = await resources.ReserveForAssayAsync(context,
                         [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen], TimeSpan.FromSeconds(30), ct);
                     var snapshot = initial.CaptureReturnSnapshot(fixture.Rig, clock); initial.AbortBeforeAssay();
@@ -90,7 +105,9 @@ public sealed class RecipePeriodicKlaIntegrationTests
                     result = await matrix;
                 }, journal.RecordAsync);
         });
-        using var engine = new RecipeEngine(arbiter, arbiter, settings, clock, periodicWorkSource: source);
+        using var engine = new RecipeEngine(arbiter, arbiter, settings, clock,
+            periodicWorkSource: graph ? null : source,
+            autonomousWorkSource: graph ? new GraphSource(source, capabilities, () => result!) : null);
         var recipe = new RecipeDocument { Name = "periodic common assay" };
         var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
         cascade.Set("spO2", 80.0); cascade.Set("nMinRpm", 300.0); cascade.Set("nMaxRpm", 350.0);
@@ -100,6 +117,19 @@ public sealed class RecipePeriodicKlaIntegrationTests
         recipe.Connections.AddRange([new("start", ConnectorNames.Out, "casc", ConnectorNames.In),
             new("casc", ConnectorNames.LoopOut, "gate", ConnectorNames.In),
             new("gate", ConnectorNames.Out, "casc", ConnectorNames.LoopIn), new("casc", ConnectorNames.Out, "end", ConnectorNames.In)]);
+        if (graph)
+        {
+            var periodicNode = RecipeNode.Create(NodeType.Periodic, id: "periodic");
+            periodicNode.Set("initialDelay", 5); periodicNode.Set("initialDelayUnit", nameof(TimeUnit.Seconds));
+            periodicNode.Set("period", 600); periodicNode.Set("periodUnit", nameof(TimeUnit.Seconds));
+            periodicNode.Set("coordinatedCascadeId", "casc");
+            var assayNode = RecipeAutonomousBlockConfigurationTests.ConfiguredKla();
+            assayNode.Set("protocol", protocol.ToString()); assayNode.Set("profileId", capabilities.ProfileId);
+            assayNode.Set("profileVersion", capabilities.ProfileVersion);
+            recipe.Nodes.AddRange([periodicNode, assayNode]);
+            recipe.Connections.AddRange([new("start", ConnectorNames.Out, "periodic", ConnectorNames.In),
+                new("periodic", ConnectorNames.Out, "kla", ConnectorNames.In)]);
+        }
         try
         {
             await engine.StartAsync(recipe);
@@ -131,6 +161,7 @@ public sealed class RecipePeriodicKlaIntegrationTests
             Assert.True(exit, $"Ensaio terminou antes da recuperação: {result?.Status}, {result?.Reason}; engine {engine.State}, {engine.StatusReason}");
             Assert.Equal(emergency ? RecipeRunState.Stopped : RecipeRunState.Completed, engine.State);
             Assert.NotNull(result);
+            if (graph) Assert.Single(engine.AutonomousResults);
             if (emergency)
             {
                 Assert.False(result.PreAssayStateRestored);

@@ -226,7 +226,7 @@ public sealed partial class RecipeEngine
             finally
             {
                 lock (_lock) _periodicGroups.Remove(node.Id);
-                periodic?.Dispose();
+                if (!_graphPeriodicBindings.Values.Any(b => b.CascadeNodeId == node.Id)) periodic?.Dispose();
                 suspension.Stop();
                 Resources?.Unregister(node.Id);
                 lock (_lock)

@@ -56,7 +56,8 @@ public sealed partial class RecipeEngine : IRecipeEngine
         IEventJournal? journal = null,
         Func<TimeSpan, CancellationToken, Task>? delay = null,
         IKlaProfileStore? klaStore = null,
-        IRecipePeriodicWorkSource? periodicWorkSource = null)
+        IRecipePeriodicWorkSource? periodicWorkSource = null,
+        IRecipeAutonomousWorkSource? autonomousWorkSource = null)
     {
         ArgumentNullException.ThrowIfNull(arbiter);
         ArgumentNullException.ThrowIfNull(device);
@@ -71,6 +72,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
         _delay = delay ?? ((ts, ct) => Task.Delay(ts, ct));
         _klaStore = klaStore;
         _periodicWorkSource = periodicWorkSource;
+        _autonomousWorkSource = autonomousWorkSource;
         Resources = arbiter is ICommandAuthorityArbiter authority ? new RecipeResourceCoordinator(authority, time) : null;
         _routeCoordinator = new MotorRouteCoordinator(arbiter, device, CommandOwner.Recipe);
 
@@ -104,8 +106,12 @@ public sealed partial class RecipeEngine : IRecipeEngine
 
         if (recipe.Nodes.Any(n => n.Type is NodeType.KlaAssay or NodeType.Periodic))
         {
-            reason = "Os blocos autônomos requerem integração e perfil operacional qualificado antes da execução.";
-            return false;
+            if (_autonomousWorkSource is null || Resources is null)
+            {
+                reason = "Os blocos autônomos requerem integração e perfil operacional qualificado antes da execução.";
+                return false;
+            }
+            if (!_autonomousWorkSource.CanExecute(recipe, out reason)) return false;
         }
 
         if (_device.State is not ConnectionState.Connected)
@@ -180,6 +186,7 @@ public sealed partial class RecipeEngine : IRecipeEngine
     {
         try
         {
+            InitializeGraphPeriodicGroups(ct);
             await ExecuteFlowAsync(recipe.Start, entryConnection: null, ct).ConfigureAwait(false);
             if (Resources?.HasUnreturnedAssayAuthority(ExecutionId) == true)
                 throw new InvalidOperationException("Ensaio terminou sem devolução confirmada dos atuadores.");
@@ -199,8 +206,13 @@ public sealed partial class RecipeEngine : IRecipeEngine
         finally
         {
             // Whatever ended the run — completion, stop or fault — hands the wire back safely.
-            SetWaiting(null);
-            SafeStopAndRelease("fim da receita");
+            try { await StopGraphPeriodicGroupsAsync().ConfigureAwait(false); }
+            catch (Exception ex) { SetState(RecipeRunState.Failed, ex.Message); }
+            finally
+            {
+                SetWaiting(null);
+                SafeStopAndRelease("fim da receita");
+            }
         }
     }
 

@@ -50,6 +50,8 @@ public sealed partial class RecipeEngine
                 await ExecuteNodeWithStateAsync(current, ct).ConfigureAwait(false);
             }
 
+            if (current.Type == NodeType.Periodic) return; // Its owned target returns to the scheduler.
+
             var outputs = Current!.OutgoingFrom(current.Id).ToList();
 
             // A loop-return edge (target = Entrada Loop) ends this strand: the cascade block, not

@@ -48,6 +48,10 @@ public static class RecipePeriodicTopology
         return false;
     }
 
+    public static bool CanOverlap(RecipeDocument recipe, string first, string second)
+        => !NormalReachable(recipe, first).Contains(second) && !NormalReachable(recipe, second).Contains(first) &&
+           HasParallelFork(recipe, first, second);
+
     private static IEnumerable<RecipeConnection> NormalOutputs(RecipeDocument recipe, string id)
         => recipe.Connections.Where(c => c.SourceNodeId == id &&
             !ConnectorNames.IsLoopOut(c.SourceConnector) && !ConnectorNames.IsLoopIn(c.TargetConnector));

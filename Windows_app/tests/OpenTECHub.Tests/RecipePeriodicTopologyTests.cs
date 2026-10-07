@@ -97,4 +97,22 @@ public sealed class RecipePeriodicTopologyTests
         Assert.True(RecipeValidator.Validate(recipe).IsValid);
         Assert.Equal("kla", RecipePeriodicTopology.ReadBinding(recipe, recipe.Node("periodic")!).TargetNodeId);
     }
+
+    [Theory]
+    [InlineData(SetpointVariable.Agitation, false)]
+    [InlineData(SetpointVariable.Flow, false)]
+    [InlineData(SetpointVariable.Oxygen, false)]
+    [InlineData(SetpointVariable.Temperature, true)]
+    [InlineData(SetpointVariable.Ph, true)]
+    public void Parallel_writes_to_assay_resources_are_rejected_but_independent_references_remain_allowed(SetpointVariable variable, bool allowed)
+    {
+        var recipe = ParallelRecipe();
+        var writer = RecipeNode.Create(NodeType.SetSetpoint, id: "writer");
+        writer.Set("variavel", variable.ToString()); writer.Set("valor", variable == SetpointVariable.Agitation ? 300 :
+            variable == SetpointVariable.Temperature ? 25 : 2);
+        recipe.Nodes.Add(writer);
+        recipe.Connections.Add(new("start", ConnectorNames.Out, "writer", ConnectorNames.In));
+        var errors = RecipeValidator.Validate(recipe).Errors.Where(e => e.NodeId == "kla");
+        if (allowed) Assert.Empty(errors); else Assert.Single(errors);
+    }
 }

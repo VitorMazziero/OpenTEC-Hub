@@ -8,13 +8,18 @@ public sealed partial class RecipeEngine
 
     private void PreparePeriodicWork(RecipeDocument recipe)
     {
-        _periodicWork = _periodicWorkSource?.CreateWork(recipe, ExecutionId, Resources).ToArray() ?? [];
+        _periodicWork = (_periodicWorkSource?.CreateWork(recipe, ExecutionId, Resources) ?? [])
+            .Concat(PrepareAutonomousWork(recipe)).ToArray();
+        if (_periodicWork.Any(w => !_graphPeriodicBindings.ContainsKey(w.Identity.SchedulerNodeId) &&
+            _graphPeriodicBindings.Values.Any(b => b.CascadeNodeId == w.Identity.CoordinatedCascadeNodeId)))
+            throw new ArgumentException("Grupo não pode misturar agendas do grafo e agendas externas para a mesma cascata.");
         foreach (var work in _periodicWork)
         {
             work.Identity.Validate();
             ArgumentNullException.ThrowIfNull(work.Execute); ArgumentNullException.ThrowIfNull(work.Record);
-            if (work.Identity.SlotIndex != 0 || work.Identity.CoordinatedCascadeNodeId is not { } cascade ||
-                recipe.Node(cascade)?.Type != NodeType.CascadeControl || work.DispatchTolerance < TimeSpan.Zero ||
+            if (work.Identity.SlotIndex != 0 ||
+                (work.Identity.CoordinatedCascadeNodeId is { } cascade ? recipe.Node(cascade)?.Type != NodeType.CascadeControl :
+                    !_graphPeriodicBindings.ContainsKey(work.Identity.SchedulerNodeId)) || work.DispatchTolerance < TimeSpan.Zero ||
                 work.DispatchTolerance.TotalSeconds >= work.Identity.Schedule.PeriodSeconds)
                 throw new ArgumentException("Agenda precisa de cascata existente e tolerância qualificada.");
         }
@@ -29,6 +34,11 @@ public sealed partial class RecipeEngine
         if (work.Length == 0) return null;
         lock (_lock)
         {
+            if (_periodicGroups.TryGetValue(cascadeId, out var existing))
+            {
+                existing.ActivateCascade();
+                return existing;
+            }
             var group = new RecipeCascadePeriodicGroup(work, _time, ct, paused: !_pauseGate.IsSet);
             _periodicGroups.Add(cascadeId, group);
             return group;
@@ -38,7 +48,7 @@ public sealed partial class RecipeEngine
     private void PausePeriodicGroups(bool paused)
     {
         RecipeCascadePeriodicGroup[] groups;
-        lock (_lock) groups = _periodicGroups.Values.ToArray();
+        lock (_lock) groups = _periodicGroups.Values.Concat(_graphSchedulerGroups.Values).Distinct().ToArray();
         foreach (var group in groups) group.SetPaused(paused);
     }
 }

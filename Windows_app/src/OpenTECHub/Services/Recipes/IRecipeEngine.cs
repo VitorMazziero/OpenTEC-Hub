@@ -70,6 +70,8 @@ public sealed record RecipeDeviceWait(string NodeId, string Device, string Detai
 /// </remarks>
 public interface IRecipeEngine : IDisposable
 {
+    /// <summary>All automatic invocation results, including inconclusive and failed attempts.</summary>
+    IReadOnlyList<KlaTesting.KlaRecipeResult> AutonomousResults => [];
     /// <summary>The current run state.</summary>
     RecipeRunState State { get; }
 

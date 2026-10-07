@@ -26,7 +26,7 @@ public sealed class RecipePeriodicExecutor(TimeProvider time)
     public async Task RunAsync(PeriodicBlockInvocation identity,
         Func<PeriodicBlockInvocation, CancellationToken, Task> execute,
         Func<RecipePeriodicSlotRecord, Task> record,
-        CancellationToken cancellation, TimeSpan dispatchTolerance)
+        CancellationToken cancellation, TimeSpan dispatchTolerance, Func<bool>? canDispatch = null)
     {
         identity.Validate();
         ArgumentNullException.ThrowIfNull(execute); ArgumentNullException.ThrowIfNull(record);
@@ -56,10 +56,12 @@ public sealed class RecipePeriodicExecutor(TimeProvider time)
             }
             // Re-read pause at dispatch: a wake-up must not use the previous pause state.
             lock (_gate) paused = _paused;
-            if (paused || -remaining > dispatchTolerance.TotalSeconds)
+            var ready = canDispatch?.Invoke() ?? true;
+            if (paused || !ready || -remaining > dispatchTolerance.TotalSeconds)
             {
                 await record(new(invocation, RecipePeriodicSlotState.Skipped, Elapsed(),
-                    paused ? "receita pausada" : "slot vencido durante indisponibilidade")).ConfigureAwait(false);
+                    paused ? "receita pausada" : !ready ? "cascata coordenada ainda não está ativa" :
+                    "slot vencido durante indisponibilidade")).ConfigureAwait(false);
                 slot = checked(slot + 1);
                 continue;
             }

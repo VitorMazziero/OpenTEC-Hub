@@ -1,0 +1,21 @@
+# R4.2 — Ligação ao aplicativo e contexto operacional
+
+O aplicativo registra um único `KlaRecipeApplicationHost` como provedor do engine e disponibiliza o mesmo registro de perfis ao editor. O host compartilha API/diário, fábrica do runner comum, armazenamento científico, escritor e agenda entre as invocações. Os ambientes de simulação e físico possuem diretórios separados. O caminho físico permanece fechado pela qualificação existente, sem transformar importação ou compilação em autorização de bancada.
+
+`context.json` conserva uma identidade da instalação e o cultivo informado explicitamente. A identidade não constitui qualificação. O cultivo é gravado com barreira durável e verificação de leitura, preserva os limites entre receitas e só é editável fora de execução/pausa. Escrita de uma instância com contexto desatualizado é recusada; ausência, corrupção, versão desconhecida ou campos duplicados não são reparados silenciosamente.
+
+Gravação pendente também bloqueia a partida: o editor desabilita iniciar/configurar, o comando verifica o bloqueio e o preflight do host recusa ensaios enquanto o contexto muda. O teste retém o escritor, verifica esses bloqueios e só depois permite a confirmação durável. Falha agregada do escritor na criação do contexto é apresentada como indisponibilidade, sem derrubar o host.
+
+“Preparar kLa” mostra instalação, cultivo ativo e disponibilidade. Importar perfil lê um registro científico explícito, rejeita campos duplicados/desconhecidos e exige instalação, protocolo, validade, limites e ambiente compatíveis. Não cria perfis padrão ou aprovações. A seleção continua explícita no bloco. Falhas do catálogo/diário/contexto deixam a automação indisponível sem impedir receitas comuns. A aquisição captura o cultivo no início da execução.
+
+O container do aplicativo agora descarta o engine de forma aguardável: cancela e aguarda sua conclusão, incluindo recuperação do ensaio e registros terminais, antes de fechar diário, escritor e dispositivos. O teste mantém a recuperação pendente e verifica que o descarte ainda não concluiu.
+
+Validação focada inicial: 62 testes aprovados em `evidence/recipes-r42-application-rendering.trx`, incluindo registro real dos serviços WPF, os dois protocolos, importação incompatível, persistência corrompida, troca de cultivo e encerramento aguardável. A imagem a 125% revelou alongamento dos botões das abas; preparação e resultados foram movidos para faixa própria com altura limitada e rolagem. O teste mede altura das abas e espaço preservado do editor. A nova imagem foi inspecionada.
+
+Após correção de layout: 64 testes aprovados em `evidence/recipes-r42-application-layout-and-regression.trx`. A primeira regressão completa teve 2316 aprovados e duas falhas de espera: conexão do transporte simulado e término de recuperação por prazo. Esse registro permanece em `evidence/recipes-r42-application-full.trx`. Ambos passam no conjunto focado posterior; não foram alterados tempos nem limiares do produto ou desses testes. A regressão final é executada separadamente da compilação Release para avaliar a revisão final.
+
+Pendências de R4.2: progresso durante aquisição, pausa do bloco independente e verificação visual dos resultados/progresso nos modos restantes. Depois seguem rampas R5 e integração/qualificação R6.
+
+Regressão da revisão final, incluindo falha de criação/gravação do contexto e bloqueio de partida durante a gravação: **2320 aprovados, zero falhas e zero ignorados** em `evidence/recipes-r42-application-context-final-full.trx`. Comando: `dotnet test Windows_app/tests/OpenTECHub.Tests/OpenTECHub.Tests.csproj -p:EnableSourceLink=false -p:SelfContained=false --no-restore`. Os resultados intermediários permanecem como diagnóstico; contagens não se somam. A imagem `evidence/application-configuration-125dpi.png` comprova apenas a configuração WPF inspecionada, sem operação física nem aceite dos modos restantes.
+
+Release final compilado com `dotnet build Windows_app/src/OpenTECHub/OpenTECHub.csproj -c Release -p:EnableSourceLink=false --no-restore`: **zero erros, 1251 avisos**, 11,23 s. SourceLink foi desativado apenas nesta invocação devido ao arquivo gerado bloqueado pela sincronização, sem alteração das configurações do produto. Compilação não equivale a teste de bancada.

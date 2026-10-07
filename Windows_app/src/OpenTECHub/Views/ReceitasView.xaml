@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="OpenTECHub.Views.ReceitasView"
+<UserControl x:Class="OpenTECHub.Views.ReceitasView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -76,6 +76,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -138,11 +139,26 @@
             </StackPanel>
         </Border>
 
-        <!-- ── Tabs bar ────────────────────────────────────────────────────── -->
-        <Border Grid.Row="1" Padding="8,4" Background="{DynamicResource SurfaceSunkenBrush}"
-                BorderThickness="0,0,0,1" BorderBrush="{DynamicResource StrokeDefaultBrush}">
-            <DockPanel>
-                <Expander DockPanel.Dock="Right" Header="Resultados kLa" Margin="8,0"
+
+        <Border Grid.Row="1" Padding="8,4" Background="{DynamicResource SurfaceSunkenBrush}">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal">
+                <Expander x:Name="KlaPreparationExpander" VerticalAlignment="Top" Header="Preparar kLa" Margin="8,0"
+                          Visibility="{Binding HasKlaApplicationHost, Converter={StaticResource BoolToVis}}">
+                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto"><StackPanel Width="380" Margin="8">
+                        <TextBlock Text="{Binding KlaAutomationAvailability}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                        <TextBlock Text="Instalação" FontWeight="SemiBold" />
+                        <TextBox Text="{Binding KlaInstallationId, Mode=OneWay}" IsReadOnly="True" Margin="0,4,0,8" />
+                        <TextBlock Text="{Binding KlaActiveCultivation}" TextWrapping="Wrap" />
+                        <TextBox Text="{Binding KlaCultivationId, UpdateSourceTrigger=PropertyChanged}" Margin="0,4"
+                                 IsEnabled="{Binding CanConfigureKlaAutomation}" ToolTip="Identificação única do cultivo; mantém os limites entre receitas." />
+                        <Button Content="Gravar identificação do cultivo" Command="{Binding SaveKlaCultivationCommand}" Margin="0,4" />
+                        <Button Content="Importar perfil qualificado" Command="{Binding ImportKlaOperationalProfileCommand}" Margin="0,4" />
+                        <Button Content="Atualizar perfis" Command="{Binding ReloadKlaOperationalProfilesCommand}" Margin="0,4" />
+                        <TextBlock Text="{Binding KlaConfigurationMessage}" TextWrapping="Wrap" Margin="0,6" />
+                    </StackPanel></ScrollViewer>
+                </Expander>
+                <Expander VerticalAlignment="Top" Header="Resultados kLa" Margin="8,0"
                           Visibility="{Binding HasAutomaticSessions, Converter={StaticResource BoolToVis}}">
                     <ScrollViewer MaxHeight="180" Width="420" VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding AutomaticSessions}">
@@ -164,6 +180,15 @@
                         </ItemsControl>
                     </ScrollViewer>
                 </Expander>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+        <!-- ── Tabs bar ────────────────────────────────────────────────────── -->
+        <Border x:Name="RecipeTabsBar" Grid.Row="2" Padding="8,4" Background="{DynamicResource SurfaceSunkenBrush}"
+                BorderThickness="0,0,0,1" BorderBrush="{DynamicResource StrokeDefaultBrush}">
+            <DockPanel>
+
+
                 <ToggleButton DockPanel.Dock="Left" Content="Minhas Receitas"
                               IsChecked="{Binding IsLibrarySelected, Mode=OneWay}"
                               Command="{Binding OpenLibraryCommand}" Padding="14,5" Margin="0,0,6,0">
@@ -243,7 +268,7 @@
         </Border>
 
         <!-- ── Library │ Canvas │ Properties ───────────────────────────────── -->
-        <Grid Grid.Row="2" x:Name="RecipeBody" ctl:Responsive.NarrowBelow="1200">
+        <Grid Grid.Row="3" x:Name="RecipeBody" ctl:Responsive.NarrowBelow="1200">
             <Grid.ColumnDefinitions>
                 <!-- The two side panels carry their own width so a compact window can shrink
                      them without the canvas - the part the operator actually draws on -
@@ -1004,7 +1029,7 @@
         <!-- ── JSON + findings ─────────────────────────────────────────────── -->
         <!-- The JSON/validation drawer is a reference view, not the workspace: it keeps a
              capped height with its own scrolling instead of eating the canvas. -->
-        <Border Grid.Row="3" MinHeight="120" MaxHeight="190" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource StrokeDefaultBrush}"
+        <Border Grid.Row="4" MinHeight="120" MaxHeight="190" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource StrokeDefaultBrush}"
                 Visibility="{Binding ShowJsonPanel, Converter={StaticResource BoolToVis}}">
             <Grid>
                 <Grid.ColumnDefinitions>

@@ -327,6 +327,13 @@ public partial class App : Application
             sp.GetRequiredService<IKlaTestStore>(), sp.GetRequiredService<IKlaAnalysisEngine>(),
             sp.GetRequiredService<ISettingsService>(), sp.GetRequiredService<TimeProvider>(), isIsolatedEnvironment: playback is not null));
         services.AddSingleton(_ => new KlaActuationRelease(playback is not null));
+        services.AddSingleton(sp => new KlaRecipeApplicationHost(
+            Path.Combine(AppPaths.RecipesDirectory, "AutomacaoKla", playback is not null ? "simulacao" : "fisico"),
+            playback is not null, sp.GetRequiredService<KlaRecipeAssayExecutionFactory>(),
+            sp.GetRequiredService<IKlaTestStore>(), sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<BackgroundFileWriter>()));
+        services.AddSingleton(sp => sp.GetRequiredService<KlaRecipeApplicationHost>().Profiles);
+        services.AddSingleton<IRecipeAutonomousWorkSource>(sp => sp.GetRequiredService<KlaRecipeApplicationHost>());
         services.AddSingleton<IKlaTestRunner, KlaTestRunner>();
         services.AddSingleton<IKlaDeterministicAnalysisEngine>(sp =>
             (IKlaDeterministicAnalysisEngine)sp.GetRequiredService<IKlaAnalysisEngine>());
@@ -407,7 +414,8 @@ public partial class App : Application
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<IEventJournal>(),
-            klaStore: sp.GetService<IKlaProfileStore>()));
+            klaStore: sp.GetService<IKlaProfileStore>(),
+            autonomousWorkSource: sp.GetRequiredService<IRecipeAutonomousWorkSource>()));
 
         // Recipes are saved as versioned JSON in the per-user recipes folder (Minhas Receitas).
         services.AddSingleton<IRecipeStore>(_ => new RecipeStore(AppPaths.RecipesDirectory));

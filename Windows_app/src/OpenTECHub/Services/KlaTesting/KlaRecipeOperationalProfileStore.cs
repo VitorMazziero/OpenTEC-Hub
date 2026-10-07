@@ -20,6 +20,16 @@ public sealed class KlaRecipeOperationalProfileStore(string root, string install
         Converters = { new JsonStringEnumConverter(allowIntegerValues: false) }
     };
 
+    /// <summary>Import an explicit qualification record; saving verifies this installation and environment.</summary>
+    public async Task ImportAsync(string path, CancellationToken ct = default)
+    {
+        var json = await File.ReadAllTextAsync(path, ct).ConfigureAwait(false);
+        using (var document = JsonDocument.Parse(json)) RejectDuplicates(document.RootElement);
+        var profile = JsonSerializer.Deserialize<KlaRecipeOperationalProfile>(json, Options)
+            ?? throw new InvalidDataException("Perfil de qualificação vazio.");
+        await SaveAsync(profile, ct).ConfigureAwait(false);
+    }
+
     public async Task SaveAsync(KlaRecipeOperationalProfile profile, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(profile);

@@ -7,6 +7,7 @@ using OpenTECHub.Services.Dialogs;
 using OpenTECHub.Services.KlaMapping;
 using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Persistence;
+using OpenTECHub.Services.Platform;
 using OpenTECHub.Services.Recipes;
 
 namespace OpenTECHub.ViewModels;
@@ -33,6 +34,8 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     private readonly IDialogService? _dialogs;
     private readonly IKlaProfileStore? _klaStore;
     private readonly KlaRecipeOperationalProfileRegistry? _operationalProfiles;
+    private readonly KlaRecipeApplicationHost? _klaHost;
+    private readonly IFileInteractionService? _files;
     private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _elapsedTimer;
     private RecipeTabViewModel? _runningTab;
@@ -43,7 +46,9 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         ISettingsService? settings = null,
         IDialogService? dialogs = null,
         IKlaProfileStore? klaStore = null,
-        KlaRecipeOperationalProfileRegistry? operationalProfiles = null)
+        KlaRecipeOperationalProfileRegistry? operationalProfiles = null,
+        KlaRecipeApplicationHost? klaHost = null,
+        IFileInteractionService? files = null)
     {
         _engine = engine;
         _store = store;
@@ -51,6 +56,9 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         _dialogs = dialogs;
         _klaStore = klaStore;
         _operationalProfiles = operationalProfiles;
+        _klaHost = klaHost;
+        _files = files;
+        KlaCultivationId = klaHost?.Context?.CultivationId ?? "";
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         Library = BuildLibrary();
@@ -121,6 +129,10 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(SaveRecipeCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddBlockCommand))]
     [NotifyCanExecuteChangedFor(nameof(DeleteSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveKlaCultivationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ImportKlaOperationalProfileCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ReloadKlaOperationalProfilesCommand))]
+    [NotifyPropertyChangedFor(nameof(CanConfigureKlaAutomation))]
     public partial RecipeRunState RunState { get; set; } = RecipeRunState.Idle;
 
     public bool IsRunning => RunState is RecipeRunState.Running or RecipeRunState.Paused;
@@ -373,6 +385,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanStartRecipe))]
     private async Task Start()
     {
+        if (IsKlaConfigurationBusy) return;
         if (SelectedTab is not { } tab)
         {
             return;
@@ -405,7 +418,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         }
     }
 
-    private bool CanStartRecipe() => IsStopped && ShowCanvas && SelectedTab is { IsValid: true };
+    private bool CanStartRecipe() => IsStopped && !IsKlaConfigurationBusy && ShowCanvas && SelectedTab is { IsValid: true };
 
     [RelayCommand(CanExecute = nameof(IsRunning))]
     private void Pause()

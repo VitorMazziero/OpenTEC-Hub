@@ -10,8 +10,9 @@ public sealed class RecipeRampDirectCommands(double maximumFlow, bool uartFallba
     public double Quantize(SetpointVariable variable, double reference)
     {
         Validate(variable, reference);
-        // The common motor wire uses integral rpm. Other builders transmit engineering-unit doubles.
-        return variable == SetpointVariable.Agitation ? Math.Round(reference, MidpointRounding.AwayFromZero) : reference;
+        var quantized = RecipeRampReferenceQuantization.Quantize(variable, reference);
+        Validate(variable, quantized);
+        return quantized;
     }
 
     public OpenTECCommand Build(LinearRampSample sample)

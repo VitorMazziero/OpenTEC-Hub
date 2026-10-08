@@ -77,7 +77,7 @@ public sealed partial class RecipeRampCheckpointStore
             var controller = line?.OxygenTarget == RampOxygenTarget.ActiveCascadeReference;
             if (line is null || confirmation.OxygenTarget != line.OxygenTarget || !Enum.IsDefined(confirmation.Evidence) ||
                 !double.IsFinite(confirmation.Reference) || confirmation.Reference !=
-                    (line.Variable == SetpointVariable.Agitation ? Math.Round(line.FinalSetpoint, MidpointRounding.AwayFromZero) : line.FinalSetpoint) ||
+                    RecipeRampReferenceQuantization.Quantize(line.Variable, line.FinalSetpoint) ||
                 confirmation.RecordedUtc == default ||
                 controller && confirmation.Evidence != RecipeRampConfirmationEvidence.ControllerReference ||
                 !controller && confirmation.Evidence == RecipeRampConfirmationEvidence.ControllerReference)

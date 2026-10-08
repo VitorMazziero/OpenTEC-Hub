@@ -110,7 +110,7 @@ public sealed partial class RecipeRampCheckpointStore(string rootDirectory, Back
         if (!required.Any(line => line.OxygenTarget == RampOxygenTarget.ActiveCascadeReference) && initial.Controller is not null)
             throw new InvalidDataException("Snapshot de cascata não utilizado pela rampa.");
         initial.Controller?.Validate();
-        _ = new LinearSetpointRampTrajectory(configuration.Definition, initial.ConfirmedStarts, (_, value) => value);
+        _ = new LinearSetpointRampTrajectory(configuration.Definition, initial.ConfirmedStarts, RecipeRampReferenceQuantization.Quantize);
         return checkpoint;
     }
 }

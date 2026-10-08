@@ -2,6 +2,8 @@
 
 Correção posterior: a modalidade de monitor de O₂ descrita neste incremento foi removida, pois a chave no firmware é um interruptor. Consulte [correção do destino de O₂](../receitas-r52/CORRECAO_DESTINO_O2.md). O destino numérico disponível é a referência da cascata.
 
+Conciliação posterior da representação: pressão usa inteiro por truncamento e pH duas casas decimais; trajetória, envio e resultado terminal usam a mesma regra. Consulte [quantização de pH e pressão](../receitas-r52/QUANTIZACAO_PH_PRESSAO.md). A afirmação histórica abaixo sobre doubles descreve o construtor anterior a essa correção.
+
 RecipeRampDirectCommands fornece quantização e construção de comandos sem despacho. Reusa MotorSetpoint e FlowRoute; mantém as chaves comuns de temperatura/banho, pH com banda inativa, pressão e monitor de O₂. A referência de cascata é recusada neste caminho e usa o destino do controlador implementado separadamente.
 
 O construtor valida faixas, finitude, teto de vazão e limite de fallback UART antes de fornecer valor/comando. Recusa alvo que seria silenciosamente limitado pelo builder. Motor usa rpm inteiro arredondado; outros destinos conservam doubles em unidades de engenharia, conforme os builders existentes. A validação da trajetória usa esse quantizador e recusa também início/alvo incompatíveis.

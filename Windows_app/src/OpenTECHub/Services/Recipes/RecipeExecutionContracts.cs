@@ -377,7 +377,7 @@ public sealed record LinearSetpointRampLine
             throw new ArgumentException("Referência inicial fora do envelope do dispositivo.");
         }
         // Zero is an OFF sentinel for some devices, not a continuous part of their operating band.
-        if (DeviceRanges.For(Variable).Min > 0 && initialSetpoint != FinalSetpoint &&
+        if ((DeviceRanges.For(Variable).Min > 0 || Variable == SetpointVariable.Ph) && initialSetpoint != FinalSetpoint &&
             (initialSetpoint == 0 || FinalSetpoint == 0))
         {
             throw new ArgumentException("Rampa atravessaria faixa inválida entre desligado e operação.");

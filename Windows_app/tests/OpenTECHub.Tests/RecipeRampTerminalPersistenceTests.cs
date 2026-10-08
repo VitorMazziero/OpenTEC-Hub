@@ -7,6 +7,38 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampTerminalPersistenceTests
 {
+    [Fact]
+    public async Task UnrepresentablePositivePhCannotObtainADurableStartReceipt()
+    {
+        using var writer = new BackgroundFileWriter();
+        var store = new RecipeRampCheckpointStore(Path.Combine(Path.GetTempPath(), "ramp-ph-off-" + Guid.NewGuid().ToString("N")), writer);
+        var start = Start();
+        start = start with { Configuration = new(new() { Lines = [new() { Variable = SetpointVariable.Ph,
+            StartSource = SetpointStartSource.Explicit, InitialSetpoint = 6.5,
+            FinalSetpoint = .004, EndAfterSeconds = 60 }] }, null) };
+        await Assert.ThrowsAsync<ArgumentException>(() => store.PersistStartAsync(start));
+        Assert.Null(store.ReadStart(start.InitialState.ExecutionId, start.InvocationId));
+    }
+    [Theory]
+    [InlineData(SetpointVariable.Pressure, 100.9, 100)]
+    [InlineData(SetpointVariable.Ph, 6.805, 6.81)]
+    public async Task CompletionUsesTheSameQuantizedTargetAsTheTrajectory(SetpointVariable variable, double requested, double represented)
+    {
+        using var writer = new BackgroundFileWriter();
+        var store = new RecipeRampCheckpointStore(Path.Combine(Path.GetTempPath(), "ramp-quantized-" + Guid.NewGuid().ToString("N")), writer);
+        var start = Start();
+        start = start with { Configuration = new(new() { Lines = [new() { Variable = variable,
+            StartSource = SetpointStartSource.Explicit, InitialSetpoint = variable == SetpointVariable.Ph ? 6.5 : 90,
+            FinalSetpoint = requested, EndAfterSeconds = 60 }] }, null) };
+        await store.PersistStartAsync(start);
+        var result = Completed(start) with { FinalConfirmations = [new(variable, null, requested,
+            RecipeRampConfirmationEvidence.ProcessFeedback, DateTimeOffset.UtcNow, requested, 0)] };
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.PersistTerminalAsync(result));
+        result = result with { FinalConfirmations = [result.FinalConfirmations[0] with { Reference = represented, ObservedValue = represented }] };
+        await store.PersistTerminalAsync(result);
+        Assert.Equal(represented, Assert.Single(store.ReadTerminal(result.ExecutionId, result.InvocationId)!.FinalConfirmations).Reference);
+        Assert.Equal(requested, store.ReadStart(result.ExecutionId, result.InvocationId)!.Configuration.Definition.Lines[0].FinalSetpoint);
+    }
     private static RecipeRampStartCheckpoint Start() => new(1, Guid.NewGuid(), new(new()
     {
         Lines = [new() { Variable = SetpointVariable.Temperature, StartSource = SetpointStartSource.Explicit,

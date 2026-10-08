@@ -7,6 +7,43 @@ namespace OpenTECHub.Tests;
 public sealed class RecipeRampDirectCommandsTests
 {
     [Fact]
+    public void PhQuantizationCannotSilentlyDisableDosingOrCrossTheOffSentinel()
+    {
+        var commands = new RecipeRampDirectCommands(10, false, GasRigConfiguration.Default, .1);
+        Assert.Throws<ArgumentException>(() => commands.Quantize(SetpointVariable.Ph, .004));
+        foreach (var values in new[] { (0d, 6.8), (6.8, 0d) })
+        {
+            var definition = new LinearSetpointRampDefinition { Lines = [new() { Variable = SetpointVariable.Ph,
+                StartSource = SetpointStartSource.Explicit, InitialSetpoint = values.Item1, FinalSetpoint = values.Item2, EndAfterSeconds = 60 }] };
+            Assert.Throws<ArgumentException>(() => new LinearSetpointRampTrajectory(definition,
+                new Dictionary<SetpointVariable, double>(), commands.Quantize));
+        }
+        Assert.Equal(0, commands.Quantize(SetpointVariable.Ph, 0));
+        Assert.Equal(.01, commands.Quantize(SetpointVariable.Ph, .01));
+    }
+    [Theory]
+    [InlineData(SetpointVariable.Pressure, 100.9, 100)]
+    [InlineData(SetpointVariable.Ph, 6.805, 6.81)]
+    public void TrajectoryAndWireUseRepresentableReference(SetpointVariable variable, double requested, double represented)
+    {
+        var commands = new RecipeRampDirectCommands(10, false, GasRigConfiguration.Default, .1);
+        var definition = new LinearSetpointRampDefinition { Lines = [new() { Variable = variable,
+            StartSource = SetpointStartSource.Explicit, InitialSetpoint = variable == SetpointVariable.Ph ? 6.5 : 90,
+            FinalSetpoint = requested, EndAfterSeconds = 60 }] };
+        var trajectory = new LinearSetpointRampTrajectory(definition, new Dictionary<SetpointVariable, double>(), commands.Quantize);
+        var final = Assert.Single(trajectory.Sample(60));
+        Assert.Equal(represented, final.Reference);
+        var key = variable == SetpointVariable.Ph ? CommandKeys.PHSetpoint : CommandKeys.PressureReference;
+        Assert.Equal(OpenTECCommand.Create().Set(key, represented).Set(CommandKeys.PHError, .1).ToJson(),
+            (variable == SetpointVariable.Ph ? commands.Build(final) : commands.Build(final).Set(CommandKeys.PHError, .1)).ToJson());
+        foreach (var seconds in new[] { 0d, 10d, 20d, 30d, 60d })
+        {
+            var sample = Assert.Single(trajectory.Sample(seconds));
+            Assert.Equal(sample.Reference, commands.Quantize(variable, sample.Reference));
+        }
+        Assert.Equal(requested, definition.Lines[0].FinalSetpoint);
+    }
+    [Fact]
     public void DirectReferencesReuseWireBuildersAndKeepCascadeDestinationSeparate()
     {
         var commands = new RecipeRampDirectCommands(10, false, GasRigConfiguration.Default, .1);

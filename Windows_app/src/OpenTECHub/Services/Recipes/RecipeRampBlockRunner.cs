@@ -77,7 +77,7 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
                 guarded, destination, (variable, value) => RecipeRampReferenceQuantization.Quantize(variable, value,
                     start.Configuration.TemperatureRoute), minimumDispatchInterval, running.Token).ConfigureAwait(false);
         }
-        catch (Exception error) when (start is not null && destination is not null)
+        catch (Exception error) when (start is not null)
         {
             activeClock.Suspend("ending");
             OwnershipTransfer? lost;
@@ -90,6 +90,20 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
                     lost.IsSafeAbort ? RecipeRampReturnOutcome.SuppressedForEmergency : RecipeRampReturnOutcome.Failed,
                     activeClock.ActiveSeconds, time.GetUtcNow(), lost.Reason, []);
                 return await store.PersistTerminalAsync(interrupted, CancellationToken.None).ConfigureAwait(false);
+            }
+            if (destination is null)
+            {
+                // Preparation is durable, but no ramp command has been issued by a destination.
+                var failed = new RecipeRampTerminalCheckpoint(1, execution, start.InvocationId,
+                    start.InitialState.SnapshotId, nodeId, RecipeRampTerminalStatus.Faulted,
+                    RecipeRampReturnOutcome.Failed, activeClock.ActiveSeconds, time.GetUtcNow(),
+                    $"Destino da rampa não criado: {error.Message}", []);
+                try { await store.PersistTerminalAsync(failed, CancellationToken.None).ConfigureAwait(false); }
+                catch (Exception persistence)
+                {
+                    throw new AggregateException("Falha ao criar destino da rampa e registrar a interrupção.", error, persistence);
+                }
+                throw;
             }
             var status = error is OperationCanceledException ? RecipeRampTerminalStatus.Cancelled : RecipeRampTerminalStatus.Faulted;
             try

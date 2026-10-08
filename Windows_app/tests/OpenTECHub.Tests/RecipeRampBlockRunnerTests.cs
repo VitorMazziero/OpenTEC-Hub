@@ -105,6 +105,7 @@ public sealed class RecipeRampBlockRunnerTests
     [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 3)]
     [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 4)]
     [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 5)]
+    [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 6)]
     public async Task InvocationPreparesExecutesAndPersistsItsCompletionOrCancellation(bool cancel, RampCancellationPolicy policy, int pauseKind)
     {
         var device = new RecordingDeviceService();
@@ -155,7 +156,8 @@ public sealed class RecipeRampBlockRunnerTests
         });
         try
         {
-            var runner = new RecipeRampBlockRunner(engine, arbiter, store, frozen => new(engine, frozen,
+            var runner = new RecipeRampBlockRunner(engine, arbiter, store, frozen => pauseKind == 6
+                ? throw new InvalidOperationException("destination unavailable") : new(engine, frozen,
                 new(2, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)),
                 new(.5, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)),
                 new(.1, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3))));
@@ -163,6 +165,20 @@ public sealed class RecipeRampBlockRunnerTests
             var running = runner.ExecuteAsync("ramp", configuration, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3),
                 pauseKind is 4 or 5 ? TimeSpan.FromMilliseconds(300) : TimeSpan.FromSeconds(3),
                 TimeSpan.FromMilliseconds(10), cancellation.Token);
+            if (pauseKind == 6)
+            {
+                var error = await Assert.ThrowsAsync<InvalidOperationException>(() => running.WaitAsync(TimeSpan.FromSeconds(5)));
+                Assert.Equal("destination unavailable", error.Message);
+                var path = Assert.Single(System.IO.Directory.GetFiles(root, "terminal.json", System.IO.SearchOption.AllDirectories));
+                var failed = System.Text.Json.JsonSerializer.Deserialize<RecipeRampTerminalCheckpoint>(System.IO.File.ReadAllText(path))!;
+                Assert.Equal(RecipeRampTerminalStatus.Faulted, failed.Status);
+                Assert.Equal(RecipeRampReturnOutcome.Failed, failed.ReturnOutcome);
+                Assert.False(failed.HasVerifiedRecovery);
+                Assert.Equal(25, Volatile.Read(ref reference));
+                Assert.False(expectedSent.Task.IsCompleted);
+                Assert.NotNull(store.ReadStart(engine.ExecutionId, failed.InvocationId));
+                return;
+            }
             await expectedSent.Task.WaitAsync(TimeSpan.FromSeconds(3));
             if (pauseKind is 1 or 2)
             {

@@ -8,23 +8,31 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampBlockRunnerTests
 {
-    [Fact]
-    public async Task RecipeAdvancesPastRampOnlyAfterItsTerminalReceiptExists()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RecipeAdvancesPastRampOnlyAfterItsTerminalReceiptExists(bool useBlockDeadline)
     {
         var device = new RecordingDeviceService();
         using var arbiter = new CommandArbiter(device, TimeProvider.System);
         using var writer = new BackgroundFileWriter();
         var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ramp-graph-" + Guid.NewGuid().ToString("N"));
         var store = new RecipeRampCheckpointStore(root, writer);
-        var runtime = new RecipeRampExecutionConfiguration(store, (engine, configuration) => new(engine, configuration,
+        var runtime = new RecipeRampExecutionConfiguration(store, (engine, configuration) => useBlockDeadline
+            ? configuration.CompletionCriteria!.CreateDestination(engine, configuration, null) : new(engine, configuration,
             new(2, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)),
             new(.5, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3)),
             new(.1, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3))),
-            TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3), TimeSpan.FromMilliseconds(10));
+            TimeSpan.FromSeconds(3), useBlockDeadline ? TimeSpan.FromMilliseconds(50) : TimeSpan.FromSeconds(3),
+            TimeSpan.FromSeconds(3), TimeSpan.FromMilliseconds(10));
         await using var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(new AppSettings()),
             TimeProvider.System, rampExecution: runtime);
         arbiter.Dispatch(CommandOwner.Manual, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 25));
         var ramp = RecipeNode.Create(NodeType.LinearSetpointRamp, id: "ramp");
+        // Feedback arrives after the runtime fallback deadline, but within the frozen block deadline.
+        ramp.Set("confirmationStabilitySeconds", 0);
+        ramp.Set("maximumTelemetryGapSeconds", 1);
+        ramp.Set("confirmationTimeoutSeconds", useBlockDeadline ? 1 : 3);
         ramp.Set("lines", new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject {
             ["variable"] = "Temperature", ["startSource"] = "Explicit", ["initialSetpoint"] = 28,
             ["finalSetpoint"] = 30, ["endAfterSeconds"] = .05 }));
@@ -46,17 +54,27 @@ public sealed class RecipeRampBlockRunnerTests
             catch (Exception error) { advanced.TrySetException(error); }
         };
         double reference = 25;
+        var finalSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         device.CommandSent += json =>
         {
             var command = OpenTECCommand.Parse(json);
-            if (command.Contains(CommandKeys.TempSetpoint)) Volatile.Write(ref reference,
-                RecipeAssayReturnState.Number(command, CommandKeys.TempSetpoint));
+            if (command.Contains(CommandKeys.TempSetpoint))
+            {
+                var value = RecipeAssayReturnState.Number(command, CommandKeys.TempSetpoint);
+                Volatile.Write(ref reference, value);
+                if (value == 30) finalSent.TrySetResult();
+            }
         };
         using var telemetryStop = new CancellationTokenSource();
         var telemetry = Task.Run(async () =>
         {
             try
             {
+                if (useBlockDeadline)
+                {
+                    await finalSent.Task.WaitAsync(telemetryStop.Token);
+                    await Task.Delay(200, telemetryStop.Token);
+                }
                 while (true)
                 {
                     await Task.Delay(10, telemetryStop.Token);
@@ -112,7 +130,8 @@ public sealed class RecipeRampBlockRunnerTests
             if (!command.Contains(CommandKeys.TempSetpoint)) return;
             var value = RecipeAssayReturnState.Number(command, CommandKeys.TempSetpoint);
             Volatile.Write(ref reference, value);
-            if (value == (cancel || pauseKind != 0 ? 28 : 30)) expectedSent.TrySetResult();
+            if (pauseKind is 1 or 2 ? value >= 28 && value < 30 : value == (cancel ? 28 : 30))
+                expectedSent.TrySetResult();
         };
         using var telemetryStop = new CancellationTokenSource();
         var telemetry = Task.Run(async () =>

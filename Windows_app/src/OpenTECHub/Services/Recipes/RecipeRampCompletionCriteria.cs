@@ -5,6 +5,8 @@ public sealed record RecipeRampCompletionCriteria(double TemperatureToleranceCel
     double FlowToleranceLpm, double PhTolerance, double PressureToleranceKilopascals, double StabilitySeconds,
     double MaximumSampleGapSeconds, double TimeoutSeconds)
 {
+    public static RecipeRampCompletionCriteria OperationalDefaults { get; } = new(.5, 2, .1, .05, .5, 10, 5, 300);
+
     public RecipeRampFrameDestination CreateCapturedDestination(RecipeEngine engine, RecipeRampStartCheckpoint start)
     {
         if (start.Configuration.CompletionCriteria is { } expected && expected != this)

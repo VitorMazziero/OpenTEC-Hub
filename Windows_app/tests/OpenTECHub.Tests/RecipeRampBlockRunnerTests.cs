@@ -9,9 +9,11 @@ namespace OpenTECHub.Tests;
 public sealed class RecipeRampBlockRunnerTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RecipeAdvancesPastRampOnlyAfterItsTerminalReceiptExists(bool useBlockDeadline)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task RecipeAdvancesPastRampOnlyAfterItsTerminalReceiptExists(bool useBlockDeadline, bool applicationComposition, bool simulation)
     {
         var device = new RecordingDeviceService();
         using var arbiter = new CommandArbiter(device, TimeProvider.System);
@@ -25,6 +27,7 @@ public sealed class RecipeRampBlockRunnerTests
             new(.1, TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3))),
             TimeSpan.FromSeconds(3), useBlockDeadline ? TimeSpan.FromMilliseconds(50) : TimeSpan.FromSeconds(3),
             TimeSpan.FromSeconds(3), TimeSpan.FromMilliseconds(10));
+        if (applicationComposition) runtime = RecipeRampApplicationConfiguration.Create(root, simulation, writer);
         await using var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(new AppSettings()),
             TimeProvider.System, rampExecution: runtime);
         arbiter.Dispatch(CommandOwner.Manual, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 25));
@@ -49,6 +52,7 @@ public sealed class RecipeRampBlockRunnerTests
             try
             {
                 var path = Assert.Single(System.IO.Directory.GetFiles(root, "terminal.json", System.IO.SearchOption.AllDirectories));
+                if (applicationComposition) Assert.Contains(System.IO.Path.Combine("AutomacaoRampas", simulation ? "simulacao" : "fisico"), path);
                 advanced.TrySetResult(System.Text.Json.JsonSerializer.Deserialize<RecipeRampTerminalCheckpoint>(System.IO.File.ReadAllText(path))!);
             }
             catch (Exception error) { advanced.TrySetException(error); }
@@ -92,8 +96,29 @@ public sealed class RecipeRampBlockRunnerTests
             var terminal = await advanced.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(RecipeRampTerminalStatus.Completed, terminal.Status);
             Assert.Equal(30, Assert.Single(terminal.FinalConfirmations).Reference);
+            if (applicationComposition)
+            {
+                var initial = runtime.Store.ReadStart(engine.ExecutionId, terminal.InvocationId)!;
+                Assert.Equal(1, initial.Configuration.CompletionCriteria!.TimeoutSeconds);
+                Assert.False(System.IO.Directory.Exists(System.IO.Path.Combine(root, "AutomacaoRampas", simulation ? "fisico" : "simulacao")));
+            }
         }
         finally { telemetryStop.Cancel(); await telemetry; await engine.StopAsync("graph verified"); }
+    }
+
+    [Fact]
+    public void ApplicationFreezesLegacyCriteriaWithoutChangingOriginalConfiguration()
+    {
+        using var writer = new BackgroundFileWriter();
+        var runtime = RecipeRampApplicationConfiguration.Create(System.IO.Path.GetTempPath(), false, writer);
+        var legacy = new RecipeRampBlockConfiguration(new() { Lines = [new() {
+            Variable = SetpointVariable.Temperature, FinalSetpoint = 30, EndAfterSeconds = 60 }] }, null);
+        var prepared = runtime.PrepareConfiguration!(legacy);
+        Assert.Null(legacy.CompletionCriteria);
+        Assert.Equal(RecipeRampCompletionCriteria.OperationalDefaults, prepared.CompletionCriteria);
+        Assert.Same(legacy.Definition, prepared.Definition);
+        Assert.Same(prepared, runtime.PrepareConfiguration(prepared));
+        runtime.Validate();
     }
 
     [Theory]

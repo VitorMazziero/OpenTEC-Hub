@@ -10,6 +10,13 @@ public sealed partial class RecipeEngine
         if (_arbiter is not ICommandAuthorityArbiter authority)
             throw new InvalidOperationException("Rampa exige árbitro com reservas.");
         var configuration = RecipeRampBlockConfiguration.Read(node);
+        if (runtime.PrepareConfiguration is { } prepare)
+        {
+            var legacy = configuration.CompletionCriteria is null;
+            configuration = prepare(configuration);
+            if (legacy && configuration.CompletionCriteria is not null)
+                Log(RecipeLogSeverity.Info, "Rampa antiga: critérios operacionais do editor serão registrados nesta execução.", node.Id);
+        }
         Log(RecipeLogSeverity.Info, "Rampa iniciada; captura e resultado serão gravados automaticamente.", node.Id);
         var terminal = await new RecipeRampBlockRunner(this, authority, runtime.Store,
             frozen => runtime.CreateDestination(this, frozen), runtime.CreateCapturedDestination is { } captured

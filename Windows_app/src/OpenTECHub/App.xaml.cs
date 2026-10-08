@@ -408,6 +408,8 @@ public partial class App : Application
         // The recipe execution engine (Phase 3 WP4). It drives the same arbiter as manual control
         // under CommandOwner.Recipe, so starting a recipe claims the wire and deactivates the
         // manual surfaces; a link loss safe-aborts it.
+        services.AddSingleton(sp => RecipeRampApplicationConfiguration.Create(AppPaths.RecipesDirectory,
+            playback is not null, sp.GetRequiredService<BackgroundFileWriter>()));
         services.AddSingleton<IRecipeEngine>(sp => new RecipeEngine(
             sp.GetRequiredService<ICommandArbiter>(),
             sp.GetRequiredService<IDeviceService>(),
@@ -415,7 +417,8 @@ public partial class App : Application
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<IEventJournal>(),
             klaStore: sp.GetService<IKlaProfileStore>(),
-            autonomousWorkSource: sp.GetRequiredService<IRecipeAutonomousWorkSource>()));
+            autonomousWorkSource: sp.GetRequiredService<IRecipeAutonomousWorkSource>(),
+            rampExecution: sp.GetRequiredService<RecipeRampExecutionConfiguration>()));
 
         // Recipes are saved as versioned JSON in the per-user recipes folder (Minhas Receitas).
         services.AddSingleton<IRecipeStore>(_ => new RecipeStore(AppPaths.RecipesDirectory));

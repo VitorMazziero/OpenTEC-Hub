@@ -38,6 +38,8 @@
        <TextBlock Text="Resultados da receita" FontWeight="Bold"/>
        <TextBlock Text="{Binding AutomaticSessionSummary}" Style="{StaticResource Label}"/>
        <TextBlock Text="{Binding AutomaticTerminalStatus}" Style="{StaticResource Label}"/>
+       <Button Content="Criar cópia editável para recalcular" Command="{Binding CreateEditableCopyCommand}" Margin="0,8,0,0"
+               ToolTip="Copia esta sessão para Testes-kLa como ensaio do operador. A sessão automática não é alterada."/>
        <Button Content="Exportar todas as tentativas (CSV)" Command="{Binding ExportAutomaticAttemptsCommand}" Margin="0,8,0,4"/>
        <Expander Header="Todas as tentativas · inclui recusadas" IsExpanded="False">
         <ItemsControl ItemsSource="{Binding RecordedAutomaticAttempts}">

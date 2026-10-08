@@ -1,4 +1,5 @@
 using System.IO;
+using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Recipes;
 using Xunit;
 
@@ -24,7 +25,7 @@ public sealed class RecipeExampleTests
         foreach (var assay in recipe.Nodes.Where(node => node.Type == NodeType.KlaAssay))
         {
             var configuration = RecipeAutonomousBlockConfiguration.ReadKla(assay);
-            Assert.Equal("selecionar-perfil-qualificado", configuration.ProfileId);
+            Assert.Equal(KlaRecipeOperatorProfile.Id, configuration.ProfileId);
             if (configuration.ConditionsMode == RecipeKlaConditionMode.Multiple)
             {
                 Assert.Equal(2, configuration.Conditions.Length);

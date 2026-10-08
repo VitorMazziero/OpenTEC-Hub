@@ -70,6 +70,9 @@ public sealed class RecipeAutonomousBlockConfigurationTests
         node.Set("profileId", "qualified-test-profile"); node.Set("profileVersion", "1");
         node.Set("maximumBlockSeconds", 600); node.Set("maximumGasOffSeconds", 60);
         node.Set("maximumCultivationGasOffSeconds", 300);
+        // Qualified-profile fixtures keep the strict budgets the catalog used before the operator profile (D-062).
+        node.Set("maximumAttemptsPerCultivation", 1); node.Set("minimumIntervalSeconds", 0);
+        node.Set("failurePolicy", nameof(KlaRecipeFailurePolicy.StopAfterRestoration));
         return node;
     }
 
@@ -112,7 +115,12 @@ public sealed class RecipeAutonomousBlockConfigurationTests
     [Fact]
     public void Explicit_budgets_and_integer_replicates_are_required()
     {
-        Assert.Throws<ArgumentException>(() => RecipeAutonomousBlockConfiguration.ReadKla(RecipeNode.Create(NodeType.KlaAssay)));
+        // A new block is runnable with the operator profile; zero limits mean "not applicable".
+        var fresh = RecipeAutonomousBlockConfiguration.ReadKla(RecipeNode.Create(NodeType.KlaAssay));
+        Assert.Equal(KlaRecipeOperatorProfile.Id, fresh.ProfileId);
+        Assert.Equal(KlaRecipeFailurePolicy.ContinueWithoutResultAfterRestoration, fresh.FailurePolicy);
+        Assert.Equal(KlaRecipeOperatorProfile.NotApplicableSeconds, fresh.Retry.MaximumCumulativeGasOffSecondsPerCultivation);
+        Assert.Equal((5.0, 600.0, 30.0), (fresh.MinimumDoPercent, fresh.ReturnSeconds, fresh.Retry.MinimumInterAssaySeconds));
         var node = ConfiguredKla(); node.Set("conditionsMode", nameof(RecipeKlaConditionMode.Multiple));
         node.Set("conditions", new JsonArray(new JsonObject { ["agitationRpm"] = 300, ["airflowLpm"] = 2, ["replicates"] = 1.5 }));
         Assert.Throws<ArgumentException>(() => RecipeAutonomousBlockConfiguration.ReadKla(node));

@@ -297,6 +297,12 @@ public partial class App : Application
         return string.IsNullOrWhiteSpace(file) ? null : new KlaPlaybackOptions(Path.GetFullPath(file), Math.Clamp(speed, 0.1, 100));
     }
 
+    /// <summary>
+    /// Autonomous and manual kLa assays, abiotic and biotic, may actuate the reactor (D-061). The operator
+    /// supervises the bench directly; the simulator keeps its own data folders.
+    /// </summary>
+    internal const bool OperatorAuthorizedKlaExecution = true;
+
     internal static void ConfigureServices(IServiceCollection services, KlaPlaybackOptions? playback)
     {
         services.AddLogging(builder =>
@@ -325,13 +331,14 @@ public partial class App : Application
         services.AddSingleton(sp => new KlaRecipeAssayExecutionFactory(
             sp.GetRequiredService<IDeviceService>(), sp.GetRequiredService<ICommandArbiter>(),
             sp.GetRequiredService<IKlaTestStore>(), sp.GetRequiredService<IKlaAnalysisEngine>(),
-            sp.GetRequiredService<ISettingsService>(), sp.GetRequiredService<TimeProvider>(), isIsolatedEnvironment: playback is not null));
-        services.AddSingleton(_ => new KlaActuationRelease(playback is not null));
+            sp.GetRequiredService<ISettingsService>(), sp.GetRequiredService<TimeProvider>(), isIsolatedEnvironment: OperatorAuthorizedKlaExecution));
+        // D-061: abiotic and biotic assays run on the reactor by operator decision, without qualification gates.
+        services.AddSingleton(_ => new KlaActuationRelease(OperatorAuthorizedKlaExecution));
         services.AddSingleton(sp => new KlaRecipeApplicationHost(
             Path.Combine(AppPaths.RecipesDirectory, "AutomacaoKla", playback is not null ? "simulacao" : "fisico"),
-            playback is not null, sp.GetRequiredService<KlaRecipeAssayExecutionFactory>(),
+            OperatorAuthorizedKlaExecution, sp.GetRequiredService<KlaRecipeAssayExecutionFactory>(),
             sp.GetRequiredService<IKlaTestStore>(), sp.GetRequiredService<ISettingsService>(),
-            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<BackgroundFileWriter>()));
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<BackgroundFileWriter>(), isSimulation: playback is not null));
         services.AddSingleton(sp => sp.GetRequiredService<KlaRecipeApplicationHost>().Profiles);
         services.AddSingleton<IRecipeAutonomousWorkSource>(sp => sp.GetRequiredService<KlaRecipeApplicationHost>());
         services.AddSingleton<IKlaTestRunner, KlaTestRunner>();

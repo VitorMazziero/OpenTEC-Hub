@@ -104,6 +104,24 @@ public sealed partial class KlaDeterminationViewModel
         LoadStoredRun(attempt.Run, null);
     }
 
+    /// <summary>Copies the recipe session into Testes-kLa as an operator session that can be re-analysed (D-062).</summary>
+    [RelayCommand]
+    public void CreateEditableCopy()
+    {
+        if (!IsAutomaticSession || CurrentTest is null || IsRunning) return;
+        try
+        {
+            var copy = _store.ImportTestFolder(System.IO.Path.Combine(_store.RootDirectory, CurrentTest.FolderName));
+            RefreshTestsList();
+            LoadTest(copy);
+            StatusMessage = $"Cópia editável criada em Testes-kLa/{copy}. Revise a curva e recalcule o kLa; a sessão automática original foi preservada.";
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or ArgumentException or UnauthorizedAccessException)
+        {
+            _dialogs.Confirm("Falha ao criar cópia editável", ex.Message, "OK", "");
+        }
+    }
+
     [RelayCommand]
     public void ExportAutomaticAttempts()
     {

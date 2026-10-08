@@ -50,8 +50,7 @@ public sealed record KlaAttemptPersistenceCheckpoint
     }
     internal static void Folder(string value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value is "." or ".." || value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-            value.Contains('/') || value.Contains('\\')) throw new ArgumentException("Nome de pasta inválido.");
+        if (!KlaTestFileContracts.IsSessionFolder(value)) throw new ArgumentException("Nome de pasta inválido.");
     }
 }
 

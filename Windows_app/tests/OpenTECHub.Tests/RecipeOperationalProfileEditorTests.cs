@@ -23,7 +23,7 @@ public sealed class RecipeOperationalProfileEditorTests
         node.Set("maximumBlockSeconds", 120);
         var vm = new RecipeNodeViewModel(node, operationalProfiles: registry);
         Assert.Single(vm.AvailableOperationalProfiles); Assert.Null(vm.SelectedOperationalProfile);
-        Assert.Equal("", node.Text("profileId"));
+        Assert.Equal(KlaRecipeOperatorProfile.Id, node.Text("profileId"));
         var changes = 0; vm.Changed += () => changes++;
         vm.SelectedOperationalProfile = vm.AvailableOperationalProfiles.Single();
         Assert.True(changes > 0); Assert.Equal(120, node.Number("maximumBlockSeconds"));
@@ -62,7 +62,7 @@ public sealed class RecipeOperationalProfileEditorTests
         Assert.Equal(KlaAssayProtocol.Biotic, vm.AvailableOperationalProfiles.Single().Protocol);
         Assert.Contains(vm.VisibleFields, f => f.Key == "requireValidOur");
         vm.SelectedOperationalProfile = abiotic;
-        Assert.Null(vm.SelectedOperationalProfile); Assert.Equal("", node.Text("profileId"));
+        Assert.Null(vm.SelectedOperationalProfile); Assert.Equal(KlaRecipeOperatorProfile.Id, node.Text("profileId"));
         vm.SelectedOperationalProfile = vm.AvailableOperationalProfiles.Single();
         Assert.Equal(KlaAssayProtocol.Biotic, vm.SelectedOperationalProfile!.Protocol);
         vm.Fields.Single(f => f.Key == "conditionsMode").TextValue = nameof(RecipeKlaConditionMode.Multiple);

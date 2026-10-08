@@ -10,8 +10,10 @@ public sealed partial class ReceitasViewModel
     public string KlaInstallationId => _klaHost?.Context?.InstallationId ?? "Indisponível";
     public string KlaAutomationAvailability => _klaHost is null ? "Serviço não disponível" :
         _klaHost.AvailabilityError ?? (!_klaHost.Profiles.IsIsolatedEnvironment
-            ? "Ensaios automáticos físicos aguardam qualificação da instalação."
-            : $"Simulação isolada · {_klaHost.Profiles.AvailableProfiles.Count} perfil(is) disponível(is)");
+            ? "Ensaios automáticos indisponíveis nesta instalação."
+            : _klaHost.Profiles.HasOperatorProfile
+                ? "Ensaios automáticos liberados pelo operador · protocolo das configurações da página Determinar kLa"
+                : $"{_klaHost.Profiles.AvailableProfiles.Count} perfil(is) disponível(is)");
     public string KlaActiveCultivation => $"Cultivo ativo: {_klaHost?.Context?.CultivationId ?? "não identificado"}";
 
     [ObservableProperty]

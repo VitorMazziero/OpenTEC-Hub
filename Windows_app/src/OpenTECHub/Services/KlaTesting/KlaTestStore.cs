@@ -75,11 +75,14 @@ public sealed partial class KlaTestStore : IKlaTestStore
             }
 
             var list = new List<KlaTestSummary>();
-            var dirs = Directory.GetDirectories(_rootDirectory);
+            var automatic = Path.Combine(_rootDirectory, KlaTestFileContracts.AutomaticSessionsDirectoryName);
+            var dirs = Directory.GetDirectories(_rootDirectory)
+                .Where(dir => !string.Equals(Path.GetFileName(dir), KlaTestFileContracts.AutomaticSessionsDirectoryName, StringComparison.OrdinalIgnoreCase))
+                .Concat(Directory.Exists(automatic) ? Directory.GetDirectories(automatic) : []);
 
             foreach (var dir in dirs)
             {
-                var folderName = Path.GetFileName(dir);
+                var folderName = Path.GetRelativePath(_rootDirectory, dir);
                 var manifestPath = Path.Combine(dir, KlaTestFileContracts.TestManifestFileName);
 
                 if (File.Exists(manifestPath))
@@ -215,11 +218,21 @@ public sealed partial class KlaTestStore : IKlaTestStore
 
         var sourceDoc = KlaTestFileContracts.DeserializeTestDocument(File.ReadAllText(manifestPath))
             ?? throw new InvalidDataException("O manifesto do ensaio não pôde ser lido.");
+        // A recipe session is imported as an operator copy: its raw data and curves stay identical, but the
+        // copy can be re-analysed and decided by hand. The automatic original remains untouched (D-062).
+        var editableCopy = sourceDoc.RecipeRequest is not null || sourceDoc.Runs.Any(r => r.AutomaticDecision is not null);
+        if (editableCopy)
+        {
+            sourceDoc.RecipeRequest = null;
+            sourceDoc.Runs = sourceDoc.Runs.Select(r => r with { AutomaticDecision = null }).ToList();
+            sourceDoc.TestId = Guid.NewGuid();
+            sourceDoc.Name = $"{sourceDoc.Name.Trim()}_edicao";
+        }
 
         _writer.Flush();
         lock (_ioLock)
         {
-            foreach (var existing in ListTests())
+            foreach (var existing in editableCopy ? [] : ListTests())
             {
                 if (sourceDoc.TestId != Guid.Empty && existing.TestId == sourceDoc.TestId)
                 {
@@ -471,9 +484,18 @@ public sealed partial class KlaTestStore : IKlaTestStore
             definition.Conditions.Select(c => c.ToSessionCondition()).ToArray(), definition);
     }
 
+    public KlaTestDocument CreateAutomaticTest(string name, KlaAssayDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        definition.Validate(requireConditions: false);
+        return CreateTestCore(name, definition.Settings, null,
+            definition.Conditions.Select(c => c.ToSessionCondition()).ToArray(), definition,
+            KlaTestFileContracts.AutomaticSessionsDirectoryName);
+    }
+
     private KlaTestDocument CreateTestCore(string name, KlaTestSettings settings,
         KlaMapReference? linkedMap, IReadOnlyList<KlaTestCondition>? initialConditions,
-        KlaAssayDefinition? definition)
+        KlaAssayDefinition? definition, string? subfolder = null)
     {
         if (!ValidateTestName(name, out var error))
         {
@@ -481,7 +503,8 @@ public sealed partial class KlaTestStore : IKlaTestStore
         }
 
         var trimmedName = name.Trim();
-        var folderPath = Path.Combine(_rootDirectory, trimmedName);
+        var folderName = subfolder is null ? trimmedName : Path.Combine(subfolder, trimmedName);
+        var folderPath = Path.Combine(_rootDirectory, folderName);
 
         lock (_ioLock)
         {
@@ -505,7 +528,7 @@ public sealed partial class KlaTestStore : IKlaTestStore
             {
                 TestId = Guid.NewGuid(),
                 Name = trimmedName,
-                FolderName = trimmedName,
+                FolderName = folderName,
                 Status = KlaTestStatus.Draft,
                 CreatedUtc = DateTimeOffset.UtcNow,
                 LastModifiedUtc = DateTimeOffset.UtcNow,

@@ -44,6 +44,9 @@ public sealed partial class RecipeNodeViewModel
                 return string.IsNullOrWhiteSpace(Model.Text("profileId"))
                     ? "Selecione um perfil qualificado. Nenhum perfil é escolhido automaticamente."
                     : $"Perfil {Model.Text("profileId")} · {Model.Text("profileVersion")} indisponível ou vencido para este protocolo.";
+            if (profile.Capabilities.ProfileId == KlaRecipeOperatorProfile.Id)
+                return "Perfil do operador: remoção, alvo de OD, tempos máximos e agitação vêm das configurações atuais da " +
+                    "página Determinar kLa e são gravados na sessão no início do ensaio.";
             var limits = profile.MaximumRetry;
             return $"Perfil de simulação · válido até {profile.ValidUntilUtc.LocalDateTime:g}. " +
                 $"Limites: {limits.MaximumAttemptsPerReplicate} tentativas por réplica; {limits.MaximumAttemptsPerCultivation} no cultivo; " +

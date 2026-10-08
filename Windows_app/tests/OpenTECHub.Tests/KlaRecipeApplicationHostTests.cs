@@ -60,16 +60,20 @@ public sealed class KlaRecipeApplicationHostTests : IDisposable
         using var host = Host();
         var profile = KlaRecipeOperationalProfileTests.Profile(_fixture.Clock, protocol);
         await Assert.ThrowsAsync<InvalidOperationException>(() => host.ImportProfileAsync(ImportFile(profile)));
-        Assert.Empty(host.Profiles.AvailableProfiles);
+        // The operator profile is always offered for both protocols (D-062); imported records are counted apart.
+        Assert.Equal(2, host.Profiles.AvailableProfiles.Count(p => p.Capabilities.ProfileId == KlaRecipeOperatorProfile.Id));
+        Assert.Empty(Imported(host));
         profile = profile with { Capabilities = profile.Capabilities with { InstallationId = host.Context!.InstallationId } };
         await host.ImportProfileAsync(ImportFile(profile));
-        Assert.Single(host.Profiles.AvailableProfiles);
+        Assert.Single(Imported(host));
         host.Dispose();
         using var reopened = Host();
-        Assert.Single(reopened.Profiles.AvailableProfiles);
+        Assert.Single(Imported(reopened));
         Assert.Null(reopened.AvailabilityError);
+        // Without a cultivation the run uses its own budget identity (D-062); only the invalid graph blocks it.
         Assert.False(reopened.CanExecute(new RecipeDocument(), out var reason));
-        Assert.Contains("cultivo", reason);
+        Assert.DoesNotContain("cultivo", reason);
+        Assert.Contains("validação", reason);
         Assert.Empty(_fixture.Device.Sent);
     }
 
@@ -194,7 +198,7 @@ public sealed class KlaRecipeApplicationHostTests : IDisposable
             Assert.True(((System.Windows.FrameworkElement)view.FindName("RecipeBody")).ActualHeight > 400,
                 "Preparation must preserve the recipe workspace and must not stretch the tab controls.");
             Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
-            WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r42",
+            WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.EvidenceRoot, "docs", "plans", "receitas-r42",
                 "evidence", "application-configuration-125dpi.png"));
         });
     }
@@ -204,4 +208,7 @@ public sealed class KlaRecipeApplicationHostTests : IDisposable
         _fixture.Dispose(); _writer.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }
+
+    private static IEnumerable<KlaRecipeOperationalProfile> Imported(KlaRecipeApplicationHost host)
+        => host.Profiles.AvailableProfiles.Where(p => p.Capabilities.ProfileId != KlaRecipeOperatorProfile.Id);
 }

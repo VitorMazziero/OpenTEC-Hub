@@ -7,7 +7,8 @@ namespace OpenTECHub.Services.Recipes;
 public sealed record RecipeKlaCondition(double AgitationRpm, double AirflowLpm, int Replicates);
 public sealed record RecipeKlaBlockConfiguration(KlaAssayProtocol Protocol, RecipeKlaConditionMode ConditionsMode,
     ImmutableArray<RecipeKlaCondition> Conditions, string ProfileId, string ProfileVersion, bool RequireValidOur,
-    KlaAutomaticRetryPolicy Retry, KlaRecipeFailurePolicy FailurePolicy, bool UseProfileRetryReasons = true);
+    KlaAutomaticRetryPolicy Retry, KlaRecipeFailurePolicy FailurePolicy, bool UseProfileRetryReasons = true,
+    double MinimumDoPercent = 5, double ReturnSeconds = 600);
 public sealed record RecipePeriodicBlockConfiguration(PeriodicBlockSchedule Schedule, string? CoordinatedCascadeId);
 
 /// <summary>Strict draft parsing. Valid configuration does not establish operational qualification.</summary>
@@ -32,6 +33,8 @@ public static class RecipeAutonomousBlockConfiguration
             }
         }
         var profile = node.Text("profileId"); var version = node.Text("profileVersion");
+        // An empty selection is the operator profile built from the Determinar kLa settings (D-062).
+        if (KlaRecipeOperatorProfile.Applies(profile)) { profile = KlaRecipeOperatorProfile.Id; version = KlaRecipeOperatorProfile.Version; }
         ContractGuard.Text(profile); ContractGuard.Text(version);
         var requireOur = protocol == KlaAssayProtocol.Biotic && Boolean(node.Parameters, "requireValidOur");
         var useProfileRetryReasons = !node.Parameters.ContainsKey("useProfileRetryReasons") || Boolean(node.Parameters, "useProfileRetryReasons");
@@ -39,9 +42,12 @@ public static class RecipeAutonomousBlockConfiguration
         {
             MaximumAttemptsPerReplicate = Integer(Number(node.Parameters, "maximumAttemptsPerReplicate")),
             MaximumAttemptsPerCultivation = Integer(Number(node.Parameters, "maximumAttemptsPerCultivation")),
-            MinimumInterAssaySeconds = Number(node.Parameters, "minimumIntervalSeconds"), MaximumBlockSeconds = Number(node.Parameters, "maximumBlockSeconds"),
-            MaximumGasOffSecondsPerAttempt = Number(node.Parameters, "maximumGasOffSeconds"),
-            MaximumCumulativeGasOffSecondsPerCultivation = Number(node.Parameters, "maximumCultivationGasOffSeconds"),
+            MinimumInterAssaySeconds = Number(node.Parameters, "minimumIntervalSeconds"),
+            MaximumBlockSeconds = NotApplicableAsDefault(Number(node.Parameters, "maximumBlockSeconds"), MaximumBlockDefaultSeconds),
+            MaximumGasOffSecondsPerAttempt = NotApplicableAsDefault(Number(node.Parameters, "maximumGasOffSeconds"),
+                KlaRecipeOperatorProfile.NotApplicableSeconds),
+            MaximumCumulativeGasOffSecondsPerCultivation = NotApplicableAsDefault(Number(node.Parameters, "maximumCultivationGasOffSeconds"),
+                KlaRecipeOperatorProfile.NotApplicableSeconds),
             RecoverableReasons = new[] {
                 (Key: "retryInsufficientWindow", Reason: KlaRetryReason.InsufficientWindow),
                 (Key: "retryExcessiveNoise", Reason: KlaRetryReason.ExcessiveNoise),
@@ -51,8 +57,12 @@ public static class RecipeAutonomousBlockConfiguration
         };
         if (useProfileRetryReasons) retry = retry with { RecoverableReasons = [] };
         retry.Validate();
+        var minimumDo = OptionalNumber(node.Parameters, "minimumDoPercent", 5);
+        var returnSeconds = OptionalNumber(node.Parameters, "returnSeconds", 600);
+        if (minimumDo < 0 || minimumDo >= 100 || returnSeconds <= 0 || returnSeconds > MaximumBlockDefaultSeconds)
+            throw new ArgumentException("OD mínimo deve estar entre 0 e 100 % e o prazo de retorno deve ser positivo.");
         return new(protocol, mode, conditions.ToImmutable(), profile, version, requireOur, retry,
-            Choice<KlaRecipeFailurePolicy>(node, "failurePolicy"), useProfileRetryReasons);
+            Choice<KlaRecipeFailurePolicy>(node, "failurePolicy"), useProfileRetryReasons, minimumDo, returnSeconds);
     }
 
     public static RecipePeriodicBlockConfiguration ReadPeriodic(RecipeNode node)
@@ -93,6 +103,11 @@ public static class RecipeAutonomousBlockConfiguration
     private static double Number(JsonObject fields, string key)
         => fields[key] is JsonValue value && RecipeNode.TryReadNumber(value, out var number) ? number :
             throw new ArgumentException($"Valor numérico ausente: {key}.");
+    /// <summary>Thirty days: the longest block deadline a timer holds with margin. Zero in the editor means "not applicable".</summary>
+    public const double MaximumBlockDefaultSeconds = 30 * 24 * 3600;
+    private static double NotApplicableAsDefault(double value, double notApplicable) => value <= 0 ? notApplicable : value;
+    private static double OptionalNumber(JsonObject fields, string key, double fallback)
+        => fields.ContainsKey(key) ? Number(fields, key) : fallback;
     private static bool Boolean(JsonObject fields, string key)
         => fields[key] is JsonValue value && value.TryGetValue<bool>(out var boolean) ? boolean :
             throw new ArgumentException($"Opção booleana ausente: {key}.");

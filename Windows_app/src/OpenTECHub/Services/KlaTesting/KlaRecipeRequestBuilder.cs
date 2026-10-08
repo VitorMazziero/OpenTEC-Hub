@@ -11,7 +11,7 @@ public static class KlaRecipeRequestBuilder
     /// <summary>The caller must capture this snapshot while producers are quiescent and keep that lease for the first pulse.</summary>
     public static KlaRecipeRequest Build(RecipeInvocationContext context, RecipeKlaBlockConfiguration configuration,
         KlaRecipeOperationalProfile profile, KlaReturnSnapshot snapshot, DateTimeOffset now,
-        PeriodicBlockInvocation? periodic = null)
+        PeriodicBlockInvocation? periodic = null, KlaMeasurementSource source = KlaMeasurementSource.Simulation)
     {
         context.Validate(); profile.Validate(now);
         KlaRecipeOperationalProfileRegistry.ValidateConfiguration(profile, configuration);
@@ -36,7 +36,7 @@ public static class KlaRecipeRequestBuilder
             Context = context, PeriodicInvocation = periodic,
             Definition = profile.Template with
             {
-                Context = measurement with { CultivationId = context.CultivationId, Source = KlaMeasurementSource.Simulation },
+                Context = measurement with { CultivationId = context.CultivationId, Source = source },
                 CaptureMode = configuration.ConditionsMode == RecipeKlaConditionMode.Multiple ? KlaCaptureMode.Multiple : KlaCaptureMode.Single,
                 SequenceLimits = null,
                 Conditions = rows.Select((row, index) => new KlaAssayCondition(ConditionId(context, index), index,

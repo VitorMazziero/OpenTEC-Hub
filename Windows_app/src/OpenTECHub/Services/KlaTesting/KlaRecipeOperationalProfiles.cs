@@ -77,8 +77,18 @@ public sealed record KlaRecipeOperationalProfile
 }
 
 public sealed class KlaRecipeOperationalProfileRegistry(string installationId, TimeProvider time,
-    bool isIsolatedEnvironment = false)
+    bool isIsolatedEnvironment = false, Func<KlaTestSettings>? operatorSettings = null)
 {
+    /// <summary>True when blocks without a qualification record use the operator's kLa settings (D-062).</summary>
+    public bool HasOperatorProfile => operatorSettings is not null && IsIsolatedEnvironment;
+
+    private KlaRecipeOperationalProfile OperatorProfile(RecipeKlaBlockConfiguration configuration)
+        => KlaRecipeOperatorProfile.Build(configuration, operatorSettings!(), InstallationId, time.GetUtcNow());
+
+    /// <summary>Operator blocks take exposure limits from the current kLa settings; others are unchanged.</summary>
+    public RecipeKlaBlockConfiguration Normalize(RecipeKlaBlockConfiguration configuration)
+        => HasOperatorProfile ? KlaRecipeOperatorProfile.Normalize(configuration, operatorSettings!()) : configuration;
+
     public string InstallationId { get; } = installationId;
     public bool IsIsolatedEnvironment { get; } = isIsolatedEnvironment;
     private readonly object _gate = new();
@@ -116,6 +126,14 @@ public sealed class KlaRecipeOperationalProfileRegistry(string installationId, T
 
     public KlaRecipeOperationalProfile Resolve(RecipeKlaBlockConfiguration configuration)
     {
+        if (HasOperatorProfile && configuration.ProfileId == KlaRecipeOperatorProfile.Id)
+        {
+            configuration = Normalize(configuration);
+            var own = OperatorProfile(configuration);
+            own.Validate(time.GetUtcNow());
+            ValidateConfiguration(own, configuration);
+            return Copy(own);
+        }
         KlaRecipeOperationalProfile profile;
         lock (_gate) profile = _profiles.GetValueOrDefault((configuration.ProfileId, configuration.ProfileVersion, configuration.Protocol))
             ?? throw new InvalidOperationException("Perfil operacional indisponível para esta instalação e protocolo.");
@@ -146,6 +164,11 @@ public sealed class KlaRecipeOperationalProfileRegistry(string installationId, T
     internal KlaAssayExecutionCapabilities ResolveCapabilities(KlaRecipeRequest invocation)
     {
         var definition = invocation.Definition;
+        // The operator profile is the frozen request itself: settings edited later must not alter a running matrix.
+        if (HasOperatorProfile && invocation.Quality.ProfileId == KlaRecipeOperatorProfile.Id)
+            return new() { InstallationId = InstallationId, ProfileId = KlaRecipeOperatorProfile.Id,
+                ProfileVersion = KlaRecipeOperatorProfile.Version, Protocols = [definition.Protocol],
+                EvidenceId = "decisao-do-operador", IsIsolatedSimulation = true };
         var configuration = new RecipeKlaBlockConfiguration(definition.Protocol,
             definition.CaptureMode == KlaCaptureMode.Single ? RecipeKlaConditionMode.SingleExplicit : RecipeKlaConditionMode.Multiple,
             definition.Conditions.Select(c => new RecipeKlaCondition(c.AgitationRpm, c.AirflowLpm, c.RequestedReplicates)).ToImmutableArray(),
@@ -167,8 +190,23 @@ public sealed class KlaRecipeOperationalProfileRegistry(string installationId, T
             lock (_gate)
             {
                 var now = time.GetUtcNow();
-                return _profiles.Values.Where(p => p.QualifiedUtc <= now && p.ValidUntilUtc > now).Select(Copy).ToArray();
+                var available = _profiles.Values.Where(p => p.QualifiedUtc <= now && p.ValidUntilUtc > now).Select(Copy).ToList();
+                if (HasOperatorProfile)
+                    foreach (var protocol in new[] { KlaAssayProtocol.Abiotic, KlaAssayProtocol.Biotic })
+                    {
+                        try { available.Insert(0, OperatorProfile(OperatorExample(protocol))); }
+                        catch (ArgumentException) { /* Invalid kLa settings are reported when the block is resolved. */ }
+                    }
+                return available;
             }
         }
     }
+
+    private static RecipeKlaBlockConfiguration OperatorExample(KlaAssayProtocol protocol) => new(protocol,
+        RecipeKlaConditionMode.SingleAtCurrentCondition, [], KlaRecipeOperatorProfile.Id, KlaRecipeOperatorProfile.Version, false,
+        new() { MaximumAttemptsPerReplicate = 1, MaximumAttemptsPerCultivation = KlaRecipeOperatorProfile.NotApplicableAttempts,
+            MinimumInterAssaySeconds = 30, MaximumBlockSeconds = 21600,
+            MaximumGasOffSecondsPerAttempt = KlaRecipeOperatorProfile.NotApplicableSeconds,
+            MaximumCumulativeGasOffSecondsPerCultivation = KlaRecipeOperatorProfile.NotApplicableSeconds },
+        KlaRecipeFailurePolicy.StopAfterRestoration);
 }

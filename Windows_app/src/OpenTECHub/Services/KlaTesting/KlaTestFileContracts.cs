@@ -22,6 +22,20 @@ public static class KlaTestFileContracts
     public const string GlobalSeriesFileName = "serie-global.csv";
     public const string ResultsSummaryFileName = "resumo-resultados.csv";
     public const string RunsDirectoryName = "Corridas";
+
+    /// <summary>Recipe sessions live one level down, inside Testes-kLa (D-062).</summary>
+    public const string AutomaticSessionsDirectoryName = "Receitas-automaticas";
+
+    /// <summary>A folder relative to Testes-kLa: one valid name, or one name inside the automatic sessions folder.</summary>
+    public static bool IsSessionFolder(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        var parts = value.Split('/', '\\');
+        if (parts.Length == 2 && parts[0] == AutomaticSessionsDirectoryName) parts = [parts[1]];
+        return parts.Length == 1 && parts[0] is not ("." or "..") &&
+            parts[0].IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && parts[0].Trim() == parts[0] && parts[0].Length > 0;
+    }
+
     public const string RunRawDataFileName = "dados-brutos.csv";
     public const string RunAnalysisFileName = "analise.json";
     public const string RunDefinitionFileName = "definicao-corrida.json";

@@ -38,6 +38,9 @@ public interface IKlaTestStore
 
     string ImportTestFolder(string sourceFolder);
 
+    /// <summary>Creates a recipe session inside the automatic sessions folder; stores without it keep a flat name.</summary>
+    KlaTestDocument CreateAutomaticTest(string name, KlaAssayDefinition definition) => CreateTest(name, definition);
+
     KlaTestDocument CreateTest(
         string name,
         KlaTestSettings settings,

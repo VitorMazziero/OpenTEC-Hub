@@ -13,7 +13,8 @@ public sealed record KlaRecipeActiveInvocation(KlaRecipeRequest Request, string 
 public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileRegistry profiles,
     KlaRecipeExecutionRouter router, IKlaAssayApi api, KlaRecipeAssayExecutionFactory factory,
     IKlaTestStore store, ISettingsService settings, TimeProvider time, BackgroundFileWriter writer,
-    string periodicJournalRoot, Func<string?> activeCultivation) : IRecipeAutonomousWorkSource
+    string periodicJournalRoot, Func<string?> activeCultivation,
+    KlaMeasurementSource measurementSource = KlaMeasurementSource.Simulation) : IRecipeAutonomousWorkSource
 {
     private readonly object _gate = new();
     private readonly Dictionary<Guid, KlaRecipeActiveInvocation> _active = [];
@@ -65,12 +66,10 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
         {
             if (!profiles.IsIsolatedEnvironment || !router.IsValidated)
                 throw new InvalidOperationException("Perfil operacional não qualificado para atuação física nesta instalação.");
-            if (string.IsNullOrWhiteSpace(activeCultivation()))
-                throw new InvalidOperationException("Identifique o cultivo antes de iniciar os ensaios automáticos.");
             if (!RecipeValidator.Validate(recipe).IsValid) throw new ArgumentException("Receita possui erros de validação.");
             foreach (var node in recipe.Nodes.Where(n => n.Type == NodeType.KlaAssay))
             {
-                var profile = profiles.Resolve(RecipeAutonomousBlockConfiguration.ReadKla(node));
+                var profile = profiles.Resolve(profiles.Normalize(RecipeAutonomousBlockConfiguration.ReadKla(node)));
                 if (!string.IsNullOrWhiteSpace(profile.Template.Context?.CultivationId) &&
                     profile.Template.Context.CultivationId != activeCultivation())
                     throw new InvalidOperationException("Perfil científico pertence a outro cultivo.");
@@ -80,7 +79,7 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
             foreach (var node in recipe.Nodes.Where(n => n.Type == NodeType.Periodic))
             {
                 var binding = RecipePeriodicTopology.ReadBinding(recipe, node);
-                var profile = profiles.Resolve(RecipeAutonomousBlockConfiguration.ReadKla(recipe.Node(binding.TargetNodeId)!));
+                var profile = profiles.Resolve(profiles.Normalize(RecipeAutonomousBlockConfiguration.ReadKla(recipe.Node(binding.TargetNodeId)!)));
                 if (profile.DispatchToleranceSeconds >= RecipeAutonomousBlockConfiguration.ReadPeriodic(node).Schedule.PeriodSeconds)
                     throw new ArgumentException("Período deve exceder a tolerância de disparo qualificada.");
             }
@@ -93,22 +92,24 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
     public RecipeAutonomousExecutionPlan CreateWork(RecipeDocument recipe, Guid executionId, RecipeResourceCoordinator resources)
     {
         if (!CanExecute(recipe, out var reason)) throw new InvalidOperationException(reason);
-        var cultivation = activeCultivation()!;
+        // Without an operator-entered cultivation, each recipe run is its own cultivation for the budget journal.
+        var cultivation = string.IsNullOrWhiteSpace(activeCultivation())
+            ? $"receita-{time.GetLocalNow():yyyyMMdd-HHmmss}-{executionId.ToString("N")[..6]}" : activeCultivation()!;
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(RecipeSerializer.Serialize(recipe)))).ToLowerInvariant();
         var journal = new RecipePeriodicJournal(periodicJournalRoot, executionId, hash, writer, time);
         var assays = recipe.Nodes.Where(n => n.Type == NodeType.KlaAssay).Select(node =>
         {
-            var configuration = RecipeAutonomousBlockConfiguration.ReadKla(node);
+            var configuration = profiles.Normalize(RecipeAutonomousBlockConfiguration.ReadKla(node));
             var profile = profiles.Resolve(configuration);
             var pause = new KlaRecipePauseControl(time);
             return new RecipeKlaWork(node.Id, profile.Capabilities, (slot, ct) => ExecuteAsync(node.Id,
-                $"{recipe.Name} — {node.Definition.Title}", configuration, new() { RecipeRunId = executionId, NodeId = node.Id, InvocationId = Guid.NewGuid(),
+                configuration, new() { RecipeRunId = executionId, NodeId = node.Id, InvocationId = Guid.NewGuid(),
                     CultivationId = cultivation, RecipeSha256 = hash }, slot, resources, ct, pause), pause);
         }).ToArray();
         var schedules = recipe.Nodes.Where(n => n.Type == NodeType.Periodic).Select(node =>
         {
             var binding = RecipePeriodicTopology.ReadBinding(recipe, node);
-            var profile = profiles.Resolve(RecipeAutonomousBlockConfiguration.ReadKla(recipe.Node(binding.TargetNodeId)!));
+            var profile = profiles.Resolve(profiles.Normalize(RecipeAutonomousBlockConfiguration.ReadKla(recipe.Node(binding.TargetNodeId)!)));
             return new RecipePeriodicDefinition(new() { ScheduleRunId = Guid.NewGuid(), SchedulerNodeId = node.Id,
                 TargetNodeId = binding.TargetNodeId, CoordinatedCascadeNodeId = binding.CascadeNodeId,
                 SlotIndex = 0, Schedule = RecipeAutonomousBlockConfiguration.ReadPeriodic(node).Schedule },
@@ -117,7 +118,40 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
         return new(assays, schedules);
     }
 
-    private async Task<KlaRecipeResult> ExecuteAsync(string nodeId, string sessionName, RecipeKlaBlockConfiguration configuration,
+    /// <summary>
+    /// Testes-kLa/Receitas-automaticas/&lt;date&gt;_&lt;protocol&gt;_&lt;mode&gt;_&lt;conditions&gt;; runs inside keep N/Q/replicate names.
+    /// </summary>
+    internal static string SessionName(KlaRecipeRequest request, DateTimeOffset local, int duplicate = 1)
+    {
+        var definition = request.Definition;
+        var protocol = definition.Protocol == KlaAssayProtocol.Biotic ? "Biotico" : "Abiotico";
+        var conditions = definition.Conditions;
+        var values = conditions.Length == 1
+            ? $"Unico_{Condition(conditions[0])}_{conditions[0].RequestedReplicates}rep"
+            : $"Matriz_{conditions.Length}cond_{conditions.Sum(c => c.RequestedReplicates)}rep";
+        var slot = request.PeriodicInvocation is { } periodic ? $"_disparo{periodic.SlotIndex + 1:D2}" : "";
+        var suffix = duplicate > 1 ? $"_{duplicate:D2}" : "";
+        return $"{local:yyyy-MM-dd_HH'h'mm'm'ss's'}_{protocol}_{values}{slot}{suffix}";
+
+        static string Condition(KlaAssayCondition condition)
+        {
+            var run = KlaTestFileContracts.FormatRunFolderName(condition.AgitationRpm, condition.AirflowLpm, 1);
+            return run[..run.IndexOf("_Rep", StringComparison.Ordinal)];
+        }
+    }
+
+    private KlaTestDocument CreateSession(KlaRecipeRequest request)
+    {
+        var local = time.GetLocalNow();
+        for (var duplicate = 1; ; duplicate++)
+        {
+            var name = SessionName(request, local, duplicate);
+            if (store.TestExists(System.IO.Path.Combine(KlaTestFileContracts.AutomaticSessionsDirectoryName, name)) && duplicate < 100) continue;
+            return store.CreateAutomaticTest(name, request.Definition);
+        }
+    }
+
+    private async Task<KlaRecipeResult> ExecuteAsync(string nodeId, RecipeKlaBlockConfiguration configuration,
         RecipeInvocationContext context, PeriodicBlockInvocation? slot, RecipeResourceCoordinator resources, CancellationToken ct,
         KlaRecipePauseControl pause)
     {
@@ -173,8 +207,8 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
                 remaining = configuration.Retry.MaximumBlockSeconds - time.GetElapsedTime(began).TotalSeconds;
                 if (remaining <= 0) throw new TimeoutException("Prazo do bloco expirou durante a reserva.");
                 var request = KlaRecipeRequestBuilder.Build(context, configuration with { Retry = configuration.Retry with
-                    { MaximumBlockSeconds = remaining } }, profile, snapshot, time.GetUtcNow(), slot);
-                var document = store.CreateTest(sessionName, request.Definition);
+                    { MaximumBlockSeconds = remaining } }, profile, snapshot, time.GetUtcNow(), slot, measurementSource);
+                var document = CreateSession(request);
                 document.NitrogenSourceConfirmedUtc = profile.NitrogenSourceConfirmedUtc;
                 document.NitrogenIsolationConfirmedUtc = profile.NitrogenIsolationConfirmedUtc;
                 store.SaveTestManifest(document);

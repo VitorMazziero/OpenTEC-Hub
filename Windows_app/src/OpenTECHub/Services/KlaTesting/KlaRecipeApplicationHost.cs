@@ -14,6 +14,7 @@ public sealed class KlaRecipeApplicationHost : IRecipeAutonomousWorkSource, IDis
     private readonly IKlaTestStore _store;
     private readonly ISettingsService _settings;
     private readonly KlaRecipeExecutionRouter _router;
+    private readonly KlaMeasurementSource _measurementSource;
     private KlaAssayApi? _api;
     private KlaRecipeAutonomousWorkSource? _source;
     public KlaRecipeApplicationContext? Context { get; }
@@ -23,14 +24,17 @@ public sealed class KlaRecipeApplicationHost : IRecipeAutonomousWorkSource, IDis
     public IReadOnlyList<KlaRecipeActiveInvocation> ActiveInvocations => _source?.ActiveInvocations ?? [];
     public IReadOnlyList<KlaRecipeProgress> ReadProgress() => _source?.ReadProgress() ?? [];
 
+    /// <param name="isIsolatedEnvironment">Execution authorized; the application authorizes it by operator decision (D-061).</param>
+    /// <param name="isSimulation">Whether the data come from the file simulator rather than the reactor.</param>
     public KlaRecipeApplicationHost(string root, bool isIsolatedEnvironment, KlaRecipeAssayExecutionFactory factory,
-        IKlaTestStore store, ISettingsService settings, TimeProvider time, BackgroundFileWriter writer)
+        IKlaTestStore store, ISettingsService settings, TimeProvider time, BackgroundFileWriter writer, bool isSimulation = true)
     {
         _root = Path.GetFullPath(root); _time = time; _writer = writer; _factory = factory; _store = store; _settings = settings;
+        _measurementSource = isSimulation ? KlaMeasurementSource.Simulation : KlaMeasurementSource.Physical;
         try { Context = new(_root, writer); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException or AggregateException)
         { AvailabilityError = $"Contexto automático indisponível: {error.Message}"; }
-        Profiles = new(Context?.InstallationId ?? "unavailable", time, isIsolatedEnvironment);
+        Profiles = new(Context?.InstallationId ?? "unavailable", time, isIsolatedEnvironment, () => settings.Current.KlaTest);
         ProfileStore = new(Path.Combine(_root, "profiles"), Profiles.InstallationId, isIsolatedEnvironment, time, writer);
         _router = new(Profiles);
         if (Context is not null) ReloadProfiles();
@@ -44,7 +48,7 @@ public sealed class KlaRecipeApplicationHost : IRecipeAutonomousWorkSource, IDis
             ProfileStore.RegisterAvailable(Profiles);
             _api ??= new(Path.Combine(_root, "assay-journal.json"), _router, _time);
             _source ??= new(Profiles, _router, _api, _factory, _store, _settings, _time, _writer,
-                Path.Combine(_root, "periodic"), () => Context.CultivationId);
+                Path.Combine(_root, "periodic"), () => Context.CultivationId, _measurementSource);
             AvailabilityError = null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException or InvalidOperationException or AggregateException)

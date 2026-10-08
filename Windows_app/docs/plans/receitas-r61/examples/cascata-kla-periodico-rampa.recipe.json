@@ -68,18 +68,20 @@
       "y": 220,
       "parameters": {
         "protocol": "Abiotic",
-        "profileId": "selecionar-perfil-qualificado",
+        "profileId": "operador",
         "maximumAttemptsPerReplicate": 1,
         "useProfileRetryReasons": true,
         "conditionsMode": "SingleAtCurrentCondition",
         "maximumBlockSeconds": 3600,
         "requireValidOur": false,
-        "maximumGasOffSeconds": 60,
-        "minimumIntervalSeconds": 120,
-        "profileVersion": "1",
-        "maximumAttemptsPerCultivation": 12,
-        "maximumCultivationGasOffSeconds": 720,
-        "failurePolicy": "StopAfterRestoration"
+        "maximumGasOffSeconds": 0,
+        "minimumIntervalSeconds": 30,
+        "profileVersion": "atual",
+        "maximumAttemptsPerCultivation": 1000,
+        "maximumCultivationGasOffSeconds": 0,
+        "failurePolicy": "ContinueWithoutResultAfterRestoration",
+        "minimumDoPercent": 5,
+        "returnSeconds": 600
       },
       "notes": "Selecione um perfil qualificado. O ensaio retorna à agenda após restauração e gravação."
     },

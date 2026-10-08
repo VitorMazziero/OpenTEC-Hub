@@ -21,7 +21,7 @@
       "y": 60,
       "parameters": {
         "protocol": "Biotic",
-        "profileId": "selecionar-perfil-qualificado",
+        "profileId": "operador",
         "airflowLpm": 2,
         "maximumAttemptsPerReplicate": 1,
         "useProfileRetryReasons": true,
@@ -29,12 +29,14 @@
         "maximumBlockSeconds": 3600,
         "requireValidOur": true,
         "agitationRpm": 300,
-        "maximumGasOffSeconds": 60,
-        "minimumIntervalSeconds": 120,
-        "profileVersion": "1",
-        "maximumAttemptsPerCultivation": 1,
-        "maximumCultivationGasOffSeconds": 60,
-        "failurePolicy": "StopAfterRestoration"
+        "maximumGasOffSeconds": 0,
+        "minimumIntervalSeconds": 30,
+        "profileVersion": "atual",
+        "maximumAttemptsPerCultivation": 1000,
+        "maximumCultivationGasOffSeconds": 0,
+        "failurePolicy": "ContinueWithoutResultAfterRestoration",
+        "minimumDoPercent": 5,
+        "returnSeconds": 600
       },
       "notes": "Selecione um perfil real no seletor. O identificador deste exemplo é um marcador, sem qualificação."
     },

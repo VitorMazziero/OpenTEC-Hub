@@ -25,4 +25,6 @@ Incrementos de R5.2: [captura inicial durável](receitas-r52/GRAVACAO_INICIAL.md
 
 Atualização de R5.2 em 08/10/2026: [precisão da temperatura](receitas-r52/PRECISAO_TEMPERATURA.md) implementada em `a886009`, com 2416 testes na regressão completa, 135 contratos do Hub e compilações do aplicativo/firmware. Portanto, a precisão nativa citada como pendente na tabela já foi resolvida. O [executor com recibos](receitas-r52/EXECUTOR_E_RECIBOS.md) conecta gravação inicial, trajetória, confirmação e gravação terminal; integração das reservas ao engine e recuperação continuam pendentes.
 
+Novo incremento de R5.2: [reserva por quadro](receitas-r52/RESERVA_POR_QUADRO.md), com tempo ativo congelado na espera, despacho reservado do quadro e drenagem antes da liberação; 2423 testes na regressão completa. A preparação/captura coordenada do bloco e recuperação ao cancelar permanecem pendentes.
+
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.

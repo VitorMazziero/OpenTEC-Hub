@@ -26,6 +26,12 @@ public interface IRecipeRampDestination
     }
 }
 
+public interface IRecipeRampReservedDestination : IRecipeRampDestination
+{
+    Task<bool> TryApplyReservedAsync(ImmutableArray<LinearRampSample> references,
+        Communication.CommandAuthorityLease authority, CancellationToken cancellation);
+}
+
 /// <summary>One cadence with no replay of overdue frames. Ownership and suspension are enforced by the destination.</summary>
 public sealed class LinearSetpointRampExecutor(TimeProvider time)
 {

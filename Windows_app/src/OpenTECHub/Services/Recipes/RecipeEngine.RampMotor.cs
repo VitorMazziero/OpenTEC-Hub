@@ -19,13 +19,14 @@ public sealed partial class RecipeEngine
         => TryApplyRampMeasuredFrame([target], null, 0, executionId, out route);
 
     internal bool TryApplyRampMeasuredFrame(ImmutableArray<LinearRampSample> targets, string? cascadeNodeId, double phInactiveBand,
-        Guid executionId, out RecipeRampMeasuredRoute route, RampTemperatureRoute? expectedTemperatureRoute = null)
+        Guid executionId, out RecipeRampMeasuredRoute route, RampTemperatureRoute? expectedTemperatureRoute = null,
+        CommandAuthorityLease? authority = null)
     {
         lock (_lock)
         {
             route = new(_routeCoordinator.IsUartFallback, _hubRoutesTemperatureToBath, _settings.Current.GasRig.ToConfiguration());
             if (expectedTemperatureRoute is { } expected && expected != RampTemperatureRoute) return false;
-            return TryApplyRampFrame(targets, cascadeNodeId, phInactiveBand, executionId);
+            return TryApplyRampFrame(targets, cascadeNodeId, phInactiveBand, executionId, authority);
         }
     }
 

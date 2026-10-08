@@ -9,6 +9,91 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampFrameDestinationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedDrainageStopsProducerAndKeepsReservationClosed(bool failAfterDispatch)
+    {
+        var time = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
+        var device = new RecordingDeviceService();
+        using var arbiter = new CommandArbiter(device, time);
+        await using var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(new AppSettings()), time);
+        await engine.StartAsync(WaitingRecipe());
+        using var destination = Destination(engine);
+        var configuration = Configuration();
+        var clock = new RecipeRampActiveClock(time);
+        using var producer = new RecipeRampResourceProducer("ramp", RecipeRampInitialState.ResourcesFor(configuration.Definition), clock);
+        var guarded = new RecipeRampGuardedDestination(producer, clock, destination, time, TimeSpan.FromSeconds(10), arbiter, engine.ExecutionId);
+        var trajectory = new LinearSetpointRampTrajectory(configuration.Definition,
+            new Dictionary<SetpointVariable, double> { [SetpointVariable.Temperature] = 25,
+                [SetpointVariable.Agitation] = 200, [SetpointVariable.Flow] = 1 }, (_, value) => value);
+        var count = device.Sent.Count;
+        if (failAfterDispatch) device.CommandSent += _ => device.RaiseCommandSentOnSend = false;
+        else device.RaiseCommandSentOnSend = false;
+        await Assert.ThrowsAsync<System.IO.IOException>(() => guarded.TryApplyTrajectoryAsync(trajectory, clock, [], default));
+        Assert.Equal(count + (failAfterDispatch ? 1 : 0), device.Sent.Count);
+        Assert.True(producer.StopToken.IsCancellationRequested);
+        Assert.True(clock.IsSuspended);
+        Assert.False(arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 25)).Accepted);
+        device.RaiseCommandSentOnSend = true;
+        await engine.StopAsync("unresolved drainage verified");
+    }
+
+    [Fact]
+    public async Task ReservedFrameUsesMatchingAuthorityAndReleasesItBeforeAssaySuspensionCompletes()
+    {
+        var time = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
+        var device = new RecordingDeviceService();
+        using var arbiter = new CommandArbiter(device, time);
+        await using var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(new AppSettings()), time);
+        await engine.StartAsync(WaitingRecipe());
+        var configuration = Configuration();
+        var resources = RecipeRampInitialState.ResourcesFor(configuration.Definition);
+        var blocking = await arbiter.ReserveAsync(CommandOwner.Recipe, engine.ExecutionId, "other", resources, TimeSpan.FromSeconds(10));
+        await arbiter.DrainReservedCommandsAsync(blocking);
+        using var destination = Destination(engine);
+        Assert.False(await destination.TryApplyAsync(Targets, default));
+        var clock = new RecipeRampActiveClock(time);
+        using var producer = new RecipeRampResourceProducer("ramp", resources, clock);
+        var guarded = new RecipeRampGuardedDestination(producer, clock, destination, time, TimeSpan.FromSeconds(10),
+            arbiter, engine.ExecutionId, TimeSpan.FromSeconds(10));
+        var trajectory = new LinearSetpointRampTrajectory(configuration.Definition,
+            new Dictionary<SetpointVariable, double> { [SetpointVariable.Temperature] = 25,
+                [SetpointVariable.Agitation] = 200, [SetpointVariable.Flow] = 1 }, (_, value) => value);
+        var applying = guarded.TryApplyTrajectoryAsync(trajectory, clock, [], default);
+        Assert.False(applying.IsCompleted);
+        time.Advance(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, clock.ActiveSeconds);
+        arbiter.ReleaseReservation(blocking);
+        var frame = await applying.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(new[] { 25d, 200d, 1d }, frame.Select(sample => sample.Reference));
+        var suspended = await producer.SuspendAsync(default).WaitAsync(TimeSpan.FromSeconds(3));
+        var next = await arbiter.ReserveAsync(CommandOwner.Recipe, engine.ExecutionId, "assay", resources, TimeSpan.FromSeconds(1));
+        await arbiter.DrainReservedCommandsAsync(next);
+        arbiter.ReleaseReservation(next);
+        suspended.Resume();
+        await engine.StopAsync("reserved frame verified");
+    }
+
+    [Fact]
+    public async Task ReservedFrameRejectsAuthorityFromAnotherExecutionWithoutDispatch()
+    {
+        var time = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
+        var device = new RecordingDeviceService();
+        using var arbiter = new CommandArbiter(device, time);
+        await using var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(new AppSettings()), time);
+        await engine.StartAsync(WaitingRecipe());
+        using var destination = Destination(engine);
+        var authority = await arbiter.ReserveAsync(CommandOwner.Recipe, Guid.NewGuid(), "wrong",
+            RecipeRampInitialState.ResourcesFor(Configuration().Definition), TimeSpan.FromSeconds(2));
+        await arbiter.DrainReservedCommandsAsync(authority);
+        var count = device.Sent.Count;
+        Assert.False(await destination.TryApplyReservedAsync(Targets, authority, default));
+        Assert.Equal(count, device.Sent.Count);
+        arbiter.ReleaseReservation(authority);
+        await engine.StopAsync("foreign reservation rejected");
+    }
+
     [Fact]
     public async Task FasterComponentsRemainValidWhileASeparateStabilityWindowFinishes()
     {

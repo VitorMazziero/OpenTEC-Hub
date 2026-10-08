@@ -4,7 +4,7 @@ using OpenTECHub.Protocol;
 namespace OpenTECHub.Services.Recipes;
 
 /// <summary>One complete engine dispatch followed by confirmations of every supported destination.</summary>
-public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipeRampConfirmationSource, IDisposable
+public sealed class RecipeRampFrameDestination : IRecipeRampReservedDestination, IRecipeRampConfirmationSource, IDisposable
 {
     private readonly RecipeEngine _engine;
     private readonly Guid _executionId;
@@ -63,6 +63,17 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
     public ImmutableArray<RecipeRampFinalConfirmation> FinalConfirmations { get { lock (_gate) return _confirmations; } }
 
     public Task<bool> TryApplyAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation)
+        => TryApplyFrameAsync(references, null, cancellation);
+
+    public Task<bool> TryApplyReservedAsync(ImmutableArray<LinearRampSample> references,
+        Communication.CommandAuthorityLease authority, CancellationToken cancellation)
+    {
+        ArgumentNullException.ThrowIfNull(authority);
+        return TryApplyFrameAsync(references, authority, cancellation);
+    }
+
+    private Task<bool> TryApplyFrameAsync(ImmutableArray<LinearRampSample> references,
+        Communication.CommandAuthorityLease? authority, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
         lock (_gate)
@@ -70,7 +81,7 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
             ObjectDisposedException.ThrowIf(_disposed, this);
             _confirmations = []; _applied = []; _revision++;
             Validate(references);
-            if (!_engine.TryApplyRampMeasuredFrame(references, _cascadeNodeId, _phInactiveBand, _executionId, out var route, _temperatureRoute)) return Task.FromResult(false);
+            if (!_engine.TryApplyRampMeasuredFrame(references, _cascadeNodeId, _phInactiveBand, _executionId, out var route, _temperatureRoute, authority)) return Task.FromResult(false);
             foreach (var target in references)
                 if (_destinations[target.Variable] is RecipeRampMeasuredDestination measured) measured.ObserveAcceptedFrame(target, route);
                 else ((RecipeRampCascadeDestination)_destinations[target.Variable]).ObserveAcceptedFrame(target);

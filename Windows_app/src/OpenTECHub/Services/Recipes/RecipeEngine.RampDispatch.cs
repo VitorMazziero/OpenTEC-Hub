@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using OpenTECHub.Protocol;
+using OpenTECHub.Services.Communication;
 
 namespace OpenTECHub.Services.Recipes;
 
@@ -7,13 +8,15 @@ public sealed partial class RecipeEngine
 {
     /// <summary>Applies a complete ramp frame using current routes. The caller holds the ramp producer lease.</summary>
     public bool TryApplyRampFrame(ImmutableArray<LinearRampSample> references, string? cascadeNodeId,
-        double phInactiveBand, Guid? expectedExecutionId = null)
+        double phInactiveBand, Guid? expectedExecutionId = null, CommandAuthorityLease? authority = null)
     {
         if (references.IsDefaultOrEmpty || references.Select(sample => sample.Variable).Distinct().Count() != references.Length)
             throw new ArgumentException("Quadro de rampa vazio ou com parâmetros repetidos.", nameof(references));
         lock (_lock)
         {
             if (State != RecipeRunState.Running || expectedExecutionId is { } execution && execution != ExecutionId) return false;
+            if (authority is not null && (authority.ExecutionId != ExecutionId || authority.Owner != CommandOwner.Recipe ||
+                _arbiter is not ICommandAuthorityArbiter authorityArbiter || !authorityArbiter.IsCurrent(authority))) return false;
             var commands = new RecipeRampDirectCommands(MaxFlow, _routeCoordinator.IsUartFallback,
                 _settings.Current.GasRig.ToConfiguration(), phInactiveBand, RampTemperatureRoute);
             var combined = OpenTECCommand.Create();
@@ -42,7 +45,9 @@ public sealed partial class RecipeEngine
             if (cascadeReference is not null && new[] { ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen }
                 .Any(resource => _arbiter.OwnerOf(resource) != Communication.CommandOwner.Recipe)) return false;
             // The arbiter accepts or refuses all direct keys together; update the local reference only on acceptance.
-            if (!combined.IsEmpty && !_arbiter.Dispatch(Communication.CommandOwner.Recipe, combined).Accepted) return false;
+            if (!combined.IsEmpty && !(authority is null
+                ? _arbiter.Dispatch(Communication.CommandOwner.Recipe, combined)
+                : ((ICommandAuthorityArbiter)_arbiter).DispatchReserved(authority, combined)).Accepted) return false;
             if (cascadeReference is not null) controller!.OxygenSetpoint = cascadeReference.Reference;
             return true;
         }

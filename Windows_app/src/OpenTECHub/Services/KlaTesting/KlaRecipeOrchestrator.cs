@@ -177,7 +177,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
             lastEnd = time.GetTimestamp();
             SetProgress(KlaRecipeProgressStage.RecordingDecision);
             var result = observation?.Result;
-            if (result is not { RunFolder: not null, TestFolder: not null } ||
+            if (observation is null || result is not { RunFolder: not null, TestFolder: not null } ||
                 observation.State is KlaAssayApiState.PersistenceFailed or KlaAssayApiState.RestorationFailed)
             {
                 persisted = !scope.HasStarted && observation?.State == KlaAssayApiState.Cancelled;

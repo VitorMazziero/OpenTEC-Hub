@@ -98,7 +98,7 @@ public sealed class KlaRecipeOperationalProfileRegistry(string installationId, T
         {
             ArgumentNullException.ThrowIfNull(candidate);
             var profile = Copy(candidate); profile.Validate(now);
-            if (!isIsolatedEnvironment || string.IsNullOrWhiteSpace(installationId) || profile.Capabilities.InstallationId != installationId)
+            if (!IsIsolatedEnvironment || string.IsNullOrWhiteSpace(InstallationId) || profile.Capabilities.InstallationId != InstallationId)
                 throw new InvalidOperationException("Ambiente ou instalação não corresponde ao perfil qualificado.");
             var key = (profile.Capabilities.ProfileId, profile.Capabilities.ProfileVersion, profile.Template.Protocol);
             if (additions.TryGetValue(key, out var previous) && JsonSerializer.Serialize(previous) != JsonSerializer.Serialize(profile))

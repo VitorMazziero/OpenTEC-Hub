@@ -14,7 +14,7 @@ public sealed partial class RecipeEngine
     {
         lock (_lock)
         {
-            route = new(_routeCoordinator.IsUartFallback, _hubRoutesTemperatureToBath);
+            route = new(_routeCoordinator.IsUartFallback, _hubRoutesTemperatureToBath, _settings.Current.GasRig.ToConfiguration());
             return TryApplyRampFrame([target], null, 0, executionId);
         }
     }
@@ -28,6 +28,7 @@ public sealed partial class RecipeEngine
                 _liveCascades.Count != 0 && variable is SetpointVariable.Agitation or SetpointVariable.Flow or SetpointVariable.Oxygen ||
                 variable == SetpointVariable.Agitation && _routeCoordinator.IsUartFallback != route.MotorViaUart ||
                 variable == SetpointVariable.Temperature && _hubRoutesTemperatureToBath != route.TemperatureViaBath ||
+                variable == SetpointVariable.Flow && _settings.Current.GasRig.ToConfiguration() != route.GasRig ||
                 _arbiter.OwnerOf(CommandActuators.ForKey(RecipeRampInitialState.KeyFor(variable))!.Value) != CommandOwner.Recipe)
                 return RecipeRampDestinationAvailability.Unavailable;
             return State switch { RecipeRunState.Running => RecipeRampDestinationAvailability.Available,

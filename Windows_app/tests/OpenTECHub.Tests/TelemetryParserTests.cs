@@ -11,6 +11,23 @@ namespace OpenTECHub.Tests;
 public class TelemetryParserTests
 {
     [Fact]
+    public void FlowConfirmationRequiresCurrentCommandAndValveEchoes()
+    {
+        var parser = new TelemetryParser();
+        const string complete = """{"FlowmeterOnline":true,"FlowRate":2,"FlowSetpoint":2,"FlowCommandPending":false,"FlowCommandId":7,"FlowCommandAck":7,"Valve1":0,"Valve2":1}""";
+        parser.Parse(complete);
+        Assert.True(parser.Readings.Snapshot().FlowFeedbackUpdated);
+        foreach (var key in new[] { "FlowmeterOnline", "FlowRate", "FlowSetpoint", "FlowCommandPending", "FlowCommandId", "FlowCommandAck", "Valve1", "Valve2" })
+        {
+            var frame = System.Text.Json.Nodes.JsonNode.Parse(complete)!.AsObject();
+            frame.Remove(key);
+            parser.Parse(frame.ToJsonString());
+            Assert.False(parser.Readings.Snapshot().FlowFeedbackUpdated);
+        }
+        parser.Parse(complete.Replace("\"Valve1\":0", "\"Valve1\":-1"));
+        Assert.False(parser.Readings.Snapshot().FlowFeedbackUpdated);
+    }
+    [Fact]
     public void FlowFreshnessDoesNotPromoteRetainedOrOfflineReadings()
     {
         var parser = new TelemetryParser();

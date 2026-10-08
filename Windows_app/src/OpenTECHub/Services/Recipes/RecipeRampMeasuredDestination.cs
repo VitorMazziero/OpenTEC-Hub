@@ -16,7 +16,7 @@ public record RecipeRampMeasuredConfirmationPolicy(double Tolerance, TimeSpan St
     }
 }
 
-public sealed record RecipeRampMeasuredRoute(bool MotorViaUart, bool TemperatureViaBath);
+public sealed record RecipeRampMeasuredRoute(bool MotorViaUart, bool TemperatureViaBath, GasRigConfiguration? GasRig = null);
 public sealed record RecipeRampMeasuredProof(double ObservedValue, double Tolerance, RecipeRampConfirmationEvidence Evidence);
 
 /// <summary>Fresh, stable destination confirmation. Wrap in the ramp producer's guarded destination.</summary>

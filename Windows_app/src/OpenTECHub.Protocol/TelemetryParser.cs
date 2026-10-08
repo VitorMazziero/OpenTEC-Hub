@@ -308,6 +308,7 @@ public sealed class TelemetryParser
     private void ParseFlowAndMisc(JsonElement root, DateTimeOffset now)
     {
         Readings.FlowRateUpdated = false;
+        Readings.FlowFeedbackUpdated = false;
         if (TryGetDouble(root, TelemetryKeys.Pressure, out var pressure))
         {
             Readings.Pressure = pressure;
@@ -417,6 +418,14 @@ public sealed class TelemetryParser
             Readings.FlowmeterBootId = bootId;
         }
 
+        // Confirmation must not combine current measurements with retained command/valve echoes.
+        Readings.FlowFeedbackUpdated = Readings.FlowRateUpdated &&
+            TryGetBool(root, TelemetryKeys.FlowmeterOnline, out var currentOnline) && currentOnline &&
+            TryGetDouble(root, TelemetryKeys.FlowSetpoint, out var currentSetpoint) && double.IsFinite(currentSetpoint) && currentSetpoint >= 0 &&
+            TryGetBool(root, TelemetryKeys.FlowCommandPending, out _) &&
+            TryGetCounter(root, TelemetryKeys.FlowCommandId, out _) && TryGetCounter(root, TelemetryKeys.FlowCommandAck, out _) &&
+            TryGetInt(root, TelemetryKeys.Valve1, out var currentValve1) && currentValve1 is 0 or 1 &&
+            TryGetInt(root, TelemetryKeys.Valve2, out var currentValve2) && currentValve2 is 0 or 1;
         ParseDistance(root, now);
     }
 

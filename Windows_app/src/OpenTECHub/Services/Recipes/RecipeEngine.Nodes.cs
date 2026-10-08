@@ -12,7 +12,8 @@ public sealed partial class RecipeEngine
         switch (node.Type)
         {
             case NodeType.LinearSetpointRamp:
-                throw new InvalidOperationException("Rampa sem integração de reservas e confirmação.");
+                await ExecuteRampAsync(node, ct).ConfigureAwait(false);
+                break;
             case NodeType.KlaAssay:
                 await ExecuteKlaWorkAsync(node, null, ct).ConfigureAwait(false);
                 break;

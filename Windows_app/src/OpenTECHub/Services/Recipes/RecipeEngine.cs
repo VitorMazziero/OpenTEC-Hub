@@ -19,6 +19,7 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
     private readonly TimeProvider _time;
     private readonly IEventJournal? _journal;
     private readonly IKlaProfileStore? _klaStore;
+    private readonly RecipeRampExecutionConfiguration? _rampExecution;
     public RecipeResourceCoordinator? Resources { get; }
     public Guid ExecutionId { get; private set; }
 
@@ -57,7 +58,8 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
         Func<TimeSpan, CancellationToken, Task>? delay = null,
         IKlaProfileStore? klaStore = null,
         IRecipePeriodicWorkSource? periodicWorkSource = null,
-        IRecipeAutonomousWorkSource? autonomousWorkSource = null)
+        IRecipeAutonomousWorkSource? autonomousWorkSource = null,
+        RecipeRampExecutionConfiguration? rampExecution = null)
     {
         ArgumentNullException.ThrowIfNull(arbiter);
         ArgumentNullException.ThrowIfNull(device);
@@ -71,6 +73,8 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
         _journal = journal;
         _delay = delay ?? ((ts, ct) => Task.Delay(ts, ct));
         _klaStore = klaStore;
+        rampExecution?.Validate();
+        _rampExecution = rampExecution;
         _periodicWorkSource = periodicWorkSource;
         _autonomousWorkSource = autonomousWorkSource;
         Resources = arbiter is ICommandAuthorityArbiter authority ? new RecipeResourceCoordinator(authority, time) : null;
@@ -92,7 +96,8 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(recipe);
 
-        if (recipe.Nodes.Any(node => node.Type == NodeType.LinearSetpointRamp))
+        if (recipe.Nodes.Any(node => node.Type == NodeType.LinearSetpointRamp) &&
+            (_rampExecution is null || Resources is null))
         {
             reason = "Execução de rampas aguarda integração de reservas e confirmação dos destinos.";
             return false;

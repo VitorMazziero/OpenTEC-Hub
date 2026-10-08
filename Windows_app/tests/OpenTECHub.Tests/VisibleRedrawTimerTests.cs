@@ -12,6 +12,7 @@ namespace OpenTECHub.Tests;
 /// collapsing its host — <c>Unloaded</c> never fires — so a timer keyed to <c>Loaded</c> kept
 /// redrawing hidden plots for the whole session. And a tick with nothing dirty draws nothing.
 /// </summary>
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class VisibleRedrawTimerTests
 {
     [Fact]

@@ -19,6 +19,7 @@ namespace OpenTECHub.Tests;
 /// which of the two properties actually carries <c>DisplayMemberPath</c>, so the fix is chosen
 /// from behaviour rather than from memory of WPF internals.
 /// </remarks>
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class ComboBoxSelectionBoxTests
 {
     private sealed record Item(string Name, int Value);

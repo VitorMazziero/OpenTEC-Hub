@@ -9,6 +9,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class RecipeLiveAssayViewModelTests
 {
     internal static KlaRecipeProgress Progress(KlaAssayProtocol protocol = KlaAssayProtocol.Biotic)

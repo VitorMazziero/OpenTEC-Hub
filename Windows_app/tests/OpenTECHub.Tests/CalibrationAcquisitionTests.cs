@@ -12,6 +12,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class CalibrationAcquisitionTests
 {
     private static SensorSnapshot Reading(double raw = 1000) => new()

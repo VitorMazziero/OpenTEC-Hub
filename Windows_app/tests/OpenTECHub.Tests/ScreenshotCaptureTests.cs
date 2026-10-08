@@ -16,6 +16,7 @@ namespace OpenTECHub.Tests;
 /// Replaces desktop UI Automation COM (0x80004002) with native RenderTargetBitmap rendering.
 /// Generates screenshots across 100%, 125%, and 150% DPI scales in both Light and Dark themes.
 /// </summary>
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class ScreenshotCaptureTests
 {
     private static readonly string ScreenshotsRoot = Path.Combine(

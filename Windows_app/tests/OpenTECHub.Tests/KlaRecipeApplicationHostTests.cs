@@ -13,6 +13,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class KlaRecipeApplicationHostTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "kla-host-" + Guid.NewGuid().ToString("N"));

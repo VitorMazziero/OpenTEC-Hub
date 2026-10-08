@@ -16,6 +16,7 @@ namespace OpenTECHub.Tests;
 /// therefore invisible to a start-up smoke run: a bad key there would reach the operator, not the
 /// build. Checking the keys statically catches that without needing a WPF host.
 /// </remarks>
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class PowerViewResourceContractTests
 {
     private static readonly string[] PowerViews =

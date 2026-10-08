@@ -17,6 +17,7 @@ namespace OpenTECHub.Tests;
 /// delete / undo), the generated property fields and repeating-list rows, and live validation —
 /// all synchronous and engine-independent.
 /// </summary>
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class ReceitasViewModelTests
 {
     private sealed class FakeRecipeEngine : IRecipeEngine

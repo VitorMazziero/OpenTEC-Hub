@@ -13,6 +13,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class RecipeEditorRenderingTests
 {
     [Theory]

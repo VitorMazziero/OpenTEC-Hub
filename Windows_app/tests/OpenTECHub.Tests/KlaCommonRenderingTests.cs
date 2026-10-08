@@ -11,6 +11,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed partial class KlaDeterminationViewModelTests
 {
     [Theory]

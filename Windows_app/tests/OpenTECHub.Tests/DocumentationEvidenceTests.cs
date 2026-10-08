@@ -21,6 +21,7 @@ namespace OpenTECHub.Tests;
 /// cannot be re-made when the layout changes again, and a stale picture of a fixed screen is
 /// worse than none. Running the suite refreshes every file here from the real visual tree.
 /// </remarks>
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class DocumentationEvidenceTests
 {
     private static readonly string EvidenceRoot = Path.Combine(

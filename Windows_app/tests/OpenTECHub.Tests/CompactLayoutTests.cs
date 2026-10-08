@@ -20,6 +20,7 @@ namespace OpenTECHub.Tests;
 /// right edge. Sideways scrolling is not an escape hatch here: no page in this shell
 /// scrolls horizontally, so content past the edge is content the operator cannot read.
 /// </summary>
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class CompactLayoutTests
 {
     /// <summary>

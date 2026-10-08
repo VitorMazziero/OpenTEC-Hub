@@ -9,6 +9,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class ThemeServiceTests
 {
     // Skipped: ThemeService.Apply loads the token dictionaries through pack:// URIs

@@ -14,6 +14,7 @@ namespace OpenTECHub.Tests;
 /// <c>ResourceKeyTests</c>: the chrome is a XAML/code-behind contract that a headless test
 /// cannot exercise by rendering, but can guard against regression by asserting it is wired.
 /// </remarks>
+[Collection(Rendering.WpfRenderingCollection.Name)]
 public sealed class ShellChromeTests
 {
     /// <summary>Every window that draws its own caption, so the chrome stays one thing.</summary>

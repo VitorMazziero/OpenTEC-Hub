@@ -17,17 +17,28 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
     private bool _disposed;
     private SensorSnapshot? _latestFrame;
     private long _frameSequence;
+    private readonly double _phInactiveBand;
 
     public RecipeRampFrameDestination(RecipeEngine engine, RecipeRampBlockConfiguration configuration,
         RecipeRampMotorConfirmationPolicy motor, RecipeRampTemperatureConfirmationPolicy temperature,
-        RecipeRampFlowConfirmationPolicy flow)
+        RecipeRampFlowConfirmationPolicy flow, RecipeRampMeasuredConfirmationPolicy? ph = null,
+        RecipeRampMeasuredConfirmationPolicy? pressure = null, double? phInactiveBand = null)
     {
         ArgumentNullException.ThrowIfNull(engine); ArgumentNullException.ThrowIfNull(configuration);
         configuration.Definition.Validate(); motor.Validate(); temperature.Validate(); flow.Validate();
         if (engine.ExecutionId == Guid.Empty) throw new InvalidOperationException("Quadro exige execução identificada.");
-        // Reject unsupported destinations before subscribing or dispatching any command.
-        if (configuration.Definition.Lines.Any(line => line.Variable is SetpointVariable.Ph or SetpointVariable.Pressure))
-            throw new NotSupportedException("Confirmação de pH e pressão ainda não integrada ao quadro da rampa.");
+        if (configuration.Definition.Lines.Any(line => line.Variable == SetpointVariable.Ph))
+        {
+            if (ph is null || phInactiveBand is not { } band || !double.IsFinite(band) || band < 0)
+                throw new ArgumentException("Quadro de pH requer política de confirmação e banda preservada.");
+            ph.Validate();
+        }
+        if (configuration.Definition.Lines.Any(line => line.Variable == SetpointVariable.Pressure))
+        {
+            if (pressure is null) throw new ArgumentException("Quadro de pressão requer política de confirmação.");
+            pressure.Validate();
+        }
+        _phInactiveBand = phInactiveBand is { } savedBand ? Math.Round(savedBand, 2, MidpointRounding.AwayFromZero) : 0;
         if (configuration.Definition.Lines.Any(line => line.Variable == SetpointVariable.Oxygen) && string.IsNullOrWhiteSpace(configuration.CascadeNodeId))
             throw new ArgumentException("Rampa de O₂ requer controle associado.");
         _engine = engine; _executionId = engine.ExecutionId; _cascadeNodeId = configuration.CascadeNodeId;
@@ -39,6 +50,8 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
                 SetpointVariable.Temperature => new RecipeRampTemperatureDestination(engine, temperature),
                 SetpointVariable.Flow => new RecipeRampFlowDestination(engine, flow),
                 SetpointVariable.Oxygen => new RecipeRampCascadeDestination(engine, _cascadeNodeId!),
+                SetpointVariable.Ph => new RecipeRampSensorModuleDestination(engine, SetpointVariable.Ph, ph!, _phInactiveBand),
+                SetpointVariable.Pressure => new RecipeRampSensorModuleDestination(engine, SetpointVariable.Pressure, pressure!),
                 _ => throw new ArgumentException("Destino desconhecido.")
             }));
     }
@@ -53,7 +66,7 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
             ObjectDisposedException.ThrowIf(_disposed, this);
             _confirmations = []; _applied = []; _revision++;
             Validate(references);
-            if (!_engine.TryApplyRampMeasuredFrame(references, _cascadeNodeId, 0, _executionId, out var route)) return Task.FromResult(false);
+            if (!_engine.TryApplyRampMeasuredFrame(references, _cascadeNodeId, _phInactiveBand, _executionId, out var route)) return Task.FromResult(false);
             foreach (var target in references)
                 if (_destinations[target.Variable] is RecipeRampMeasuredDestination measured) measured.ObserveAcceptedFrame(target, route);
                 else ((RecipeRampCascadeDestination)_destinations[target.Variable]).ObserveAcceptedFrame(target);

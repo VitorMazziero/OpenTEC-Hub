@@ -309,9 +309,19 @@ public sealed class TelemetryParser
     {
         Readings.FlowRateUpdated = false;
         Readings.FlowFeedbackUpdated = false;
+        Readings.PressureUpdated = false;
+        Readings.SensorCommUpdated = false;
+        Readings.PHSetpoint = TryGetFiniteDouble(root, TelemetryKeys.PHSetpoint, out var phReference) ? phReference : null;
+        Readings.PHError = TryGetFiniteDouble(root, TelemetryKeys.PHError, out var phError) ? phError : null;
+        Readings.PHControlActive = TryGetBool(root, TelemetryKeys.PHControlActive, out var phActive) ? phActive : null;
+        Readings.PHCommandPending = TryGetBool(root, TelemetryKeys.PHCommandPending, out var phPending) ? phPending : null;
+        Readings.PressureReference = TryGetFiniteDouble(root, TelemetryKeys.PressureReference, out var pressureReference) ? pressureReference : null;
+        Readings.PressureControlActive = TryGetBool(root, TelemetryKeys.PressureControlActive, out var pressureActive) ? pressureActive : null;
+        Readings.PressureCommandPending = TryGetBool(root, TelemetryKeys.PressureCommandPending, out var pressurePending) ? pressurePending : null;
         if (TryGetDouble(root, TelemetryKeys.Pressure, out var pressure))
         {
             Readings.Pressure = pressure;
+            Readings.PressureUpdated = double.IsFinite(pressure) && pressure >= 0;
         }
 
         if (TryGetDouble(root, TelemetryKeys.FlowRate, out var flowRate))
@@ -339,6 +349,7 @@ public sealed class TelemetryParser
         if (TryGetBool(root, TelemetryKeys.SensorCommOk, out var sensorOk))
         {
             Readings.SensorCommOk = sensorOk;
+            Readings.SensorCommUpdated = true;
         }
 
         if (TryGetBool(root, TelemetryKeys.FlowmeterOnline, out var flowmeterOnline))

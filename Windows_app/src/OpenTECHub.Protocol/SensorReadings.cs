@@ -61,6 +61,15 @@ public sealed class SensorReadings
     public double PHCalibrated { get; set; } = NotReceived;
 
     public double Pressure { get; set; } = NotReceived;
+    public bool PressureUpdated { get; set; }
+    public bool SensorCommUpdated { get; set; }
+    public double? PHSetpoint { get; set; }
+    public double? PHError { get; set; }
+    public bool? PHControlActive { get; set; }
+    public bool? PHCommandPending { get; set; }
+    public double? PressureReference { get; set; }
+    public bool? PressureControlActive { get; set; }
+    public bool? PressureCommandPending { get; set; }
     public double FlowRate { get; set; } = NotReceived;
     public bool FlowRateUpdated { get; set; }
     public bool FlowFeedbackUpdated { get; set; }
@@ -383,6 +392,10 @@ public sealed class SensorReadings
         PHFrameReceived = PHFrameReceived,
         PHCalibrated = PHCalibrated,
         Pressure = Pressure,
+        PressureUpdated = PressureUpdated,
+        SensorCommUpdated = SensorCommUpdated,
+        PHSetpoint = PHSetpoint, PHError = PHError, PHControlActive = PHControlActive, PHCommandPending = PHCommandPending,
+        PressureReference = PressureReference, PressureControlActive = PressureControlActive, PressureCommandPending = PressureCommandPending,
         FlowRate = FlowRate,
         FlowRateUpdated = FlowRateUpdated,
         FlowFeedbackUpdated = FlowFeedbackUpdated,
@@ -570,6 +583,15 @@ public sealed record SensorSnapshot
     public bool PHFrameReceived { get; init; } = true;
     public double PHCalibrated { get; init; }
     public double Pressure { get; init; }
+    public bool PressureUpdated { get; init; } = true;
+    public bool SensorCommUpdated { get; init; } = true;
+    public double? PHSetpoint { get; init; }
+    public double? PHError { get; init; }
+    public bool? PHControlActive { get; init; }
+    public bool? PHCommandPending { get; init; }
+    public double? PressureReference { get; init; }
+    public bool? PressureControlActive { get; init; }
+    public bool? PressureCommandPending { get; init; }
     public double FlowRate { get; init; }
     public bool FlowRateUpdated { get; init; } = true;
     public bool FlowFeedbackUpdated { get; init; } = true;

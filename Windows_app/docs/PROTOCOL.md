@@ -158,6 +158,10 @@ sentinel for floats.
 | `Oxyval` | float | raw ADC | `<= 0.1` means sensor absent, ignore. Spike-filtered, then calibrated |
 | `pHval` | float | raw ADC | `<= 0.1` means sensor absent, ignore. Spike-filtered, then calibrated |
 | `Pressure` | float | kPa | |
+| `PHSetpoint`, `PHError` | float | pH | Current Hub reference and inactive band, two decimals; absent means unknown, not retained |
+| `PHControlActive`, `PHCommandPending` | bool | — | Current Hub control/dispatch flags; absent means unknown |
+| `PressureReference` | int | kPa | Current Hub pressure reference; absent means unknown |
+| `PressureControlActive`, `PressureCommandPending` | bool | — | Current Hub control/dispatch flags; absent means unknown |
 | `FlowRate` | float | L/min | |
 | `FlowSetpoint` | float | L/min | Echo of the accepted setpoint |
 | `FlowVoltage` | float | V | Raw flowmeter voltage, used by calibration |
@@ -172,6 +176,8 @@ sentinel for floats.
 | `FlowCommandId`, `FlowCommandAck` | int | — | Command round-trip correlation |
 | `FlowCommandDeliveries`, `FlowCommandAgeMs` | int | — | Parsed by v.6, never displayed |
 | `HubStations` | int | — | Number of stations seen by the hub |
+
+The pH/pressure reference fields report Hub state, not a setpoint readback or command ACK from the native UART module. Positive autonomous ramp targets additionally require fresh, stable measured process feedback and current sensor communication. Zero confirms the reported Hub OFF state without asserting a zero process measurement. `PressureUpdated` and `SensorCommUpdated` distinguish current-frame data from retained values; the numerical retention rules of existing setpoint blocks remain unchanged. Older Hubs lacking these echoes cannot confirm autonomous pH/pressure ramps.
 | `BiomassAbs` | float | AU | |
 | `BiomassRaw` | int | counts | |
 | `BiomassIT` | int | ms | Integration time |

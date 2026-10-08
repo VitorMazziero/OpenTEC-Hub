@@ -1,0 +1,13 @@
+# R5.2 — Confirmação de pH e pressão
+
+O Hub publica referências de pH/pressão, banda inativa de pH, estado ativo e pendência de despacho nativo. Esses campos descrevem o estado do Hub; não são ACK ou leitura de setpoint do módulo UART. O aplicativo os interpreta como dados do quadro atual, sem reutilizar ecos de mensagens parciais.
+
+`RecipeRampSensorModuleDestination` confirma alvos positivos pela leitura calibrada de pH ou leitura de pressão, novas e estáveis na janela configurada. Também exige referência correspondente, controle declarado ativo, despacho sem pendência e comunicação do sensor declarada no quadro atual. Leituras parciais, referência desconhecida/divergente, pendência ou falha de comunicação impedem a conclusão.
+
+Zero exige eco exatamente zero e controle declarado inativo; gera evidência de referência/estado do Hub, sem afirmar que o processo atingiu pH ou pressão zero. A qualificação física deve verificar a atuação do módulo e os limites do estado declarado pelo Hub. O bloqueio geral de execução de rampas permanece ativo nesta entrega.
+
+O quadro completo passa a incluir pH e pressão, além de T/N/Q e referência da cascata de O₂. Políticas de confirmação são explícitas. Para pH, a composição exige uma banda inativa fornecida a partir do estado inicial; não aceita ausência e não a substitui silenciosamente por zero. Envio e eco usam a resolução nativa de duas casas decimais. O ciclo de vida ainda precisa extrair essa banda da captura inicial e consumir os recibos inicial/terminal, integrar retorno e cancelamento e conciliar precisão da rota nativa de temperatura.
+
+Testes cobrem referências/flags não retidos, comunicação atual, estabilidade, leitura/calibração, pendência, referência divergente, faixa, desligamento e preservação da banda no comando combinado de pH/pressão. Os testes de contrato do Hub verificam acordo entre os nomes dos campos nos dois lados e representação compatível com os comandos nativos.
+
+Validação: 64 testes focados do aplicativo e 133 testes de contrato do Hub aprovados. A regressão completa final aprovou 2413 testes, sem falhas ([TRX](evidence/recipes-r52-module-final-full.trx)), após a [sincronização dos ecos do teste abiótico](SINCRONIZACAO_TESTE_ABIOTICO.md). Release compilado em `D:/Temp/OpenTECHub-ramp-module-release/`, com 0 erros e 1611 avisos na compilação incremental. O sketch do Hub foi compilado para `esp32:esp32:esp32s3` pelo script existente, com binários em `D:/Temp/OpenTECHub-ramp-module-hub/`: 1191973 bytes de programa (90%) e 52864 bytes de variáveis globais (16%). Não houve gravação no dispositivo ou qualificação física.

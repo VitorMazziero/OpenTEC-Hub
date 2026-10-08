@@ -11,6 +11,24 @@ namespace OpenTECHub.Tests;
 public class TelemetryParserTests
 {
     [Fact]
+    public void SensorModuleReferencesAreCurrentFrameOnlyAndPressureFreshnessDoesNotReuseRetainedValues()
+    {
+        var parser = new TelemetryParser();
+        parser.Parse("""{"SensorCommOK":true,"Pressure":100,"PHSetpoint":6.8,"PHError":0.15,"PHControlActive":true,"PHCommandPending":false,"PressureReference":100,"PressureControlActive":true,"PressureCommandPending":false}""");
+        var current = parser.Readings.Snapshot();
+        Assert.True(current.SensorCommUpdated); Assert.True(current.PressureUpdated);
+        Assert.Equal(6.8, current.PHSetpoint); Assert.Equal(.15, current.PHError);
+        Assert.Equal(100, current.PressureReference);
+        parser.Parse("""{"Time":2}""");
+        var partial = parser.Readings.Snapshot();
+        Assert.True(partial.SensorCommOk); Assert.False(partial.SensorCommUpdated); Assert.False(partial.PressureUpdated);
+        Assert.Equal(100, partial.Pressure);
+        Assert.Null(partial.PHSetpoint); Assert.Null(partial.PHError); Assert.Null(partial.PHControlActive); Assert.Null(partial.PHCommandPending);
+        Assert.Null(partial.PressureReference); Assert.Null(partial.PressureControlActive); Assert.Null(partial.PressureCommandPending);
+        parser.Parse("""{"Pressure":-1,"PHSetpoint":"NaN"}""");
+        Assert.False(parser.Readings.Snapshot().PressureUpdated); Assert.Null(parser.Readings.Snapshot().PHSetpoint);
+    }
+    [Fact]
     public void FlowConfirmationRequiresCurrentCommandAndValveEchoes()
     {
         var parser = new TelemetryParser();

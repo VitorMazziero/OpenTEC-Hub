@@ -269,6 +269,13 @@ public static class TelemetryKeys
     public const string OxygenRaw = "Oxyval";
     public const string PHRaw = "pHval";
     public const string Pressure = "Pressure";
+    public const string PHSetpoint = "PHSetpoint";
+    public const string PHError = "PHError";
+    public const string PHControlActive = "PHControlActive";
+    public const string PHCommandPending = "PHCommandPending";
+    public const string PressureReference = "PressureReference";
+    public const string PressureControlActive = "PressureControlActive";
+    public const string PressureCommandPending = "PressureCommandPending";
     public const string FlowRate = "FlowRate";
     public const string FlowSetpoint = "FlowSetpoint";
     public const string FlowVoltage = "FlowVoltage";

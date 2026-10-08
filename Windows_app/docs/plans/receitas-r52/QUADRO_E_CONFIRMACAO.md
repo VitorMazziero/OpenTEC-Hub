@@ -6,7 +6,7 @@ A confirmação ocorre em paralelo, respeitando as políticas próprias de cada 
 
 O₂ usa a confirmação da referência do controlador associado, sob a barreira da cascata e com posse dos atuadores; não exige que OD medido seja igual ao setpoint. Temperatura pode compor esse quadro. Conflitos entre uma cascata ativa e rampas diretas de N/Q continuam recusados pelo engine antes de atuar.
 
-Pausa, cancelamento, reaplicação ou divergência do quadro impedem a publicação de recibos parciais. O objeto deve ser envolvido por `RecipeRampGuardedDestination` para calcular a trajetória dentro da reserva do produtor. Sua presença não habilita a execução do bloco: faltam integrar o ciclo de vida, os recibos de armazenamento e o retorno/cancelamento. pH/pressão ainda não têm componentes de confirmação e são explicitamente recusados nesta composição; seus destinos devem ser integrados antes da habilitação geral.
+Pausa, cancelamento, reaplicação ou divergência do quadro impedem a publicação de recibos parciais. O objeto deve ser envolvido por `RecipeRampGuardedDestination` para calcular a trajetória dentro da reserva do produtor. Sua presença não habilita a execução do bloco: faltam integrar o ciclo de vida, os recibos de armazenamento e o retorno/cancelamento. Incremento posterior: [pH/pressão](CONFIRMACAO_PH_PRESSAO.md) agora participam da composição com políticas explícitas e banda de pH preservada.
 
 Testes cobrem um envio comum para T/N/Q, referências inválidas no meio/fim do quadro sem envio de prefixo válido, combinação de confirmações de quadros diferentes, pausa/cancelamento sem recibos parciais e composição de temperatura com uma cascata ativa de O₂. Nenhuma qualificação física é atribuída a esses testes.
 

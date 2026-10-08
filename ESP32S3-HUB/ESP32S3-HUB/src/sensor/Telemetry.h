@@ -278,6 +278,10 @@ void readAndBroadcastSensorData() {
   uint32_t snapFlowmeterBootId = 0;
   float snapFlowmeterTransitionVoltage = NAN;
   bool snapFlowEchoSeen = false;
+  float snapPhReference = NAN, snapPhError = NAN;
+  int snapPressureReference = 0;
+  bool snapPhActive = false, snapPhPending = true;
+  bool snapPressureActive = false, snapPressurePending = true;
   if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
     if (flowmeterCommOn && (millis() - flowmeterLastUpdate > FLOWMETER_TIMEOUT)) {
       flowmeterCommOn = false;
@@ -286,6 +290,13 @@ void readAndBroadcastSensorData() {
       flowmeterEchoSeen = false;
     }
     snapFlowEchoSeen = flowmeterEchoSeen;
+    snapPhReference = pHReference;
+    snapPhError = pHError;
+    snapPhActive = phOn;
+    snapPhPending = flagPhDirty;
+    snapPressureReference = pressureReference;
+    snapPressureActive = pressureOn;
+    snapPressurePending = flagPressureDirty;
     snapFlowmeterKp = flowmeterKp;
     snapFlowmeterKi = flowmeterKi;
     snapFlowmeterFfGain = flowmeterFfGain;
@@ -328,6 +339,14 @@ void readAndBroadcastSensorData() {
   jsonResponse += ",\"Oxyval\":" + String(oxyVal, 1);
   jsonResponse += ",\"Antifoam\":" + String(antifoamVal, 0);
   jsonResponse += ",\"Pressure\":" + String(pressureVal, 1);
+  // Hub reference/dispatch state; not a UART module setpoint readback or physical qualification.
+  if (isfinite(snapPhReference)) jsonResponse += ",\"PHSetpoint\":" + String(snapPhReference, 2);
+  if (isfinite(snapPhError)) jsonResponse += ",\"PHError\":" + String(snapPhError, 2);
+  jsonResponse += ",\"PHControlActive\":" + String(snapPhActive ? "true" : "false");
+  jsonResponse += ",\"PHCommandPending\":" + String(snapPhPending ? "true" : "false");
+  jsonResponse += ",\"PressureReference\":" + String(snapPressureReference);
+  jsonResponse += ",\"PressureControlActive\":" + String(snapPressureActive ? "true" : "false");
+  jsonResponse += ",\"PressureCommandPending\":" + String(snapPressurePending ? "true" : "false");
   jsonResponse += ",\"HubStations\":" + String(WiFi.softAPgetStationNum());
   
   jsonResponse += ",\"FlowmeterOnline\":" + String(snapFlowOnline ? "true" : "false");

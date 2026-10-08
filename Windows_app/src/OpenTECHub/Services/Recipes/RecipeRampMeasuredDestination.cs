@@ -29,6 +29,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
     protected abstract SetpointVariable Variable { get; }
     protected abstract RecipeRampMeasuredProof? Evaluate(SensorSnapshot snapshot, LinearRampSample target, RecipeRampMeasuredRoute route);
     protected virtual void ValidateReference(LinearRampSample target) { }
+    protected virtual double PhInactiveBand => 0;
     private readonly Guid _executionId;
     private readonly object _gate = new();
     private TaskCompletionSource _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -62,7 +63,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
             ObjectDisposedException.ThrowIf(_disposed, this);
             _confirmations = []; _lastApplied = null; _applicationRevision++;
             _signal.TrySetResult(); _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (!_engine.TryApplyRampMeasuredReference(target, _executionId, out _route)) return Task.FromResult(false);
+            if (!_engine.TryApplyRampMeasuredFrame([target], null, PhInactiveBand, _executionId, out _route)) return Task.FromResult(false);
             _lastApplied = target;
             // Only samples received after acceptance can confirm this application.
             _afterApplication = Volatile.Read(ref _receivedSequence);

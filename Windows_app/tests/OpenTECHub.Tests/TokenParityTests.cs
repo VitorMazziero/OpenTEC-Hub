@@ -25,6 +25,9 @@ namespace OpenTECHub.Tests;
 /// worth closing.
 /// </para>
 /// </remarks>
+// Shared brush resources can resolve through the live WPF Application. Do not parse
+// them concurrently with rendering tests or theme switches.
+[Collection("ThemeResourceParsing")]
 public sealed class TokenParityTests
 {
     /// <summary>
@@ -276,4 +279,9 @@ public sealed class ThemeDefaultTests
         // inherited from the desktop. See docs/UI_DESIGN.md section 1.3.
         Assert.Equal(ThemePreference.Light, new AppSettings().Theme);
     }
+}
+
+[CollectionDefinition("ThemeResourceParsing", DisableParallelization = true)]
+public sealed class ThemeResourceParsingCollectionDefinition
+{
 }

@@ -221,6 +221,10 @@ public static class WpfRenderingHost
             window.Show();
             PumpDispatcher();
 
+            // Loaded controls are initialized by the host; detach before laying out the capture.
+            window.Content = null;
+            container.Child = null;
+            container = new Border { Width = width, Height = height, Background = (Brush)Application.Current.FindResource("SurfaceBaseBrush"), Child = element };
             container.Measure(new Size(width, height));
             container.Arrange(new Rect(0, 0, width, height));
             container.UpdateLayout();
@@ -230,7 +234,12 @@ public static class WpfRenderingHost
             var pixelHeight = Math.Max(1, (int)Math.Round(height * dpi / 96.0));
 
             var rtb = new RenderTargetBitmap(pixelWidth, pixelHeight, dpi, dpi, PixelFormats.Pbgra32);
-            rtb.Render(container);
+            // Capture through a detached drawing so the off-screen host window's native
+            // monitor DPI and clip cannot crop the requested logical size at another DPI.
+            var drawing = new DrawingVisual();
+            using (var context = drawing.RenderOpen())
+                context.DrawRectangle(new VisualBrush(container) { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, width, height), Stretch = Stretch.Fill }, null, new Rect(0, 0, width, height));
+            rtb.Render(drawing);
 
             window.Close();
             container.Child = null;

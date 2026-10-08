@@ -194,20 +194,51 @@ public sealed class CommandArbiterTests
     // ── Safe abort ───────────────────────────────────────────────────────────
 
     [Fact]
-    public void A_link_loss_revokes_automatic_ownership_back_to_manual()
+    public void A_link_loss_holds_oxygen_and_recipe_owners_until_the_link_returns()
     {
         var (arbiter, device, _) = Build();
         arbiter.Claim(CommandOwner.Automatic, [ActuatorId.Agitation, ActuatorId.Aeration], "cascata");
-
+        arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Temperature], "receita");
+        arbiter.Claim(CommandOwner.PowerAssay, [ActuatorId.FlaskAgitator], "potência");
+        var holds = new List<bool>();
+        arbiter.LinkHoldChanged += holds.Add;
         OwnershipTransfer? revoked = null;
         arbiter.OwnershipRevoked += t => revoked = t;
 
         device.PushState(ConnectionState.Faulted);
 
-        Assert.Equal(CommandOwner.Manual, arbiter.OwnerOf(ActuatorId.Agitation));
-        Assert.Equal(CommandOwner.Manual, arbiter.OwnerOf(ActuatorId.Aeration));
-        Assert.NotNull(revoked);
+        Assert.Equal(CommandOwner.Automatic, arbiter.OwnerOf(ActuatorId.Agitation));
+        Assert.Equal(CommandOwner.Recipe, arbiter.OwnerOf(ActuatorId.Temperature));
+        Assert.Equal(CommandOwner.Manual, arbiter.OwnerOf(ActuatorId.FlaskAgitator));
         Assert.True(revoked!.IsSafeAbort);
+        Assert.DoesNotContain(ActuatorId.Agitation, revoked.Actuators);
+        Assert.True(arbiter.IsLinkHeld);
+        var before = device.Sent.Count;
+        var refused = arbiter.Dispatch(CommandOwner.Automatic, CommandBuilders.MotorSetpoint(300));
+        Assert.False(refused.Accepted);
+        Assert.True(refused.LinkUnavailable);
+        Assert.Equal(before, device.Sent.Count);
+
+        var epoch = arbiter.LinkEpoch;
+        device.PushState(ConnectionState.Connected);
+        Assert.False(arbiter.IsLinkHeld);
+        Assert.Equal(epoch + 1, arbiter.LinkEpoch);
+        Assert.Equal([true, false], holds);
+        Assert.True(arbiter.Dispatch(CommandOwner.Automatic, CommandBuilders.MotorSetpoint(300)).Accepted);
+    }
+
+    [Fact]
+    public void An_explicit_disconnect_returns_held_owners_to_manual()
+    {
+        var (arbiter, device, _) = Build();
+        arbiter.Claim(CommandOwner.Automatic, [ActuatorId.Agitation, ActuatorId.Aeration], "cascata");
+        device.PushState(ConnectionState.Reconnecting);
+        Assert.True(arbiter.IsLinkHeld);
+
+        device.PushState(ConnectionState.Disconnected, cause: ConnectionTransitionCause.UserDisconnect);
+
+        Assert.Equal(CommandOwner.Manual, arbiter.OwnerOf(ActuatorId.Agitation));
+        Assert.False(arbiter.IsLinkHeld);
     }
 
     [Fact]
@@ -274,7 +305,7 @@ public sealed class CommandArbiterTests
         using var journal = new EventJournal(arbiter, arbiter, new MemorySettingsService());
 
         arbiter.Claim(CommandOwner.Automatic, [ActuatorId.Aeration], "cascata");
-        device.PushState(ConnectionState.Faulted);
+        device.PushState(ConnectionState.Disconnected);
 
         Assert.Contains(journal.Snapshot(), e =>
             e.Source == AuditSource.Alarm && e.Message.Contains("Aborto seguro", StringComparison.Ordinal));

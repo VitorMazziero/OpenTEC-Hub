@@ -365,10 +365,36 @@ public sealed class RecipeAssayRestorationTests
     {
         using var fixture = new Fixture(); await fixture.Initialize();
         var task = fixture.Restore(); await WaitUntil(() => fixture.Device.Sent.Count == 3);
-        fixture.Device.PushState(ConnectionState.Reconnecting);
+        fixture.Device.PushState(ConnectionState.Disconnected, cause: ConnectionTransitionCause.UserDisconnect);
         var result = await task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.Equal(KlaRestorationState.Failed, result.Restoration); Assert.True(result.EmergencyStopped);
         Assert.Equal(CommandOwner.Manual, fixture.Arbiter.OwnerOf(ActuatorId.Agitation));
+    }
+
+    [Fact]
+    public async Task Link_loss_during_return_waits_for_reconnection_and_then_restores_the_previous_state()
+    {
+        using var fixture = new Fixture(); await fixture.Initialize();
+        var restoration = new RecipeAssayRestoration(fixture.Device, fixture.Clock);
+        var attempts = 0;
+        var task = RecipeAssayRestoration.WithRetriesAsync(async () =>
+            {
+                attempts++;
+                try { return await restoration.RestoreAsync(fixture.Lease, fixture.Contract(), new() { MaximumTelemetryAgeSeconds = 5 }); }
+                catch (Exception ex) { return new(fixture.Snapshot.SnapshotId, KlaRestorationState.Failed, fixture.Clock.GetUtcNow(), false, ex.Message, null); }
+            }, () => fixture.Lease.IsAssayAuthorityCurrent, 3, () => restoration.WaitForLinkAsync(fixture.Lease));
+        await WaitUntil(() => fixture.Device.Sent.Count == 3);
+        fixture.Device.PushState(ConnectionState.Reconnecting); // power loss on the Hub side: authority held
+        await Task.Delay(300);
+        Assert.Equal(1, attempts); // the next attempt waits for the link instead of failing
+        Assert.Equal(CommandOwner.KlaAssay, fixture.Arbiter.OwnerOf(ActuatorId.Agitation));
+        fixture.Device.Sent.Clear();
+        fixture.Device.PushState(ConnectionState.Connected);
+        await fixture.DriveRoute(); await fixture.PushStable();
+        var result = await task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(KlaRestorationState.Confirmed, result.Restoration);
+        Assert.Equal(2, attempts);
+        Assert.Contains("tentativa 2/3", result.Reason);
     }
 
     public static IEnumerable<object[]> RunnerRecoveryCases()

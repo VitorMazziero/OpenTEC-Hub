@@ -49,6 +49,9 @@ public sealed record CommandDispatchResult(
     CommandOwner Requester)
 {
     public static CommandDispatchResult Nothing(CommandOwner requester) => new(false, [], requester);
+
+    /// <summary>Refused only because the PC–Hub link is down while the requester's ownership is held (D-065).</summary>
+    public bool LinkUnavailable { get; init; }
 }
 
 /// <summary>A refused command, for the audit journal.</summary>
@@ -149,6 +152,15 @@ public interface ICommandArbiter
 
     /// <summary>Raised when a link or feedback loss forced ownership back to Manual.</summary>
     event Action<OwnershipTransfer>? OwnershipRevoked;
+
+    /// <summary>True while oxygen/recipe owners are held through a lost PC–Hub link (D-065).</summary>
+    bool IsLinkHeld => false;
+
+    /// <summary>Incremented each time a held link returns.</summary>
+    long LinkEpoch => 0;
+
+    /// <summary>Raised with true when a link hold starts and false when the link returns.</summary>
+    event Action<bool>? LinkHoldChanged { add { } remove { } }
 }
 
 /// <inheritdoc cref="ICommandArbiter"/>
@@ -261,6 +273,12 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
 
         lock (_gate)
         {
+            if (RefusesForLinkHoldUnderLock(requester))
+            {
+                // Nothing is buffered: the controller recomputes from fresh data once the link returns.
+                return new CommandDispatchResult(false, actuators.ToArray(), requester) { LinkUnavailable = true };
+            }
+
             var conflicts = actuators
                 .Where(a => !CanDispatchUnderLock(requester, a, authority))
                 .Select(a => new ActuatorConflict(a, _ownership.GetValueOrDefault(a, CommandOwner.Manual)))
@@ -325,6 +343,8 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
         // and serialize it with transfers: no old-owner frame may enter after a handoff.
         lock (_gate)
         {
+            if (RefusesForLinkHoldUnderLock(requester))
+                return new CommandDispatchResult(false, actuators.ToArray(), requester) { LinkUnavailable = true };
             var lateConflicts = actuators.Where(a => !CanDispatchUnderLock(requester, a, authority)).ToArray();
             if (lateConflicts.Length > 0)
             {
@@ -543,15 +563,27 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
 
     private void OnInnerStateChanged(ConnectionStateChange change)
     {
-        if (change.State != ConnectionState.Connected)
+        bool? holdChanged = null;
+        if (change.State == ConnectionState.Connected)
         {
-            // Safe abort: revoke every non-Manual owner, and time out any command that
-            // was still only Issued — the link that would have carried it is gone.
+            lock (_gate)
+            {
+                if (_linkHeld) { _linkHeld = false; _linkEpoch++; holdChanged = false; }
+            }
+        }
+        else
+        {
+            // Safe abort: revoke every non-Manual owner that does not hold through a link loss, and
+            // time out any command that was still only Issued — the link that would have carried it is gone.
             IReadOnlyList<ActuatorId> nonManual;
             List<CommandLifecycleEntry> timedOut = [];
             lock (_gate)
             {
-                nonManual = _ownership.Where(kv => kv.Value != CommandOwner.Manual).Select(kv => kv.Key).ToArray();
+                var hold = IsLinkLoss(change);
+                nonManual = _ownership.Where(kv => kv.Value != CommandOwner.Manual &&
+                    !(hold && HoldsThroughLinkLossUnderLock(kv.Key))).Select(kv => kv.Key).ToArray();
+                var held = hold && _ownership.Any(kv => kv.Value != CommandOwner.Manual && HoldsThroughLinkLossUnderLock(kv.Key));
+                if (held != _linkHeld) { _linkHeld = held; holdChanged = held; }
 
                 var now = _time.GetUtcNow();
                 foreach (var actuator in CommandActuators.All)
@@ -577,6 +609,12 @@ public sealed partial class CommandArbiter : ICommandAuthorityArbiter, IDeviceSe
             }
         }
 
+        if (holdChanged is { } changed)
+        {
+            _log.LogWarning(changed ? "Link lost: oxygen/recipe ownership held until the link returns."
+                : "Link restored: held oxygen/recipe owners may resume.");
+            LinkHoldChanged?.Invoke(changed);
+        }
         StateChanged?.Invoke(change);
     }
 

@@ -33,6 +33,7 @@ public sealed partial class RecipeEngine
         {
             ct.ThrowIfCancellationRequested();
             _pauseGate.Wait(ct);
+            await WaitForLinkAsync(ct).ConfigureAwait(false);
 
             var isJoin = current.Type is NodeType.And or NodeType.Or;
             if (isJoin && !RegisterJoinArrivalAndShouldFire(current, arrival))

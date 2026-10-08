@@ -29,6 +29,9 @@ public interface ICascadeService
     /// <summary>True while the loop is actuating under <see cref="CommandOwner.Automatic"/> ownership.</summary>
     bool IsEngaged { get; }
 
+    /// <summary>True while engaged but waiting for the PC–Hub link or a fresh oxygen reading (D-065).</summary>
+    bool IsHolding => false;
+
     /// <summary>The active actuator-allocation mode.</summary>
     CascadeMode Mode { get; }
 
@@ -155,8 +158,18 @@ public sealed class CascadeService : ICascadeService, IDisposable
     private static readonly ActuatorId[] CascadeActuators =
         [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen];
 
-    /// <summary>Consecutive missing-oxygen frames tolerated while engaged before a safe abort.</summary>
+    /// <summary>Consecutive missing-oxygen frames after which the engaged loop holds instead of computing.</summary>
     private const int StaleOxygenFrameLimit = 3;
+
+    /// <summary>A step gap this many nominal periods long is a pause, not a sample: rebase instead of integrating.</summary>
+    private const double MaximumStepGapPeriods = 5;
+
+    /// <summary>
+    /// Set when the loop must restart from the next fresh oxygen sample without integrating the gap:
+    /// after the PC–Hub link returns or the oxygen reading comes back (D-065). The engagement is kept.
+    /// </summary>
+    private bool _rebasePending;
+    private bool _oxygenHeld;
 
     private readonly IDeviceService _device;
     private readonly ICommandArbiter _arbiter;
@@ -212,6 +225,21 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
         _device.TelemetryReceived += OnTelemetry;
         _arbiter.OwnershipChanged += OnOwnershipChanged;
+        _arbiter.LinkHoldChanged += OnLinkHoldChanged;
+    }
+
+    /// <summary>True while the engaged loop waits for the link or for a fresh oxygen reading.</summary>
+    public bool IsHolding => IsEngaged && (_arbiter.IsLinkHeld || _oxygenHeld);
+
+    private void OnLinkHoldChanged(bool held)
+    {
+        if (!IsEngaged) return;
+        _rebasePending = true;
+        _lastDispatchedCommandJson = null;
+        _journal?.Add(AuditSource.Application, AuditSeverity.Warning, held
+            ? "Controle de O₂ mantido: enlace com o Hub perdido; o Hub segue com os últimos comandos."
+            : "Controle de O₂ retomado após a reconexão do enlace.");
+        Updated?.Invoke();
     }
 
     public MotorRouteCoordinator RouteCoordinator => _routeCoordinator;
@@ -611,11 +639,15 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
         if (LatestOxygen is not { } oxygen)
         {
-            // No usable oxygen: a live loop flying blind must hand the wire back rather than
-            // actuate on a stale value.
-            if (IsEngaged && ++_staleOxygenFrames >= StaleOxygenFrameLimit)
+            // No usable oxygen: a live loop flying blind must not actuate on a stale value. It holds
+            // (the Hub keeps the last commands) and resumes from the next fresh reading (D-065).
+            if (IsEngaged && ++_staleOxygenFrames >= StaleOxygenFrameLimit && !_oxygenHeld)
             {
-                Disengage("aborto seguro: oxigênio obsoleto");
+                _oxygenHeld = true;
+                _rebasePending = true;
+                _lastDispatchedCommandJson = null;
+                _journal?.Add(AuditSource.Application, AuditSeverity.Warning,
+                    "Controle de O₂ mantido: sem leitura de oxigênio; retoma com a próxima leitura válida.");
             }
 
             Updated?.Invoke();
@@ -634,6 +666,11 @@ public sealed class CascadeService : ICascadeService, IDisposable
         }
 
         _staleOxygenFrames = 0;
+        if (_oxygenHeld)
+        {
+            _oxygenHeld = false;
+            _journal?.Add(AuditSource.Application, AuditSeverity.Information, "Controle de O₂ retomado: leitura de oxigênio restabelecida.");
+        }
 
         var now = _time.GetUtcNow();
         var dt = _lastStepAt is { } last ? (now - last).TotalSeconds : _nominalStepSeconds;
@@ -641,6 +678,16 @@ public sealed class CascadeService : ICascadeService, IDisposable
         if (dt <= 0)
         {
             dt = _nominalStepSeconds;
+        }
+
+        if (IsEngaged && (_rebasePending || dt > Math.Max(30, MaximumStepGapPeriods * Math.Max(_nominalStepSeconds, GetPidForMode(Mode, _configuration).IntervalSeconds))))
+        {
+            // Bumpless return: keep the effort and integral, restart time and derivative at this sample.
+            _controller.ResumeFromSuspension(oxygen);
+            _rebasePending = false;
+            _lastDispatchedCommandJson = null;
+            Updated?.Invoke();
+            return;
         }
 
         // Gain scheduling (WP8): drive the controller's gains from the current control effort,
@@ -677,7 +724,11 @@ public sealed class CascadeService : ICascadeService, IDisposable
             if (commandJson != _lastDispatchedCommandJson)
             {
                 var result = _arbiter.Dispatch(CommandOwner.Automatic, frame);
-                if (!result.Accepted)
+                if (!result.Accepted && result.LinkUnavailable)
+                {
+                    _rebasePending = true; // resend from fresh data when the link returns
+                }
+                else if (!result.Accepted)
                 {
                     // Ownership was taken from under us between frames; stop cleanly.
                     Disengage("aborto seguro: posse dos atuadores perdida");
@@ -730,5 +781,6 @@ public sealed class CascadeService : ICascadeService, IDisposable
     {
         _device.TelemetryReceived -= OnTelemetry;
         _arbiter.OwnershipChanged -= OnOwnershipChanged;
+        _arbiter.LinkHoldChanged -= OnLinkHoldChanged;
     }
 }

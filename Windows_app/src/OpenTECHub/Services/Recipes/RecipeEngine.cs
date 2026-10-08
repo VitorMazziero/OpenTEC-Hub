@@ -82,6 +82,7 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
 
         _device.TelemetryReceived += OnTelemetry;
         _arbiter.OwnershipRevoked += OnOwnershipRevoked;
+        _arbiter.LinkHoldChanged += OnLinkHoldChanged;
     }
 
     public MotorRouteCoordinator RouteCoordinator => _routeCoordinator;
@@ -343,6 +344,7 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
         _disposed = true;
         _device.TelemetryReceived -= OnTelemetry;
         _arbiter.OwnershipRevoked -= OnOwnershipRevoked;
+        _arbiter.LinkHoldChanged -= OnLinkHoldChanged;
         _cts?.Cancel();
         _pauseGate.Dispose();
         if (_run.IsCompleted) DisposeAutonomousPauseControls();

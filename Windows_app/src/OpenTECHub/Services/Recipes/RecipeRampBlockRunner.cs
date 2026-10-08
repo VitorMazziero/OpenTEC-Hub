@@ -59,6 +59,9 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
                 if (detached) return;
                 if (engine.State == RecipeRunState.Paused) activeClock.Suspend("recipe");
                 else activeClock.Resume("recipe");
+                // A lost PC–Hub link freezes the ramp where it was; it continues without a jump (D-065).
+                if (engine.IsLinkHeld) activeClock.Suspend("link");
+                else activeClock.Resume("link");
             }
         }
         engine.StateChanged += ObserveState;

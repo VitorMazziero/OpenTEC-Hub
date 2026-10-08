@@ -14,6 +14,9 @@ public sealed partial class RecipeEngine
     /// <summary>How close to the O₂ setpoint counts as settled, when no exit condition is wired.</summary>
     private const double CascadeSettleTolerancePercent = 2.0;
 
+    /// <summary>A step gap this many PID intervals long is treated as a pause and rebased (D-065).</summary>
+    private const double CascadeMaximumGapPeriods = 5;
+
     /// <summary>Consecutive settled frames that end a loop with no exit condition.</summary>
     private const int CascadeSettleFrames = 3;
 
@@ -59,6 +62,7 @@ public sealed partial class RecipeEngine
         }));
         lock (_lock) _cascadeGates.Add(node.Id, suspension);
         long resumeVersion = 0;
+        var linkEpoch = _arbiter.LinkEpoch;
 
         // The Condição de Saída port wires to the rule that ends the loop: a Monitor (exits when the
         // comparison becomes true), a Temporizador (exits once it elapses) or an Intervenção Manual
@@ -184,6 +188,18 @@ public sealed partial class RecipeEngine
                     dt = node.Number("intervaloPidS");
                 }
 
+                // A returned link or a long gap without oxygen is a pause, not a sample (D-065): restart time
+                // and derivative at this reading, keep effort and integral, and send again from the next one.
+                var epoch = _arbiter.LinkEpoch;
+                if (epoch != linkEpoch || lastStep is not null && dt > Math.Max(30, CascadeMaximumGapPeriods * node.Number("intervaloPidS")))
+                {
+                    lock (_lock) controller.ResumeFromSuspension(snapshot.OxygenCalibrated);
+                    linkEpoch = epoch;
+                    lastStep = now;
+                    Log(RecipeLogSeverity.Info, "Controle de O₂ retomado após interrupção do enlace ou da leitura de O₂.", node.Id);
+                    continue;
+                }
+
                 lastStep = now;
 
                 // The one place the recipe cascade meets the wire, under Recipe ownership.
@@ -191,7 +207,12 @@ public sealed partial class RecipeEngine
                 lock (_lock) result = controller.Update(snapshot.OxygenCalibrated, dt);
                 NodeStateChanged?.Invoke(node.Id); // refresh the live P/I/D/Saída terms
 
-                if (!_arbiter.Dispatch(CommandOwner.Recipe, CascadeController.BuildCommand(result, _settings.Current.GasRig.ToConfiguration())).Accepted)
+                var dispatched = _arbiter.Dispatch(CommandOwner.Recipe, CascadeController.BuildCommand(result, _settings.Current.GasRig.ToConfiguration()));
+                if (!dispatched.Accepted && dispatched.LinkUnavailable)
+                {
+                    continue; // the Hub keeps the last command; the loop rebases when the link returns
+                }
+                if (!dispatched.Accepted)
                 {
                     Log(RecipeLogSeverity.Warning, "Controle de O₂: posse dos atuadores perdida; encerrando.", node.Id);
                     break;

@@ -48,7 +48,8 @@ public sealed class KlaRecipePulseLifecycle(KlaTestRunner runner, RecipeAssayRes
                     return new(contract.BeforeAssay.SnapshotId, KlaRestorationState.Failed, time.GetUtcNow(),
                         !lease.IsAssayAuthorityCurrent, ex.Message, null);
                 }
-            }, () => lease.IsAssayAuthorityCurrent, MaximumRestorationAttempts).ConfigureAwait(false);
+            }, () => lease.IsAssayAuthorityCurrent, MaximumRestorationAttempts,
+            () => restoration.WaitForLinkAsync(lease)).ConfigureAwait(false);
         try
         {
             if (runner.CurrentRun is not null) runner.RecordRecipeRecovery(recovery);

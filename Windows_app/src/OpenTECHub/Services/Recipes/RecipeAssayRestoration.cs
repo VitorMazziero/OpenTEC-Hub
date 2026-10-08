@@ -222,18 +222,49 @@ public sealed class RecipeAssayRestoration(IDeviceService device, TimeProvider t
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
+    /// Waits for the PC–Hub link while the assay still holds its authority. Returns false when the authority
+    /// was revoked meanwhile (explicit disconnect, safety stop), so no output is resent (D-065).
+    /// </summary>
+    public async Task<bool> WaitForLinkAsync(RecipeAssayResourceLease lease)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        while (device.State != ConnectionState.Connected)
+        {
+            if (!lease.IsAssayAuthorityCurrent) return false;
+            var changed = Signal();
+            void OnState(ConnectionStateChange _) => changed.TrySetResult();
+            device.StateChanged += OnState;
+            try
+            {
+                if (device.State == ConnectionState.Connected) break;
+                try { await changed.Task.WaitAsync(TimeSpan.FromSeconds(1), time).ConfigureAwait(false); }
+                catch (TimeoutException) { /* Recheck authority; a revocation does not change the link state. */ }
+            }
+            finally { device.StateChanged -= OnState; }
+        }
+        return lease.IsAssayAuthorityCurrent;
+    }
+
+    /// <summary>
     /// Resends the complete previous state until it is confirmed, up to <paramref name="maximumAttempts"/> times (D-060).
     /// A transient device, such as a flowmeter that drops off the Hub for a few seconds, gets another chance; a revoked
     /// authority (emergency or link loss) is never used to resend outputs.
     /// </summary>
     public static async Task<RecipeAssayRecoveryResult> WithRetriesAsync(Func<Task<RecipeAssayRecoveryResult>> restore,
-        Func<bool> authorityCurrent, int maximumAttempts)
+        Func<bool> authorityCurrent, int maximumAttempts, Func<Task<bool>>? waitForLink = null)
     {
         ArgumentNullException.ThrowIfNull(restore); ArgumentNullException.ThrowIfNull(authorityCurrent);
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumAttempts, 1);
         var failures = new List<string>();
         for (var attempt = 1; ; attempt++)
         {
+            // A lost PC–Hub link does not consume attempts: the return waits for it (D-065).
+            if (waitForLink is not null && !await waitForLink().ConfigureAwait(false))
+            {
+                // Authority revoked while waiting: restore stops at its authority check and sends nothing.
+                var revoked = await restore().ConfigureAwait(false);
+                return failures.Count == 0 ? revoked : revoked with { Reason = string.Join("; ", failures.Append(revoked.Reason)) };
+            }
             var recovery = await restore().ConfigureAwait(false);
             if (recovery.Restoration == KlaRestorationState.Confirmed)
                 return failures.Count == 0 ? recovery : recovery with

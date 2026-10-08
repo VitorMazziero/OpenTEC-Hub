@@ -198,31 +198,64 @@ public sealed class CascadeActuationTests
     // ── Safe abort ───────────────────────────────────────────────────────────
 
     [Fact]
-    public void Stale_oxygen_safe_aborts_and_hands_the_actuators_back()
+    public void Stale_oxygen_holds_without_actuating_and_resumes_from_the_next_reading()
     {
         using var h = new Harness();
         h.Service.SelectPath(KlaTestProfiles.Linear());
         h.Service.Engage(440, 5.0);
+        h.PushOxygen(25);
+        var sent = h.Device.Sent.Count;
 
-        // Three consecutive frames with no usable oxygen: the loop is flying blind.
-        h.PushOxygen(SensorReadings.NotReceived, frames: 3);
+        // Frames without usable oxygen: the loop holds (D-065) instead of handing the wire back.
+        h.PushOxygen(SensorReadings.NotReceived, frames: 30);
+        Assert.True(h.Service.IsEngaged);
+        Assert.True(h.Service.IsHolding);
+        Assert.True(h.CascadeOwnsActuators());
+        Assert.Equal(sent, h.Device.Sent.Count);
 
-        Assert.False(h.Service.IsEngaged);
-        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Agitation));
+        // The first fresh reading rebases without integrating the gap; the next one actuates again.
+        h.PushOxygen(20);
+        Assert.False(h.Service.IsHolding);
+        Assert.Equal(sent, h.Device.Sent.Count);
+        h.PushOxygen(20);
+        Assert.True(h.Device.Sent.Count > sent);
     }
 
     [Fact]
-    public void A_link_loss_revokes_ownership_and_disengages_the_cascade()
+    public void A_link_loss_holds_the_cascade_and_resumes_it_when_the_link_returns()
     {
         using var h = new Harness();
         h.Service.SelectPath(KlaTestProfiles.Linear());
         h.Service.Engage(440, 5.0);
+        h.PushOxygen(25);
         Assert.True(h.Service.IsEngaged);
 
-        h.Device.PushState(ConnectionState.Faulted); // the arbiter safe-aborts ownership
+        h.Device.PushState(ConnectionState.Reconnecting); // D-065: the Hub keeps the last commands
+        Assert.True(h.Service.IsEngaged);
+        Assert.True(h.Service.IsHolding);
+        Assert.True(h.CascadeOwnsActuators());
+        Assert.False(h.Arbiter.Dispatch(CommandOwner.Automatic, CommandBuilders.MotorSetpoint(300)).Accepted);
+
+        h.Clock.Advance(TimeSpan.FromMinutes(10));
+        h.Device.PushState(ConnectionState.Connected);
+        Assert.False(h.Service.IsHolding);
+        var sent = h.Device.Sent.Count;
+        h.PushOxygen(22); // rebase frame
+        h.PushOxygen(22);
+        Assert.True(h.Device.Sent.Count > sent, "the cascade command is sent again after the link returns");
+    }
+
+    [Fact]
+    public void An_explicit_disconnect_still_disengages_the_cascade()
+    {
+        using var h = new Harness();
+        h.Service.SelectPath(KlaTestProfiles.Linear());
+        h.Service.Engage(440, 5.0);
+
+        h.Device.PushState(ConnectionState.Disconnected, cause: ConnectionTransitionCause.UserDisconnect);
 
         Assert.False(h.Service.IsEngaged);
-        Assert.True(h.Arbiter.OwnerOf(ActuatorId.Aeration) == CommandOwner.Manual);
+        Assert.Equal(CommandOwner.Manual, h.Arbiter.OwnerOf(ActuatorId.Aeration));
     }
 
     [Fact]

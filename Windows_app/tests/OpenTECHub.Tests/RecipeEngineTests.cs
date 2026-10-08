@@ -730,6 +730,56 @@ public sealed class RecipeEngineTests
     }
 
     [Fact]
+    public async Task Link_loss_holds_the_recipe_cascade_and_resumes_commands_after_reconnection()
+    {
+        var (engine, device, arbiter, clock) = Build();
+        await engine.StartAsync(CascadeInfiniteRecipe());
+        for (var i = 0; i < 3; i++) { PushFrame(device, clock, oxygen: 25); await Task.Delay(10); }
+        var cascadeFrames = device.Sent.Count;
+        Assert.True(cascadeFrames > 0);
+
+        // D-065: power loss on the Hub side. The recipe keeps its ownership and waits.
+        device.PushState(ConnectionState.Reconnecting);
+        await Task.Delay(50);
+        Assert.Equal(RecipeRunState.Running, engine.State);
+        Assert.Equal(CommandOwner.Recipe, arbiter.OwnerOf(ActuatorId.Agitation));
+        Assert.NotNull(engine.Waiting);
+        Assert.Contains("Enlace", engine.Waiting!.Detail);
+
+        clock.Advance(TimeSpan.FromMinutes(15));
+        device.PushState(ConnectionState.Connected);
+        Assert.Null(engine.Waiting);
+        var afterReturn = device.Sent.Count;
+        for (var i = 0; i < 3; i++) { PushFrame(device, clock, oxygen: 22); await Task.Delay(10); }
+
+        Assert.True(device.Sent.Count > afterReturn, "the cascade commands again after the link returns");
+        Assert.Equal(RecipeRunState.Running, engine.State);
+        await engine.StopAsync("teste");
+    }
+
+    [Fact]
+    public async Task No_new_block_starts_while_the_link_is_held()
+    {
+        var (engine, device, arbiter, clock) = Build();
+        var recipe = MultiSetpointRecipe(flow: 3, temperature: 30);
+        recipe.Nodes.Insert(1, RecipeNode.Create(NodeType.ManualIntervention, id: "gate"));
+        recipe.Connections.Clear();
+        recipe.Connections.Add(new RecipeConnection("start", ConnectorNames.Out, "gate", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("gate", ConnectorNames.Out, "sp", ConnectorNames.In));
+        recipe.Connections.Add(new RecipeConnection("sp", ConnectorNames.Out, "end", ConnectorNames.In));
+        device.PushState(ConnectionState.Connected);
+        await engine.StartAsync(recipe);
+        device.PushState(ConnectionState.Reconnecting);
+        recipe.Node("gate")!.Set("operacao", nameof(ManualGateOperation.Pass));
+        PushFrame(device, clock, oxygen: 25);
+        await Task.Delay(100);
+
+        Assert.Equal(NodeState.Waiting, engine.NodeStateOf("sp"));
+        Assert.Equal(RecipeRunState.Running, engine.State);
+        await engine.StopAsync("teste");
+    }
+
+    [Fact]
     public async Task Cascade_loop_exits_when_its_saida_loop_manual_gate_passes()
     {
         var (engine, device, _, clock) = Build();

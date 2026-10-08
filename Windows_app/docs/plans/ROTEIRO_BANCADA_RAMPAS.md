@@ -1,8 +1,8 @@
 # Roteiro de bancada — Rampa linear de referências (R6.2)
 
-Data: 08/10/2026. Decisão: [D-058](../DECISIONS.md). Build: instalador `OpenTECHub_Setup_v0.26.5-dev.N` gerado nesta revisão.
+Data: 08/10/2026. Decisão: [D-058](../DECISIONS.md). Build: instalador `OpenTECHub_Setup_v0.27.0`.
 
-Objetivo: comprovar, no reator real, cada destino da rampa e os caminhos de interrupção. A aprovação em software está na [auditoria final](AUDITORIA_FINAL_RECEITAS.md); este roteiro produz a evidência física que falta. As tolerâncias usadas são as do bloco (padrão: ±0,5 °C, ±2 rpm, ±0,1 L/min, ±0,05 pH, ±0,5 kPa, 10 s de estabilidade e 300 s de prazo; ver Q9 do [pacote de decisões](PACOTE_DECISOES.md)).
+Objetivo: comprovar, no reator real, cada destino da rampa e os caminhos de interrupção. A aprovação em software está na [auditoria final](AUDITORIA_FINAL_RECEITAS.md); este roteiro produz a evidência física que falta. As tolerâncias usadas são as do bloco (padrão D-063: ±0,5 °C, ±5 rpm, ±0,2 L/min, ±0,2 pH, ±1 kPa, 10 s de estabilidade, 900 s de prazo e 1 s entre comandos).
 
 ## Preparação
 
@@ -16,7 +16,7 @@ Objetivo: comprovar, no reator real, cada destino da rampa e os caminhos de inte
 
 | # | Caso | Configuração | Resultado esperado | OK? |
 |---|---|---|---|---|
-| B1 | Temperatura nativa | 30 → 32 °C em 20 min, início "atual confirmado" | Referência sobe linearmente; termina após a temperatura do reator ficar dentro de ±0,5 °C por 10 s; `Completed` | |
+| B1 | Temperatura nativa | 30 → 32 °C em 20 min, início "atual confirmado" | Referência sobe linearmente, no máximo um comando por segundo; termina após a temperatura do reator ficar dentro de ±0,5 °C por 10 s; `Completed` | |
 | B2 | Temperatura via banho | Mesma rampa com o banho C404 na via externa | Mesmo comportamento; conclusão pela temperatura do **reator** (`Tempval`), não pela do banho | |
 | B3 | Agitação | 200 → 400 rpm em 10 min | Comandos apenas quando muda o valor representável; final confirmado pelo servo | |
 | B4 | Vazão | 1 → 3 L/min em 10 min | Final confirmado pelo fluxômetro (ACK e leitura estável) | |

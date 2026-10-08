@@ -23,12 +23,14 @@ Por construção, a execução autônoma de kLa só é possível em ambiente iso
 | A-02 | Baixa | CS8602 e CS9124 no código novo | Correção local | Corrigido |
 | A-03 | Média | Critério R5 de relógio civil sem teste | Teste dedicado | Corrigido |
 | A-04 | Alta | Rampas habilitadas no ambiente físico sem gate R6.2 | Decisão D-058: manter habilitadas para bancada; [roteiro](ROTEIRO_BANCADA_RAMPAS.md) | Decidido |
-| A-05 | Média | Falha de retorno no biótico corta aeração e agitação | Política de falha por protocolo | Q1 do [pacote de decisões](PACOTE_DECISOES.md) |
+| A-05 | Média | Falha de retorno no biótico corta aeração e agitação | D-060: três tentativas; biótico mantém comandos e alarme | Corrigido |
 | A-06 | Média | 2120 avisos IDE0011; gate 0.25.0 exige zero | D-059 + 17 avisos xUnit corrigidos; compilação com zero avisos | Corrigido |
-| A-07 | Baixa | Testes regravam evidências versionadas | Diretório de artefatos + variável de atualização | Planejado |
-| A-08 | Média | Fluxo autônomo nunca exercitado no aplicativo; não há perfil de simulação para teste manual | Gerador externo de perfil e roteiro de smoke | Planejado |
+| A-07 | Baixa | Testes regravam evidências versionadas | D-064: diretório temporário + `OPENTEC_UPDATE_EVIDENCE=1` | Corrigido |
+| A-08 | Média | Fluxo autônomo nunca exercitado no aplicativo; não há perfil de simulação para teste manual | D-062: perfil do operador; [roteiro de bancada](ROTEIRO_BANCADA_KLA.md) | Finalizado (pendente validação de bancada) |
 | A-09 | Baixa | Documentos de estado desatualizados | Atualização | Corrigido |
-| A-10 | — | E7 experimental e R6.2 | Bancada | Pendente físico |
+| A-10 | — | E7 experimental e R6.2 | Roteiros de bancada | Finalizado (pendente validação de bancada) |
+| A-11 | Alta | Nome de sessão automática repetido fazia falhar o 2º disparo periódico | Nome com data, protocolo, N/Q e disparo | Corrigido |
+| A-12 | Média | Execução física marcada como simulação | Origem pelo ambiente | Corrigido |
 
 ## 3. Pacotes de execução
 
@@ -70,3 +72,21 @@ Ordem: F1 → F2 → (F3, F4, F5, F6 em paralelo) → F7 → F8 → F9 → F10.
 - Respostas Q1–Q4 do [pacote de decisões](PACOTE_DECISOES.md) recebidas; implementação no pacote F11 abaixo.
 
 Nenhuma atuação física foi executada nesta revisão.
+
+## 5. Estado final (08/10/2026)
+
+| Pacote | Estado |
+|---|---|
+| F1 Correções da auditoria | Concluído |
+| F2 Decisões do autor | Concluído — Q1–Q15 respondidas; D-058 a D-064 |
+| F3 Gate físico das rampas | Dispensado (D-058) |
+| F4 Política de falha biótica | Concluído (D-060) |
+| F5 Gate de avisos | Concluído (zero avisos) |
+| F6 Evidências fora da árvore | Concluído (D-064) |
+| F7 Smoke interativo | Substituído pelo [roteiro de bancada do kLa](ROTEIRO_BANCADA_KLA.md) — finalizado (pendente validação de bancada) |
+| F8 Documentação de operação | Concluído: Manual §10, CHANGELOG 0.27.0, CURRENT_STATUS |
+| F9 R6.2 / E7 bancada | Código e liberação física concluídos (D-061); **pendente validação de bancada** |
+| F10 Liberação | `v0.27.0` — instalador e recibo abaixo |
+
+Regressão completa após as decisões: **2516 aprovadas, 0 falhas**; compilação da solução em Release com **0 avisos**. Simulações do banho r3.3 e 135 contratos do Hub aprovados.
+

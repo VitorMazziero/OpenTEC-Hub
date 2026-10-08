@@ -358,6 +358,13 @@ No módulo **Receitas**, o usuário pode desenhar bateladas automatizadas conect
 - **Blocos Condicionais:** Aguardar pH atingir determinado valor, aguardar consumo de oxigênio, dosagem automática por sensor de espuma.
 - **Interlocks de Segurança:** A receita verifica continuamente se as sondas estão online. Se um periférico configurado como obrigatório perder conexão por mais de 8 segundos, a receita entra em pausa de segurança (*Hold*) e notifica o operador.
 
+### Determinar kLa, Periodicidade e Rampa linear (v0.27.0)
+
+- **Determinar kLa:** escolha Abiótico ou Biótico e Único (condições atuais ou N/Q definidos) ou Múltiplos (matriz). O bloco usa as configurações da página **Determinar kLa › Configurações** (agitação de remoção, OD alvo, tempos máximos). No biótico, o corte de ar termina no OD mínimo do bloco (padrão 5 %). Ao fim de cada ensaio, as condições anteriores (rota de gás, N, Q, cascata) são restauradas e confirmadas; se a confirmação falhar, o retorno é reenviado até três vezes. Se ainda assim não confirmar, aparece o alarme **Retorno do ensaio kLa não confirmado**: no biótico, motor e gás ficam nos últimos comandos; confira o reator.
+- **Periodicidade:** ligada em paralelo ao Controle de O₂, dispara o kLa no primeiro tempo e depois a cada período. Disparos perdidos (pausa, ensaio longo) são pulados, sem acúmulo. Durante o ensaio a cascata é suspensa e depois retomada sem salto.
+- **Rampa linear de referências:** cada linha vai do valor inicial ao final no seu próprio tempo, com no máximo um comando por segundo. Conclui quando a medição do processo fica dentro da tolerância por 10 s (prazo padrão 900 s).
+- **Resultados:** cada execução cria `Testes-kLa/Receitas-automaticas/<data>_<protocolo>_<Unico|Matriz>_N…_Q…`, com as corridas em `Corridas/N0300_Q02p00_Rep01`. Abra pela página Determinar kLa (Carregar ensaio) ou pelo botão da receita. Para revisar a janela e recalcular o kLa, use **Criar cópia editável para recalcular**; a sessão original permanece intacta.
+
 ---
 
 ## 11. Alarmes, Históricos e Diagnóstico de Falhas

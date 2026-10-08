@@ -1,7 +1,7 @@
 # Receitas: determinação autônoma de kLa e rampas lineares
 
 Data: 07/10/2026. Segunda revisão após chegada de E5/E6/E7. Base inspecionada: `main`, HEAD `237c254`, com base E5/E6/E7 consolidada e entregas R0.2/R1.1/R1.2. Há imagens/evidências locais modificadas ou não rastreadas, inclusive duplicatas de sincronização; não as incorporar nem excluir automaticamente.
-Estado (08/10/2026): R0.1–R6.1 entregues e auditadas em software conforme [registro de execução](EXECUCAO_RECEITAS.md) e [auditoria final](AUDITORIA_FINAL_RECEITAS.md), com ressalvas A-04/A-05/A-06/A-07/A-08. R6.2 depende de bancada. Próximas etapas: [plano de finalização](PLANO_FINALIZACAO.md). Esta revisão não libera atuação ou qualificação de bancada. Recibos E7 de outras revisões não identificam automaticamente este conjunto de fontes. Os diagnósticos abaixo preservam a auditoria original; consultar os recibos para as correções posteriores.
+Estado (08/10/2026): **R0.1–R6.2 finalizados em software; partes físicas finalizadas (pendente validação de bancada).** Auditoria em [AUDITORIA_FINAL_RECEITAS.md](AUDITORIA_FINAL_RECEITAS.md); decisões do autor D-058 a D-064 em [PACOTE_DECISOES.md](PACOTE_DECISOES.md) liberam execução física abiótica e biótica sem qualificação de perfil, com perfil do operador, retorno com três tentativas e sessões em `Testes-kLa/Receitas-automaticas`. Roteiros: [kLa](ROTEIRO_BANCADA_KLA.md) e [rampas](ROTEIRO_BANCADA_RAMPAS.md). Liberação `v0.27.0`.
 
 ## 1. Situação atual e escopo
 

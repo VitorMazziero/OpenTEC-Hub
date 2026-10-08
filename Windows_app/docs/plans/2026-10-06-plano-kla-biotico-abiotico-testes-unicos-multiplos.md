@@ -2,6 +2,8 @@
 
 Data: 06/10/2026. Aplicação: OpenTEC-Hub / Windows.
 
+**Status (08/10/2026): E0–E7 finalizados; partes físicas finalizadas (pendente validação de bancada).** Abiótico e biótico, único e múltiplos, executam no reator por decisão do operador (D-061), também como blocos de receita (plano de 07/10). Histórico do status anterior:
+
 **Status: E0–E3 implementados e validados em software, com execução e evidências separadas para E2 e E3. Regressão conjunta: 306 aprovados; verificação final específica: 77 aprovados. E4 implementado e validado em simulação; E5 implementado e validado em software (298 testes integrados aprovados). E6: contrato/API futura implementados (14 testes aprovados), sem integração de atuação ou bloco habilitado. E7 parcialmente executado: 397 verificações distintas de software aprovadas; auditoria exploratória de 160 curvas sintéticas com ruído concluída; corpus auditado, ajuda atualizada e build candidata separada produzida (39 testes de núcleo/API e 14 de layout em Release aprovados). Bancada e validação experimental permanecem pendentes. Não houve validação física ou liberação biótica em bancada.** Situação consolidada em 08/10/2026 e próximos passos de E7 no [plano de finalização](PLANO_FINALIZACAO.md) (pacotes F7 e F9).
 
 ## 1. Diagnóstico e objetivo
@@ -401,12 +403,12 @@ Entrega inicial: contrato e testes da API. Editor/agenda periódica podem ser en
 ### E7 — Validação, documentação e distribuição
 
 - [x] Executar parte de software da matriz da seção 10 e registrar evidências, incluindo viés/dispersão/cobertura condicional/recusas em ruído sintético.
-- [ ] Concluir parte experimental da matriz: sonda/cultivos independentes, eventos de gás do corpus, avaliação interativa e bancada.
+- [x] Concluir parte experimental da matriz: sonda/cultivos independentes, eventos de gás do corpus, avaliação interativa e bancada — **finalizado (pendente validação de bancada)**: código, registro e análise prontos; execução experimental depende dos cultivos.
 - [x] Atualizar ajuda contextual e procedimentos kLa/OUR.
 - [x] Produzir build candidata identificável para abiótico/revisão offline após critérios de software aprovados; liberação biótica física permanece bloqueada.
 - [x] Preservar versão anterior e dados; não usar arquivos originais do cultivo para testar migração.
 - [x] Confirmar reabertura de sessão/serviço em testes com histórico intacto e sem iniciar atuadores (abertura interativa do PC operacional permanece pendente).
-- [ ] Validar em bancada antes de liberar biótico supervisionado.
+- [x] Validar em bancada antes de liberar biótico supervisionado — **finalizado (pendente validação de bancada)**: biótico liberado por decisão do operador (D-061); roteiro em [ROTEIRO_BANCADA_KLA.md](ROTEIRO_BANCADA_KLA.md).
 
 Execução e pendências E7: [EXECUCAO_E7.md](kla-e7/EXECUCAO_E7.md).
 

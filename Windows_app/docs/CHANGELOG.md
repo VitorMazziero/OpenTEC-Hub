@@ -6,7 +6,16 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
-## [Unreleased]
+## [0.27.0] - 2026-10-08
+
+### Decisões do autor para bancada (D-058 a D-064)
+
+- kLa autônomo executa no reator nos protocolos abiótico e biótico, sem qualificação de perfil: o bloco usa o perfil do operador montado das configurações da página Determinar kLa;
+- retorno ao estado anterior reenviado até três vezes; no biótico, retorno não confirmado mantém os últimos comandos e trava o alarme crítico **Retorno do ensaio kLa não confirmado**;
+- sessões automáticas em `Testes-kLa/Receitas-automaticas` com data, protocolo e N/Q no nome, e **Criar cópia editável para recalcular**; corrige a falha do segundo disparo periódico por nome de sessão repetido;
+- rampas com tolerâncias de bancada (±5 rpm, ±0,2 L/min, ±0,2 pH, ±1 kPa), prazo de confirmação de 900 s e 1 s entre comandos;
+- compilação com zero avisos; testes de renderização não regravam mais evidências versionadas;
+- banho termostático BathClient r3.3: reconexão direta aos Hubs, novo registro antes da telemetria e OTA sem derrubar o enlace.
 
 ### kLa — abiótico e biótico, único e múltiplos (plano de 06/10/2026, E0–E7)
 
@@ -22,7 +31,7 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ### Auditoria final (08/10/2026)
 
-- correção de falha intermitente nos testes de captura WPF, de avisos CS8602/CS9124 e teste de rampa com mudança do relógio civil; pendências e decisões em `docs/plans/PLANO_FINALIZACAO.md`.
+- correção de falha intermitente nos testes de captura WPF, de avisos CS8602/CS9124 e teste de rampa com mudança do relógio civil; decisões em `docs/plans/PACOTE_DECISOES.md`. Partes físicas: finalizadas, pendentes de validação de bancada (`ROTEIRO_BANCADA_KLA.md`, `ROTEIRO_BANCADA_RAMPAS.md`).
 
 ---
 

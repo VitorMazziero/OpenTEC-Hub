@@ -19,7 +19,7 @@ Evidência comum atual: `receitas-r61/evidence/recipes-r61-readonly-and-link-ful
 | R5.1 | Critérios de software conferidos abaixo |
 | R5.2 | Critérios de software conferidos; lacuna de relógio civil corrigida (A-03); habilitação física em decisão (A-04) |
 | R6.1 | Software aceito com ressalvas A-06/A-07/A-08; recibo da revisão final abaixo |
-| R6.2 | Pendente de bancada; não substituída por simulação |
+| R6.2 | Finalizado (pendente validação de bancada): execução física liberada por D-061; roteiros [kLa](ROTEIRO_BANCADA_KLA.md) e [rampas](ROTEIRO_BANCADA_RAMPAS.md) |
 
 ## R0.1 — Baseline e consolidação
 
@@ -123,7 +123,7 @@ Testes: `KlaRecipeAssayExecutionTests` (10), `KlaRecipeExecutionRouterTests` e `
 | `Completed` não significa réplica aceita | A execução grava `KlaOperatorDecision.Pending` e decisão com autor `AutomaticPolicy`/`AwaitingSelection` | Comprovado |
 | Request duplicado em Running/terminal | `Duplicate_id_never_dispatches_twice_and_completed_reconnect_does_not_restart` | Comprovado |
 | Cancelamento com recuperação | `Cancellation_waits_for_recovery_and_blocks_a_second_pulse` | Comprovado |
-| Produção fechada | `FactoryRejectsPhysicalEnvironmentOrPhysicalCapability`; `App.ConfigureServices` só marca ambiente isolado com `--kla-test-file` | Comprovado |
+| Produção fechada | `FactoryRejectsPhysicalEnvironmentOrPhysicalCapability` comprova o fechamento quando não autorizado; **D-061 (08/10/2026) autoriza a execução física** em `App.OperatorAuthorizedKlaExecution` (`Execution_is_authorized_in_the_physical_application`) | Substituído por decisão do autor |
 
 ## R2.2 — Matriz e decisão automática
 
@@ -195,10 +195,16 @@ Primeira regressão desta auditoria (Release, sobre `a5470ae`): **2507 aprovadas
 | A-01 | Média | Falha intermitente de captura WPF na regressão completa, por concorrência no dispatcher compartilhado | Coleção xUnit `WpfRendering` sem paralelismo para as 16 classes que usam o host | Corrigido |
 | A-02 | Baixa | Avisos reais do compilador: CS8602 em `KlaRecipeOrchestrator.cs:181` e CS9124 em `KlaRecipeOperationalProfiles.cs:82-83` | Verificação explícita de nulo; uso das propriedades em vez dos parâmetros capturados | Corrigido |
 | A-03 | Média | Critério R5 "relógio de parede alterado" sem teste dedicado | Teste `CivilClockChangesNeitherAdvanceNorRewindTheRamp` | Corrigido |
-| A-04 | Alta (liberação) | Rampas executam no ambiente físico sem gate de qualificação, divergente de R6.2 | Gate por destino qualificado (como os perfis de kLa) **ou** decisão registrada em `DECISIONS.md` liberando rampas como extensão de `SetSetpoint` | Decisão do autor |
-| A-05 | Média (biótico) | Retorno não confirmado aciona parada de N/Q/O₂ e interrompe a aeração do cultivo | Política de falha por protocolo: no biótico, comando de segurança de ar ao reator na condição do snapshot antes de liberar; manter parada total no abiótico | Decisão antes de R6.2 |
-| A-06 | Média (gate 0.25.0) | 2120 avisos IDE0011 (chaves) na compilação; o gate exige zero avisos e `dotnet format` limpo | Recomendado: `csharp_prefer_braces = when_multiline:suggestion`, coerente com o estilo adotado, e zero avisos CS/CA; alternativa: commit isolado de formatação | Decisão do autor |
-| A-07 | Baixa | Testes de renderização regravam PNGs versionados a cada execução (cerca de 60 arquivos modificados) | Gravar em diretório de artefatos e atualizar evidência só com `OPENTEC_UPDATE_EVIDENCE=1` | Planejado |
-| A-08 | Média | Sem verificação interativa do fluxo autônomo no aplicativo; o perfil isolado precisa ser criado manualmente para o `InstallationId` do workspace | Roteiro de smoke em `--kla-test-file` e gerador externo de perfil sintético de simulação | Planejado |
+| A-04 | Alta (liberação) | Rampas executam no ambiente físico sem gate de qualificação, divergente de R6.2 | D-058: mantidas para bancada; D-063 ajusta tolerâncias e 1 s entre comandos | Decidido |
+| A-05 | Média (biótico) | Retorno não confirmado aciona parada de N/Q/O₂ e interrompe a aeração do cultivo | D-060: três tentativas de retorno; no biótico mantém os últimos comandos e trava alarme crítico; abiótico mantém a parada | Corrigido |
+| A-06 | Média (gate 0.25.0) | 2120 avisos IDE0011 (chaves) na compilação; o gate exige zero avisos e `dotnet format` limpo | D-059 e correção de 17 avisos xUnit: solução compila com zero avisos | Corrigido |
+| A-07 | Baixa | Testes de renderização regravam PNGs versionados a cada execução (cerca de 60 arquivos modificados) | `TestPaths.EvidenceRoot` temporário; `OPENTEC_UPDATE_EVIDENCE=1` atualiza a evidência (D-064) | Corrigido |
+| A-08 | Média | Sem verificação interativa do fluxo autônomo no aplicativo; o perfil isolado precisa ser criado manualmente para o `InstallationId` do workspace | D-062: perfil do operador dispensa importação; verificação no aplicativo pelo [roteiro de bancada](ROTEIRO_BANCADA_KLA.md) | Finalizado (pendente validação de bancada) |
 | A-09 | Baixa | Cabeçalho do plano, `EXECUCAO_RECEITAS.md` e `CURRENT_STATUS.md` desatualizados | Atualização documental | Corrigido |
-| A-10 | — | E7 (bancada e cultivos independentes) e R6.2 pendentes | Roteiro de bancada; não substituível por simulação | Pendente físico |
+| A-10 | — | E7 (bancada e cultivos independentes) e R6.2 pendentes | Roteiros [kLa](ROTEIRO_BANCADA_KLA.md) e [rampas](ROTEIRO_BANCADA_RAMPAS.md) | Finalizado (pendente validação de bancada) |
+| A-11 | Alta | Sessão automática usava nome fixo `"{receita} — {bloco}"`; o 2º disparo periódico ou a 2ª execução da mesma receita falhariam com "Já existe um teste" | D-062: nome com data/hora, protocolo, condição e disparo, em `Testes-kLa/Receitas-automaticas`, com sufixo em colisão | Corrigido |
+| A-12 | Média | Dados de execuções físicas seriam marcados como `Simulation` (`KlaRecipeRequestBuilder`) | Origem do dado definida pelo ambiente (`Physical` sem `--kla-test-file`) | Corrigido |
+
+## Estado final (08/10/2026)
+
+Todas as etapas R0.1–R6.2 e E0–E7 estão **finalizadas em software**. Etapas com atuação física estão **finalizadas (pendente validação de bancada)**. Regressão completa: 2516 aprovados, zero falhas; compilação Release com zero avisos. Liberação `v0.27.0`.

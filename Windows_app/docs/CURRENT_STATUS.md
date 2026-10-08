@@ -34,6 +34,12 @@ reset de falha com motivo; referência do reator só na linha de temperatura; si
 no Hub e confirmada pelo eco; receitas na via externa aguardam `Tempval` na banda ±0,5 °C por
 30 s. Suíte 1755/1755. Validação física segue pendente (H08 P01–P13).
 
+**08/10/2026 — v0.27.0: kLa e receitas autônomas finalizados; validação de bancada pendente.** Por decisão do
+operador (D-061), kLa autônomo abiótico e biótico executa no reator sem qualificação de perfil; retorno com três
+tentativas (D-060); sessões em `Testes-kLa/Receitas-automaticas` (D-062). Regressão 2516/2516, zero avisos.
+Roteiros: [`plans/ROTEIRO_BANCADA_KLA.md`](plans/ROTEIRO_BANCADA_KLA.md) e
+[`plans/ROTEIRO_BANCADA_RAMPAS.md`](plans/ROTEIRO_BANCADA_RAMPAS.md).
+
 **08/10/2026 — kLa abiótico/biótico (E0–E7) e receitas autônomas (R0–R6.1) auditados em software.**
 Regressão completa em Release: 2508 aprovados após correção de uma falha intermitente de captura WPF.
 A execução autônoma de kLa permanece restrita ao ambiente isolado de simulação; o biótico físico segue

@@ -1654,6 +1654,64 @@ resultado por destino; um destino reprovado deve ser bloqueado por decisão post
 sem chaves são o estilo adotado no código; os 2120 avisos de estilo escondiam avisos reais. O gate de
 compilação passa a ser **zero avisos** (CS, CA e analisadores de teste).
 
+### D-060 · Retorno do ensaio kLa: três tentativas e preservação do cultivo
+
+**Status:** Accepted and implemented · 2026-10-08 · `plans/PACOTE_DECISOES.md` (Q1, Q2)
+
+1. Ao fim de qualquer ensaio (concluído, cancelado, pausado, com falha), o estado anterior é
+   reenviado e confirmado: rotas, N, Q, referências e controladores, inclusive a cascata.
+2. Se a confirmação falhar enquanto o ensaio ainda tem autoridade, o retorno completo é reenviado
+   até **três** vezes. O caso típico é o fluxômetro sair do Hub por alguns segundos.
+3. Autoridade revogada (emergência ou perda do enlace PC–Hub) nunca é usada para reenviar saídas.
+   O Hub mantém os últimos comandos quando o PC cai (firmware atual em `ESP32S3-HUB`).
+4. Esgotadas as tentativas: no **biótico**, nenhum comando de parada; os últimos comandos ficam e o
+   alarme crítico **Retorno do ensaio kLa não confirmado** é travado. No **abiótico**, mantém-se a
+   parada explícita de agitação, gás e O₂.
+5. Retomar a receita após reconexão do enlace PC–Hub não faz parte desta decisão: a receita é
+   encerrada com segurança e a posse volta ao Manual.
+
+### D-061 · kLa autônomo físico, abiótico e biótico, por decisão do operador
+
+**Status:** Accepted and implemented · 2026-10-08 · `plans/PACOTE_DECISOES.md` (Q3)
+
+A build comum executa os blocos **Determinar kLa** e **Periodicidade** no reator, nos dois
+protocolos, sem confirmação explícita adicional. O bloqueio biótico de E7 (`KlaActuationRelease`)
+fica liberado pela constante `App.OperatorAuthorizedKlaExecution`. O operador acompanha a bancada;
+emergência, reservas, suspensão da cascata, restauração e gravação durável continuam ativas. O modo
+`--kla-test-file` continua gravando em pastas próprias de simulação e marca os dados como simulados.
+
+### D-062 · Perfil do operador e pasta das sessões automáticas
+
+**Status:** Accepted and implemented · 2026-10-08 · `plans/PACOTE_DECISOES.md` (Q4–Q8, Q13)
+
+1. Sem qualificação: o bloco usa o **perfil do operador**, montado das configurações atuais da
+   página Determinar kLa (agitação de remoção, alvo de OD, tempos máximos) e dos limites do bloco.
+   O request congelado registra o que foi usado. Perfis importados continuam aceitos.
+2. Padrões do bloco: OD mínimo biótico 5 %, prazo de retorno 600 s, intervalo entre ensaios 30 s,
+   limites cumulativos "não aplicáveis" (campo 0), resultado inconclusivo restaura e continua.
+3. Sem cultivo informado, cada execução da receita é um cultivo para o diário de orçamento.
+4. Sessões em `Testes-kLa/Receitas-automaticas/<data>_<protocolo>_<Unico|Matriz>_N…_Q…`; corridas
+   em `Corridas/N0300_Q02p00_Rep01`. Aparecem no histórico da página Determinar kLa.
+5. **Criar cópia editável para recalcular** copia a sessão para `Testes-kLa` como ensaio do operador
+   (sem a decisão automática), preservando a original.
+
+### D-063 · Rampas: tolerâncias de bancada, 1 s entre comandos e manter referências
+
+**Status:** Accepted and implemented · 2026-10-08 · `plans/PACOTE_DECISOES.md` (Q9–Q11)
+
+Tolerâncias de conclusão: temperatura ±0,5 °C, agitação ±5 rpm, vazão ±0,2 L/min, pH ±0,2,
+pressão ±1 kPa; estabilidade 10 s e prazo de confirmação 900 s (banho). A tolerância de pH é só o
+critério de conclusão da rampa, não a histerese do controle. Intervalo mínimo de 1 s entre comandos
+para todos os destinos. Ao cancelar, o padrão continua **manter as últimas referências**.
+
+### D-064 · Evidências de renderização fora da árvore e versão 0.27.0
+
+**Status:** Accepted and implemented · 2026-10-08 · `plans/PACOTE_DECISOES.md` (Q12, Q14, Q15)
+
+Os testes gravam imagens numa pasta temporária; `OPENTEC_UPDATE_EVIDENCE=1` atualiza a evidência
+versionada. Relatórios de teste intermediários não citados por recibos ficam fora do repositório.
+A liberação com kLa abiótico/biótico, receitas autônomas e rampas recebe a tag `v0.27.0`.
+
 ## Open questions
 
 | # | Question | Blocks |

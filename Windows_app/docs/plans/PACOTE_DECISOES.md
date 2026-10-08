@@ -92,7 +92,7 @@ Não há valores universais; o plano exige valores do seu sistema. Referências 
 | Máximo de tentativas no cultivo | |
 | Tempo total máximo sem ar no cultivo (s) | |
 
-**Resposta:**
+**Resposta (08/10/2026):** piso de OD 5 %; queda máxima não necessária; tempo sem ar por tentativa não aplicável (o piso de 5 % encerra o corte); recuperação 600 s; intervalo entre ensaios 30 s de estabilização; tentativas e tempo total no cultivo não aplicáveis. **Aplicado (D-062):** padrões do bloco; o tempo máximo sem ar usa como teto de segurança o tempo máximo de desoxigenação da página kLa (5 min).
 
 ## Q6 · Limites do perfil abiótico
 
@@ -106,7 +106,7 @@ Referência de E1: remoção com N₂ a 100 rpm até alvo de OD de 5–20 %.
 | OD de término da reoxigenação (%) | |
 | Tempo máximo de reoxigenação (min) | |
 
-**Resposta:**
+**Resposta (08/10/2026):** remoção a 700 rpm; alvo de remoção 20 % (o N₂ é cortado em 20 % e o OD acomoda perto de 12 % pela inércia da sonda); desoxigenação máxima 5 min; término da reoxigenação 85 %; reoxigenação máxima 600 s. Determinação ao vivo da curva fica como proposta futura (projeto `06_kLa_Modelo`). **Aplicado:** esses valores são lidos da página Determinar kLa › Configurações; ajuste-os lá uma vez.
 
 ## Q7 · Política de qualidade para aceitar uma réplica automaticamente
 
@@ -117,7 +117,7 @@ Referência de E1: remoção com N₂ a 100 rpm até alvo de OD de 5–20 %.
 
 Motivos que podem gerar nova tentativa automática (marque os aceitos): janela insuficiente, ruído excessivo, condição instável. Padrão atual: nenhum, uma tentativa por réplica.
 
-**Resposta:**
+**Resposta (08/10/2026):** A. **Explicação de "condicional":** o kLa recebe uma de três qualidades. *Válido*: todos os critérios científicos atendidos. *Condicional*: há valor numérico, mas com ressalva registrada — por exemplo janela curta, tempo de resposta da sonda comparável ao processo, Ceq sensível à escolha da janela ou OUR não confirmado de forma independente. *Inconclusivo*: não há estimativa confiável. Com A, só *Válido* conta como réplica; o condicional fica salvo e visível, mas não é selecionado.
 
 ## Q8 · Resultado inconclusivo dentro da receita
 
@@ -128,7 +128,7 @@ Motivos que podem gerar nova tentativa automática (marque os aceitos): janela i
 
 A escolha continua configurável por bloco; a pergunta define o padrão.
 
-**Resposta:**
+**Resposta (08/10/2026):** B — restaurar, registrar advertência e continuar sem resultado. Aplicado como padrão do bloco (D-062).
 
 ## Q9 · Tolerâncias de confirmação das rampas
 
@@ -147,7 +147,7 @@ Uma rampa só termina quando cada destino confirma o alvo final dentro da toler�
 
 Observação: ±2 rpm pode ser estreito para o ruído do servo; o banho pode precisar de mais de 300 s para estabilizar.
 
-**Resposta:**
+**Resposta (08/10/2026):** agitação ±5 rpm, vazão ±0,2 L/min, pH ±0,2 (só critério de conclusão da rampa, não a histerese do controle), pressão ±1 kPa; temperatura mantida em ±0,5 °C. **Explicação do prazo de confirmação:** depois de enviar o valor final, a rampa espera que a *medição do processo* fique dentro da tolerância durante o tempo de estabilidade (10 s). No banho, a medição é a temperatura do **reator**, não a do banho. Se isso não acontecer dentro do prazo, a rampa termina com falha em vez de declarar conclusão. **Aplicado provisoriamente:** 900 s. Responda se prefere outro valor (por exemplo 1200 s).
 
 ## Q10 · Intervalo mínimo entre comandos da rampa
 
@@ -159,7 +159,7 @@ A rampa envia somente mudanças representáveis pelo dispositivo, mas o interval
 | B | 2 s para banho/vazão e 1 s para os demais |
 | C | Manter 100 ms |
 
-**Resposta:**
+**Resposta (08/10/2026):** A — 1 s para todos os destinos. Aplicado (D-063).
 
 ## Q11 · Política padrão ao cancelar uma rampa
 
@@ -168,7 +168,7 @@ A rampa envia somente mudanças representáveis pelo dispositivo, mas o interval
 | A **(atual)** | Manter as últimas referências enviadas |
 | B | Restaurar as referências do início da rampa |
 
-**Resposta:**
+**Resposta (08/10/2026):** A — manter as últimas referências. Padrão mantido.
 
 ## Q12 · Evidências de teste dentro do repositório (A-07)
 
@@ -179,7 +179,7 @@ A cada regressão, os testes de renderização regravam cerca de 60 PNGs version
 | A **(recomendado)** | Gravar em pasta temporária por padrão; atualizar a evidência versionada só com `OPENTEC_UPDATE_EVIDENCE=1` |
 | B | Manter como está |
 
-**Resposta:**
+**Resposta (08/10/2026):** A. Aplicado (D-064). Duplicatas de sincronização do OneDrive (`*-DESKTOP-J4OP7IO*.png`, `*-NOTEBOOK-ACER-ASPIRE*.png`) e relatórios intermediários não citados foram retirados da árvore.
 
 ## Q13 · Perfil sintético para testar o modo simulação (A-08)
 
@@ -190,7 +190,7 @@ Para executar os blocos de kLa na build atual, é preciso abrir com `--kla-test-
 | A **(recomendado)** | Script em `tools/` que lê esse `context.json` e gera perfis abiótico e biótico marcados como simulação; o aplicativo continua sem criar perfis |
 | B | Você prepara os perfis manualmente |
 
-**Resposta:**
+**Resposta (08/10/2026):** A. Com D-061/D-062 os blocos executam na build comum sem perfil importado; o gerador de perfil sintético tornou-se desnecessário.
 
 ## Q14 · Git
 
@@ -200,7 +200,7 @@ Para executar os blocos de kLa na build atual, é preciso abrir com `--kla-test-
    - B: commitar os TRX de evidência em um commit separado;
    - C: outra orientação.
 
-**Resposta:**
+**Resposta (08/10/2026):** 1 — enviar. 2 — avaliar o trabalho paralelo e, se os testes passarem, commitar separadamente. **Aplicado:** BathClient r3.3 (simulações e 135 contratos do Hub aprovados) em commit próprio; os quatro relatórios citados por recibos foram versionados.
 
 ## Q15 · Versão da próxima liberação
 
@@ -211,4 +211,4 @@ A build atual é `0.26.5-dev.N` (MinVer). Ao concluir a bancada, qual tag usar?
 | A **(recomendado)** | `v0.27.0`, com kLa abiótico/biótico, receitas autônomas e rampas |
 | B | `v0.26.5` |
 
-**Resposta:**
+**Resposta (08/10/2026):** A — `v0.27.0`.

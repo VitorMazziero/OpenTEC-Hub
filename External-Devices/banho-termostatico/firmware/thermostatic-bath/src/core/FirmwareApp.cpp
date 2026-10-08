@@ -36,9 +36,10 @@ void firmwareSetup() {
   displayInit();
 
   WiFi.mode(WIFI_AP_STA);
+  WiFi.setAutoReconnect(false);  // A tarefa HubLink controla as tentativas A/B.
   const IPAddress apIp(192, 168, 8, 1);
   WiFi.softAPConfig(apIp, apIp, IPAddress(255, 255, 255, 0));
-  if (WiFi.softAP(BoardConfig::AccessPointSsid, "", 6)) {
+  if (WiFi.softAP(BoardConfig::AccessPointSsid, "", BoardConfig::HubWifiChannel)) {
     Serial.printf("[NET] AP %s em %s (canal 6)\n", BoardConfig::AccessPointSsid, WiFi.softAPIP().toString().c_str());
   } else {
     Serial.println("[NET] AP Start Failed!");

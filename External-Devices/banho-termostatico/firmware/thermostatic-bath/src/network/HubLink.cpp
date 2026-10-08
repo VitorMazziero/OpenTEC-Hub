@@ -15,6 +15,7 @@
 
 namespace {
 constexpr unsigned long HELLO_PERIOD_MS = 30000;
+constexpr unsigned long HELLO_RETRY_MS = 2000;
 constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
 // O Hub invalida a amostra após 5 s. Enquanto integrado, publicar no máximo a
 // cada 2 s deixa margem para jitter sem alterar o período escolhido para a UI
@@ -81,6 +82,7 @@ void sendHubHello() {
     Serial.printf("[HubLink] Hello registrado (%d)\n", code);
   } else {
     g_hubAnnounced = false;
+    if (g_hubFailStreak < 255) g_hubFailStreak++;
     Serial.printf("[HubLink] Hello falhou (%d)\n", code);
   }
 }
@@ -166,6 +168,10 @@ bool pushToHub(const HubSnapshot& s, unsigned long scheduleNow) {
   if (code == 403 || code == 404) {
     g_hubAnnounced = false;
     g_hubOwnerFlag = false;
+    // Registro perdido e diferente de enlace mudo. Revalidar antes de outro push.
+    g_hubFailStreak = 0;
+    Serial.printf("[HubLink] Registro invalidado (%d); refazendo hello.\n", code);
+    return true;
   }
   if (g_hubFailStreak < 255) g_hubFailStreak++;
   Serial.printf("[HubLink] HTTP error: %d (streak=%u)\n", code, g_hubFailStreak);
@@ -174,6 +180,7 @@ bool pushToHub(const HubSnapshot& s, unsigned long scheduleNow) {
 
 void hubTask(void*) {
   unsigned long lastHelloMs = 0;
+  bool helloAttempted = false;
   unsigned long lastStackLogMs = 0;
 
   for (;;) {
@@ -183,8 +190,13 @@ void hubTask(void*) {
     }
 
     const HubSnapshot s = copySnapshot();
-    if (!s.hubEnabled || s.otaInProgress) {
+    if (s.otaInProgress || g_otaInProgress) {
+      vTaskDelay(pdMS_TO_TICKS(100));
+      continue;
+    }
+    if (!s.hubEnabled) {
       checkWifi(false);
+      helloAttempted = false;
       vTaskDelay(pdMS_TO_TICKS(100));
       continue;
     }
@@ -192,11 +204,15 @@ void hubTask(void*) {
     checkWifi(true);
     const unsigned long now = millis();
     if (WiFi.status() == WL_CONNECTED) {
-      if (!g_hubAnnounced || now - lastHelloMs >= HELLO_PERIOD_MS) {
+      const unsigned long helloInterval = g_hubAnnounced ? HELLO_PERIOD_MS : HELLO_RETRY_MS;
+      if (!helloAttempted || now - lastHelloMs >= helloInterval) {
         lastHelloMs = now;
+        helloAttempted = true;
         sendHubHello();
       }
-      pushToHub(s, now);
+      if (g_hubAnnounced && !g_otaInProgress) pushToHub(s, millis());
+    } else {
+      helloAttempted = false;
     }
 
     if (now - lastStackLogMs >= 30000) {

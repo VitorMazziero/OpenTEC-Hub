@@ -1,6 +1,11 @@
 # Banho termostático (Contemp C404 + ESP32-S3)
 
-Versão ativa: **r3.2** (`BathClient r3.2`). Placa de compilação: **ESP32-S3** (`esp32:esp32:esp32s3`).
+Versão ativa: **r3.3** (`BathClient r3.3`). Placa de compilação: **ESP32-S3** (`esp32:esp32:esp32s3`).
+
+Correção de rede (2026-10-07): reconexão direta no canal 6, alternando entre as duas
+Centrais a cada tentativa de 10 s, sem scan; registro antes da telemetria; OTA conserva
+a associação. Compilação e simulações no PC verificadas; reinício da Central e OTA reais
+devem ser conferidos na bancada. Detalhes em `docs/NETWORK_R3_3.md`.
 
 **Estado (2026-09-28): funcionando na bancada.** O nó comanda o SP pelas teclas, lê PV e SP do
 display, e no modo automático reverte mudanças manuais sem reagir a leituras ruins. Resultados,
@@ -61,10 +66,10 @@ relé realmente fechou a linha da tecla.
    sequência completa → caracterização do display.
 
 Leia `docs/CURRENT_STATUS.md` antes de gravar hardware e `docs/PROTOCOL.md` antes de tocar
-em comunicação. O firmware r3.2 envia `/bathData` por uma tarefa própria e aceita comandos
+em comunicação. O firmware r3.3 envia `/bathData` por uma tarefa própria e aceita comandos
 idempotentes por carona. O Hub 10.6 possui o handler e exige `ver=r3.2` ou superior;
 enquanto a cascata do Hub é dona do banho, a API local só aceita `abort`/`stop`;
-`hub_enabled = 0` permanece como padrão seguro.
+`hub_enabled = 1` é o padrão em NVS vazia; uma escolha `0` já salva continua respeitada.
 As mudanças futuras estão detalhadas em `../docs/Planos/IMPLEMENTATION_PLAN_BANHO_HUB.md` e
 `../docs/Planos/IMPLEMENTATION_PLAN_BANHO_WINDOWS_APP.md`. O aplicativo Android próprio do nó
 já está implementado em `apps/flutter`; seu plano/registro é

@@ -29,5 +29,9 @@ Os parâmetros do C404 simulado são hipóteses até o gate G3b; quando a bancad
 a taxa e a cauda reais, ajuste `C404` em `sim.cpp` e os padrões de `hold_*` em `BathConfig`.
 
 Os cenários U/V exercitam o contrato confiável: três entregas do mesmo `cmd_id` produzem uma
-única sequência, e uma ação recusada não avança `g_lastCmdId`. A tarefa FreeRTOS `HubLink` não
-é compilada no host-sim; concorrência, Wi-Fi e stack watermark exigem firmware/bancada.
+única sequência, e uma ação recusada não avança `g_lastCmdId`. A tarefa `HubLink` é
+exercitada em `hub_sim.cpp`, com HTTP, tempo e FreeRTOS simulados: registro antes do
+push, recuperação de 403, retries limitados e pausa durante OTA.
+`network_sim.cpp` compila o `NetworkManager.cpp` real e verifica timeout/alternância A/B,
+reconexão, watchdog sem desligar o rádio, OTA, desabilitação/reabilitação e rollover.
+Ambos rodam em `build.cmd`; concorrência real, rádio, DHCP e stack watermark exigem bancada.

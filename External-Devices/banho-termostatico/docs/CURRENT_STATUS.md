@@ -1,6 +1,11 @@
 # Estado atual — Banho termostático
 
-**Atualizado:** 2026-09-28
+**Atualizado:** 2026-10-07 (software); última bancada registrada: 2026-09-28
+
+Firmware ativo r3.3: correções de reconexão, registro e preservação da ligação OTA
+compiladas e verificadas em simulações no PC. Ver `NETWORK_R3_3.md` para alterações,
+comando de atualização direta pelo AP e validação física pendente. Os resultados
+abaixo descrevem a bancada r3.2 e não comprovam o comportamento físico da r3.3.
 
 ## Conclusão (2026-09-28)
 

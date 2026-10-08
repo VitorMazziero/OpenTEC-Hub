@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Cross-firmware guards required by the Hub external-bath control path."""
 import pathlib
+import re
 import unittest
 
 
@@ -16,7 +17,10 @@ class BathNodeIntegrationTests(unittest.TestCase):
         board = self.read("config/BoardConfig.h")
         hub_http = (REPO / "ESP32S3-HUB/ESP32S3-HUB/src/network/HttpServer.h").read_text(encoding="utf-8")
         coordinator = (REPO / "ESP32S3-HUB/ESP32S3-HUB/src/control/BathCommandCoordinator.cpp").read_text(encoding="utf-8")
-        self.assertIn('FirmwareVersion = "r3.2"', board)
+        version = re.search(r'FirmwareVersion = "r(\d+)\.(\d+)"', board)
+        self.assertIsNotNone(version)
+        self.assertEqual(int(version[1]), 3)
+        self.assertGreaterEqual(int(version[2]), 2)
         self.assertIn("bathNodeVersionSupported(registeredBath.version)", hub_http)
         self.assertIn("return minor >= 2;", coordinator)
 
@@ -46,7 +50,11 @@ class BathNodeIntegrationTests(unittest.TestCase):
 
     def test_reconnect_requires_new_hello_for_ip_binding(self):
         network = self.read("network/NetworkManager.cpp")
-        self.assertIn("WiFi.status() != WL_CONNECTED) g_hubAnnounced = false", network)
+        connected = network.index("if (WiFi.status() == WL_CONNECTED) {")
+        deadline = network.index("static_cast<int32_t>(now - g_wifiNextActionMs)")
+        self.assertIn("g_hubAnnounced = false;", network[connected:deadline])
+        link = self.read("network/HubLink.cpp")
+        self.assertIn("if (g_hubAnnounced && !g_otaInProgress) pushToHub", link)
 
 
 if __name__ == "__main__":

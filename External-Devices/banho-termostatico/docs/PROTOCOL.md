@@ -1,8 +1,8 @@
 # Protocolo — Banho termostático (`banho-termostatico`)
 
-**Versão do firmware:** `r3.2` (`BathClient r3.2`); API local compatível com r2, exceto a recusa `hub_owned` (§3.3)
+**Versão do firmware:** `r3.3` (`BathClient r3.3`); API local compatível com r2, exceto a recusa `hub_owned` (§3.3)
 **Rede:** AP `Banho Termostatico` (aberto, canal 6), `192.168.8.1`; STA para o Hub opcional
-**Compatibilidade com Hub:** Hub `10.6.0-dev` ou superior (§6); `hub_enabled = 0` por padrão
+**Compatibilidade com Hub:** Hub `10.6.0-dev` ou superior (§6); `hub_enabled = 1` em NVS vazia; escolha salva preservada
 
 ---
 
@@ -186,7 +186,7 @@ de responder, portanto um Hub desligado nunca prende o banho.
 | `sp_source` | 0 | 0–1 | 0 sombra, 1 display |
 | `sense_enabled` | 0 | 0–1 | Leitura das teclas |
 | `sense_mask` | 6 | 0–15 | Linhas de sensoriamento ligadas: bit0 `*`, bit1 `▲`, bit2 `▼`, bit3 `ENTER` (6 = só as setas, montagem atual) |
-| `hub_enabled` | 0 | 0–1 | STA + push para o Hub |
+| `hub_enabled` | 1 | 0–1 | STA + push para o Hub; valor salvo preservado |
 | `disp_mode` | 1 | 0–1 | Leitor do display: 0 = linhas de dígito (ISR em `1A…1D`); 1 = janelas de ~1 ms contadas a partir das bordas de `2DISP`, sem linhas de dígito (C404 deste banho, `HARDWARE.md` §3) |
 | `disp_slot_us` | 1023 | 200–5000 | Duração de uma janela de dígito no modo 1 (medido ~1020–1025 µs) |
 | `disp_sp_bank` | 0 | 0–1 | Nível de `2DISP` em que o display do SP é varrido, modo 1 |
@@ -253,5 +253,7 @@ Resposta `200` iniciada por `{` é tratada como comando por carona. Reentrega do
 `cmd_id` responde `duplicate` sem reaplicar toques. Comando recusado não avança
 `ack_cmd_id`, portanto a caixa confiável do Hub continua pendente.
 
-O Hub 10.6 aceita somente nós `r3.2` ou superiores; manter `hub_enabled=0` até os ensaios
-integrados H08. Comandos que o Hub pode entregar: `setpoint`, `mode`, `sync_sp`, `stop`.
+O Hub 10.6 aceita somente nós `r3.2` ou superiores. A r3.3 habilita a integração em NVS
+vazia e preserva uma escolha `hub_enabled=0` já salva. Ensaios integrados H08 continuam
+pendentes; correções de reconexão e validação de software em `NETWORK_R3_3.md`.
+Comandos que o Hub pode entregar: `setpoint`, `mode`, `sync_sp`, `stop`.

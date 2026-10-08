@@ -19,3 +19,11 @@ if not exist build mkdir build
 cl /nologo /EHsc /std:c++17 /W3 /utf-8 /I stubs /I "%SRC%" /Fo:build\ sim.cpp "%SRC%\setpoint\SetpointManager.cpp" "%SRC%\setpoint\SetpointGuard.cpp" "%SRC%\keypad\KeyPresser.cpp" "%SRC%\keypad\KeySense.cpp" "%SRC%\protocol\ConfigCodec.cpp" "%SRC%\core\AppContext.cpp" "%SRC%\core\EventLog.cpp" /Fe:build\sim.exe
 if errorlevel 1 exit /b 1
 build\sim.exe %*
+if errorlevel 1 exit /b 1
+cl /nologo /EHsc /std:c++17 /W3 /utf-8 /I stubs /I "%SRC%" /Fo:build\ network_sim.cpp "%SRC%\network\NetworkManager.cpp" "%SRC%\core\AppContext.cpp" /Fe:build\network_sim.exe
+if errorlevel 1 exit /b 1
+build\network_sim.exe
+if errorlevel 1 exit /b 1
+cl /nologo /EHsc /std:c++17 /W3 /utf-8 /I stubs /I "%SRC%" /Fo:build\ hub_sim.cpp "%SRC%\core\AppContext.cpp" /Fe:build\hub_sim.exe
+if errorlevel 1 exit /b 1
+build\hub_sim.exe

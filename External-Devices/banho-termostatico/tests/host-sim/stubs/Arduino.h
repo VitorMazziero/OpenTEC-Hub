@@ -72,3 +72,5 @@ struct SerialClass {
   void println() { if (g_serialVerbose) ::printf("\n"); }
 };
 extern SerialClass Serial;
+
+template<class T> T min(T a, T b) { return a < b ? a : b; }

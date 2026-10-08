@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <WebServer.h>
 
-enum WifiReconnectState { WF_IDLE, WF_SCANNING, WF_CONNECTING };
+enum WifiReconnectState { WF_IDLE, WF_CONNECTING };
 
 enum Key : uint8_t { KEY_STAR = 0, KEY_UP = 1, KEY_DOWN = 2, KEY_ENTER = 3, KEY_COUNT = 4 };
 
@@ -34,7 +34,7 @@ struct BathConfig {
   uint8_t  spSource     = SP_SOURCE_SHADOW;
   uint8_t  senseEnabled = 0;
   uint8_t  senseMask    = 0x06;  // teclas com linha de sensoriamento ligada: bit0 *, bit1 ▲, bit2 ▼, bit3 ENTER
-  uint8_t  hubEnabled   = 0;
+  uint8_t  hubEnabled   = 1;     // NVS preserva a escolha explicita de modo local.
   // Segmento aceso = nivel LOW. Padrao 0: no C404 deste banho o pad do segmento vai ao
   // GPIO so por 20 k em serie e o aceso chega em ~2,0-2,4 V (HIGH).
   uint8_t  dispSegLow   = 0;

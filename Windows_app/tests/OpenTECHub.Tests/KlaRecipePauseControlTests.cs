@@ -6,6 +6,26 @@ namespace OpenTECHub.Tests;
 public sealed class KlaRecipePauseControlTests
 {
     [Fact]
+    public void PreparedEpochCannotDispatchAfterPauseAndFastResume()
+    {
+        using var pause = new KlaRecipePauseControl();
+        CancellationToken epoch = default;
+        pause.TryDispatch(token => epoch = token);
+        pause.Pause();
+        pause.Resume();
+        Assert.False(pause.TryDispatch(epoch, () => Assert.Fail("Stale prepared scope dispatched")));
+        var invocation = Guid.NewGuid();
+        var request = Guid.NewGuid();
+        var evidence = pause.ReadPause(epoch, invocation, request)!;
+        Assert.Equal(invocation, evidence.InvocationId);
+        Assert.Equal(request, evidence.RequestId);
+        Assert.Equal(evidence.PauseId, pause.ReadPause(epoch, invocation, request)!.PauseId);
+        CancellationToken next = default;
+        pause.TryDispatch(token => next = token);
+        Assert.Null(pause.ReadPause(next, invocation, request));
+    }
+
+    [Fact]
     public void CancellationCallbackMayDisposeController()
     {
         using var pause = new KlaRecipePauseControl();

@@ -33,7 +33,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
     }
 
     public async Task<KlaRecipeResult> ExecuteAsync(KlaRecipeRequest template, KlaTestDocument preparedDocument,
-        CancellationToken cancellation = default)
+        CancellationToken cancellation = default, KlaRecipePauseControl? pause = null)
     {
         template = RecipeContractSerializer.Snapshot(template);
         var document = JsonSerializer.Deserialize<KlaTestDocument>(JsonSerializer.Serialize(preparedDocument))!;
@@ -55,6 +55,8 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
         var began = time.GetTimestamp();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(template.Retry.MaximumBlockSeconds), time);
         using var acquisition = CancellationTokenSource.CreateLinkedTokenSource(cancellation, deadline.Token);
+        using var ownedPause = pause is null ? new KlaRecipePauseControl(time) : null;
+        var pauseControl = pause ?? ownedPause!;
         var attempts = new List<KlaRecipeAttemptResult>();
         var pulses = new List<KlaAssayApiRequest>();
         long? lastEnd = null;
@@ -79,12 +81,24 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
 
         while (true)
         {
+            if (pauseControl.IsPaused)
+            {
+                preparer.ReleasePendingPreparation();
+                SetProgress(KlaRecipeProgressStage.Paused);
+                IsWaiting = true;
+                try { await pauseControl.WaitUntilResumedAsync(acquisition.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (acquisition.IsCancellationRequested) { }
+                finally { IsWaiting = false; }
+            }
             if (acquisition.IsCancellationRequested || Elapsed() >= template.Retry.MaximumBlockSeconds || time.GetUtcNow() >= template.AcquisitionDeadlineUtc)
                 return await Finish(cancellation.IsCancellationRequested ? KlaRecipeTerminalStatus.Cancelled : KlaRecipeTerminalStatus.Inconclusive,
                     "Execução interrompida ou orçamento de tempo esgotado.").ConfigureAwait(false);
             var next = KlaRecipeSequence.Next(template, attempts);
             if (next.TerminalStatus is { } status) return await Finish(status).ConfigureAwait(false);
             var item = CurrentItem = next.Next!;
+            CancellationToken epoch = default;
+            if (!pauseControl.TryDispatch(token => epoch = token)) continue;
+            using var pulseCancellation = CancellationTokenSource.CreateLinkedTokenSource(acquisition.Token, epoch);
             var candidate = KlaRecipePulseMapper.Create(template, router.Capabilities.InstallationId,
                 item.ConditionId, item.ReplicateNumber, item.AttemptNumber, time.GetUtcNow());
             var budget = api.ReadCultivationBudget(candidate);
@@ -101,7 +115,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
                     return await Finish(KlaRecipeTerminalStatus.Inconclusive, "Intervalo mínimo excede o tempo restante.").ConfigureAwait(false);
                 IsWaiting = true;
                 SetProgress(KlaRecipeProgressStage.WaitingBetweenAttempts);
-                try { await Task.Delay(TimeSpan.FromSeconds(wait), time, acquisition.Token).ConfigureAwait(false); }
+                try { await Task.Delay(TimeSpan.FromSeconds(wait), time, pulseCancellation.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { }
                 finally { IsWaiting = false; }
                 continue; // Re-read global limits before reacquiring any actuator.
@@ -113,7 +127,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
             {
                 SetProgress(KlaRecipeProgressStage.ReservingResources);
                 var current = store.LoadTest(document.FolderName) ?? throw new InvalidOperationException("Sessão comum ausente.");
-                scope = await preparer.PrepareAsync(template, item, current, pulseDeadline, acquisition.Token).ConfigureAwait(false);
+                scope = await preparer.PrepareAsync(template, item, current, pulseDeadline, pulseCancellation.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) { continue; }
             catch (Exception error) { return await Finish(KlaRecipeTerminalStatus.OperationalFailure, error.Message).ConfigureAwait(false); }
@@ -122,14 +136,23 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
             KlaAssayApiObservation? observation = null;
             Exception? executionError = null;
             bool created = false;
+            bool skipped = false;
             try
             {
                 using var registration = router.Register(scope.Request, scope.Execution);
                 try
                 {
-                    api.Create(scope.Request); created = true;
-                    await api.StartAsync(scope.Request.RequestId, acquisition.Token).ConfigureAwait(false);
-                    observation = await api.WaitForCompletionAsync(scope.Request.RequestId).ConfigureAwait(false);
+                    Task<KlaAssayApiObservation>? starting = null;
+                    skipped = !pauseControl.TryDispatch(epoch, () =>
+                    {
+                        api.Create(scope.Request); created = true;
+                        starting = api.StartAsync(scope.Request.RequestId, pulseCancellation.Token);
+                    });
+                    if (!skipped)
+                    {
+                        await starting!.ConfigureAwait(false);
+                        observation = await api.WaitForCompletionAsync(scope.Request.RequestId).ConfigureAwait(false);
+                    }
                 }
                 catch (Exception error)
                 {
@@ -145,6 +168,11 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
                 try { scope.Dispose(); }
                 catch (Exception error) { executionError = error; restored = false; }
                 Volatile.Write(ref _active, null);
+            }
+            if (skipped)
+            {
+                if (!restored) return await Finish(KlaRecipeTerminalStatus.RestorationFailure, executionError?.Message).ConfigureAwait(false);
+                continue;
             }
             lastEnd = time.GetTimestamp();
             SetProgress(KlaRecipeProgressStage.RecordingDecision);
@@ -165,8 +193,11 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
             {
                 var remaining = api.ReadCultivationBudget(scope.Request).RemainingAttempts;
                 var elapsed = Elapsed();
+                var pauseReceipt = observation.State == KlaAssayApiState.Cancelled && !acquisition.IsCancellationRequested
+                    ? pauseControl.ReadPause(epoch, template.Context.InvocationId, scope.Request.RequestId) : null;
                 var selection = new KlaRecipeSelectionCheckpoint { Observation = observation,
-                    Decision = KlaRecipeAttemptDecider.Decide(observation, attempts, remaining, elapsed, time.GetUtcNow()),
+                    Decision = KlaRecipeAttemptDecider.Decide(observation, attempts, remaining, elapsed, time.GetUtcNow(), pauseReceipt),
+                    Pause = pauseReceipt,
                     History = attempts.ToImmutableArray(), RemainingCultivationAttempts = remaining, ElapsedBlockSeconds = elapsed };
                 await store.PersistRecipeSelectionAsync(selection).ConfigureAwait(false);
                 attempts.Add(selection.Decision);

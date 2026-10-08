@@ -5,7 +5,7 @@ namespace OpenTECHub.Services.KlaTesting;
 public enum KlaRecipeProgressStage
 {
     Preparing, WaitingCultivationInterval, ReservingResources, Acquiring,
-    Recovering, WaitingBetweenAttempts, RecordingDecision, RecordingResult
+    Recovering, WaitingBetweenAttempts, RecordingDecision, RecordingResult, Paused
 }
 
 public sealed record KlaRecipeOrchestratorProgress(KlaRecipeProgressStage Stage, RunPhase? Phase,

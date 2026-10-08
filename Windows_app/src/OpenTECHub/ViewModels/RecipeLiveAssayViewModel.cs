@@ -15,6 +15,7 @@ public sealed record RecipeLiveAssayViewModel(KlaRecipeProgress Progress)
         KlaRecipeProgressStage.Recovering => "Restaurando o estado anterior · retorno ainda em verificação",
         KlaRecipeProgressStage.RecordingDecision => "Confirmando a gravação da tentativa e da decisão",
         KlaRecipeProgressStage.RecordingResult => "Confirmando a gravação do resultado da invocação",
+        KlaRecipeProgressStage.Paused => "Ensaio pausado; controle devolvido ao cultivo",
         KlaRecipeProgressStage.Acquiring => PhaseText(Progress.Phase),
         _ => "Preparando o ensaio"
     };

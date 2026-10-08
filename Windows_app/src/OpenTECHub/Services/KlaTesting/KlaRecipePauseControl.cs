@@ -1,8 +1,10 @@
 namespace OpenTECHub.Services.KlaTesting;
 
 /// <summary>Invocation-local pause epochs. Resume opens future dispatches; it never revives an old epoch.</summary>
-public sealed class KlaRecipePauseControl : IDisposable
+public sealed class KlaRecipePauseControl(TimeProvider? time = null) : IDisposable
 {
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+    private readonly Dictionary<CancellationToken, (Guid Id, DateTimeOffset Requested)> _pausedEpochs = [];
     private readonly object _gate = new();
     private readonly List<CancellationTokenSource> _epochs = [];
     private CancellationTokenSource _epoch = new();
@@ -23,6 +25,7 @@ public sealed class KlaRecipePauseControl : IDisposable
             _paused = true;
             _resumed = new(TaskCreationOptions.RunContinuationsAsynchronously);
             epoch = _epoch;
+            _pausedEpochs.Add(epoch.Token, (Guid.NewGuid(), _time.GetUtcNow()));
             _cancelling++;
         }
         // Callbacks may acquire resources or inspect this controller: never invoke them under its lock.
@@ -76,6 +79,27 @@ public sealed class KlaRecipePauseControl : IDisposable
             if (_paused) return false;
             dispatch(_epoch.Token);
             return true;
+        }
+    }
+
+    public bool TryDispatch(CancellationToken expectedEpoch, Action dispatch)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_paused || expectedEpoch != _epoch.Token) return false;
+            dispatch();
+            return true;
+        }
+    }
+
+    public KlaRecipePauseReceipt? ReadPause(CancellationToken epoch, Guid invocationId, Guid requestId)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _pausedEpochs.TryGetValue(epoch, out var paused)
+                ? new(paused.Id, invocationId, requestId, paused.Requested) : null;
         }
     }
 

@@ -11,7 +11,7 @@ namespace OpenTECHub.Tests;
 
 public sealed class KlaRecipeOrchestratorTests : IDisposable
 {
-    public enum Scenario { Normal, Retry, Exhaust, CancelDuringWait, CancelDuringAssay, BlockDeadline, ExposureBudget, RefuseConditional, DuplicateConditions, SelectionWriteFailure, ResultWriteFailure }
+    public enum Scenario { Normal, Retry, Exhaust, CancelDuringWait, CancelDuringAssay, BlockDeadline, ExposureBudget, RefuseConditional, DuplicateConditions, SelectionWriteFailure, ResultWriteFailure, PauseDuringAssay, PauseFastResume, PauseDeadline }
     private readonly string _root = Path.Combine(Path.GetTempPath(), "recipe-matrix-" + Guid.NewGuid().ToString("N"));
     private sealed class Producer(Action onResume) : IRecipeResourceProducer
     {
@@ -56,6 +56,12 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
     [InlineData(KlaAssayProtocol.Biotic, KlaCaptureMode.Single, Scenario.SelectionWriteFailure)]
     [InlineData(KlaAssayProtocol.Abiotic, KlaCaptureMode.Single, Scenario.ResultWriteFailure)]
     [InlineData(KlaAssayProtocol.Biotic, KlaCaptureMode.Single, Scenario.ResultWriteFailure)]
+    [InlineData(KlaAssayProtocol.Abiotic, KlaCaptureMode.Single, Scenario.PauseDuringAssay)]
+    [InlineData(KlaAssayProtocol.Biotic, KlaCaptureMode.Single, Scenario.PauseDuringAssay)]
+    [InlineData(KlaAssayProtocol.Abiotic, KlaCaptureMode.Multiple, Scenario.PauseFastResume)]
+    [InlineData(KlaAssayProtocol.Biotic, KlaCaptureMode.Multiple, Scenario.PauseFastResume)]
+    [InlineData(KlaAssayProtocol.Abiotic, KlaCaptureMode.Single, Scenario.PauseDeadline)]
+    [InlineData(KlaAssayProtocol.Biotic, KlaCaptureMode.Single, Scenario.PauseDeadline)]
     public async Task Real_matrix_runs_restores_recaptures_and_persists_without_dialogs(KlaAssayProtocol protocol, KlaCaptureMode mode, Scenario scenario)
     {
         using var fixture = new RecipeAssayRestorationTests.Fixture(virtualTimers: true);
@@ -99,6 +105,9 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
             }
         };
         if (scenario == Scenario.RefuseConditional) request = request with { Quality = request.Quality with { AllowedConditionalReasonCodes = [] } };
+        if (scenario is Scenario.PauseDuringAssay or Scenario.PauseFastResume or Scenario.PauseDeadline)
+            request = request with { Retry = request.Retry with { MaximumAttemptsPerCultivation = 10,
+                MaximumCumulativeGasOffSecondsPerCultivation = 1800 } };
         if (scenario == Scenario.ExposureBudget) request = request with { Retry = request.Retry with { MaximumCumulativeGasOffSecondsPerCultivation = 100 } };
         if (scenario == Scenario.BlockDeadline) request = request with { Retry = request.Retry with { MaximumBlockSeconds = 30 } };
         if (scenario == Scenario.CancelDuringWait) request = request with { Retry = request.Retry with { MinimumInterAssaySeconds = 10 },
@@ -124,10 +133,28 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
         var api = new KlaAssayApi(Path.Combine(_root, "api.json"), router, clock);
         var orchestrator = new KlaRecipeOrchestrator(api, router, preparer, store, clock);
         using var cancellation = new CancellationTokenSource();
-        var execution = orchestrator.ExecuteAsync(request, document, cancellation.Token);
-        bool injected = false;
+        using var pause = new KlaRecipePauseControl(clock);
+        var execution = orchestrator.ExecuteAsync(request, document, cancellation.Token, pause);
+        bool injected = false, pauseInjected = false, pauseObserved = false;
         void InjectFailure(KlaRecipeOrchestrator current)
         {
+            if (scenario is Scenario.PauseDuringAssay or Scenario.PauseFastResume or Scenario.PauseDeadline)
+            {
+                if (!pauseInjected && current.CurrentPhase == RunPhase.Reoxygenating)
+                {
+                    pauseInjected = true;
+                    pause.Pause();
+                    if (scenario == Scenario.PauseFastResume) pause.Resume();
+                }
+                if (current.ReadProgress().Stage == KlaRecipeProgressStage.Paused && !pauseObserved)
+                {
+                    pauseObserved = true;
+                    Assert.False(producer.Suspended);
+                    Assert.Equal(1, current.ReadProgress().FinishedAttempts);
+                    if (scenario == Scenario.PauseDeadline) clock.Advance(TimeSpan.FromSeconds(1801));
+                    else pause.Resume();
+                }
+            }
             if (injected || current.CurrentPhase != RunPhase.Reviewing) return;
             if (scenario == Scenario.SelectionWriteFailure)
             {
@@ -150,7 +177,7 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
             Assert.Equal(KlaRecipeProgressStage.RecordingResult, progress.Stage);
             Assert.Equal(result.Attempts.Length, progress.FinishedAttempts);
             Assert.Equal(result.Attempts.Count(a => a.Decision == KlaAutomaticDecision.Selected), progress.SelectedAttempts);
-            var succeeds = scenario is Scenario.Normal or Scenario.Retry or Scenario.DuplicateConditions;
+            var succeeds = scenario is Scenario.Normal or Scenario.Retry or Scenario.DuplicateConditions or Scenario.PauseDuringAssay or Scenario.PauseFastResume;
             var writeFailure = scenario is Scenario.SelectionWriteFailure or Scenario.ResultWriteFailure;
             var expectedStatus = scenario is Scenario.CancelDuringWait or Scenario.CancelDuringAssay
                 ? KlaRecipeTerminalStatus.Cancelled : writeFailure ? KlaRecipeTerminalStatus.PersistenceFailure : KlaRecipeTerminalStatus.Inconclusive;
@@ -158,7 +185,18 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
                 : result.Status == expectedStatus,
                 $"{result.Status}: {result.Reason}; " + string.Join(";", result.Attempts.Select(a => string.Join(",", a.ReasonCodes))));
             result.ValidateAgainst(request);
-            var expected = succeeds ? request.Definition.Conditions.Sum(c => c.RequestedReplicates) + (scenario == Scenario.Retry ? 1 : 0)
+            if (scenario is Scenario.PauseDuringAssay or Scenario.PauseFastResume or Scenario.PauseDeadline)
+            {
+                Assert.True(pauseInjected);
+                if (scenario != Scenario.PauseFastResume) Assert.True(pauseObserved);
+                Assert.Equal(KlaAutomaticDecision.Retry, result.Attempts[0].Decision);
+                Assert.Contains("recipe_pause", result.Attempts[0].ReasonCodes);
+                var checkpoint = store.ReadRecipeSelection(document.FolderName, result.Attempts[0].RunFolder, result.Attempts[0].AttemptId)!;
+                Assert.NotNull(checkpoint.Pause);
+                Assert.Equal(request.Context.InvocationId, checkpoint.Pause.InvocationId);
+                Assert.True(result.Pulses[0].RecipePulse!.Invocation.AcquisitionDeadlineUtc <= request.AcquisitionDeadlineUtc);
+            }
+            var expected = succeeds ? request.Definition.Conditions.Sum(c => c.RequestedReplicates) + (scenario is Scenario.Retry or Scenario.PauseDuringAssay or Scenario.PauseFastResume ? 1 : 0)
                 : scenario == Scenario.Exhaust ? 2 : 1;
             Assert.Equal(scenario == Scenario.SelectionWriteFailure ? 0 : expected, result.Attempts.Length); Assert.Equal(expected, producer.Resumes);
             Assert.Equal(expected, producer.Pauses); Assert.False(producer.Suspended);

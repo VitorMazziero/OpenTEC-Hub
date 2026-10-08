@@ -65,13 +65,25 @@ public sealed partial class RecipeEngine
 
     private bool TransitionPauseState(RecipeRunState expected, RecipeRunState next, bool openGate)
     {
-        lock (_lock)
+        lock (_autonomousPauseTransitionGate)
         {
-            if (State != expected) return false;
-            // Completion uses the same lock: the awakened flow cannot be overwritten by Resume.
-            if (openGate) _pauseGate.Set(); else _pauseGate.Reset();
-            State = next;
-            PausePeriodicGroups(!openGate);
+            KlaTesting.KlaRecipePauseControl[] controls;
+            lock (_lock)
+            {
+                if (State != expected) return false;
+                // Completion uses the same lock: the awakened flow cannot be overwritten by Resume.
+                if (openGate) _pauseGate.Set(); else _pauseGate.Reset();
+                State = next;
+                PausePeriodicGroups(!openGate);
+                // Periodic slots have their own cancellation/skip semantics, never resume the old slot.
+                controls = _klaWork.Values.Where(w => !_graphPeriodicBindings.Values.Any(b => b.TargetNodeId == w.NodeId))
+                    .Select(w => w.PauseControl).OfType<KlaTesting.KlaRecipePauseControl>().Distinct().ToArray();
+            }
+            // Acquisition callbacks can inspect engine/resources. Do not invoke them under the state lock.
+            foreach (var control in controls)
+            {
+                if (openGate) control.Resume(); else control.Pause();
+            }
         }
         StateChanged?.Invoke();
         return true;

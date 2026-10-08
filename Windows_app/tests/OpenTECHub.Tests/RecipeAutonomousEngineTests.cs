@@ -10,6 +10,97 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeAutonomousEngineTests
 {
+    [Fact]
+    public async Task PeriodicTargetKeepsSlotSkippingInsteadOfIndependentMatrixResume()
+    {
+        var recipe = Recipe(true); var clock = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
+        var device = new RecordingDeviceService(); using var arbiter = new CommandArbiter(device, clock);
+        var pause = new KlaRecipePauseControl(clock);
+        var records = new List<RecipePeriodicSlotRecord>();
+        var source = new Source { Build = (document, id) =>
+        {
+            var plan = Plan(document, id, (invocation, _) => Task.FromResult(Result(document, id, invocation)), records);
+            return plan with { Assays = [plan.Assays[0] with { PauseControl = pause }] };
+        } };
+        await using var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(), clock, autonomousWorkSource: source);
+        await engine.StartAsync(recipe);
+        device.PushTelemetry(new SensorSnapshot { OxygenCalibrated = 25, OxygenRaw = 25 });
+        await Until(() => engine.CascadeTermsFor("cascade") is not null && clock.PendingTimers > 0);
+        engine.Pause();
+        Assert.False(pause.IsPaused);
+        clock.Advance(TimeSpan.FromSeconds(6));
+        await Until(() => records.Count(r => r.State == RecipePeriodicSlotState.Skipped) == 2);
+        Assert.Empty(engine.AutonomousResults);
+        engine.Resume();
+        clock.Advance(TimeSpan.FromSeconds(4));
+        await Until(() => engine.AutonomousResults.Count == 1);
+        Assert.Equal(2, Assert.Single(records.Where(r => r.State == RecipePeriodicSlotState.Started)).Invocation.SlotIndex);
+        recipe.Node("gate")!.Set("operacao", nameof(ManualGateOperation.Pass));
+        device.PushTelemetry(new SensorSnapshot { OxygenCalibrated = 25, OxygenRaw = 25 });
+        await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IndependentAssayPauseAndResumeReachTheSameWorkAndDisposalAwaitsIt(bool stopWhilePaused)
+    {
+        var recipe = Recipe(false); var clock = new TestClock(DateTimeOffset.UnixEpoch);
+        var device = new RecordingDeviceService(); using var arbiter = new CommandArbiter(device, clock);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recovered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pause = new KlaRecipePauseControl(clock);
+        var calls = 0;
+        var source = new Source { Build = (document, id) =>
+        {
+            var plan = Plan(document, id, async (_, ct) =>
+            {
+                Interlocked.Increment(ref calls);
+                CancellationToken epoch = default;
+                pause.TryDispatch(token => epoch = token);
+                started.SetResult();
+                using var pulse = CancellationTokenSource.CreateLinkedTokenSource(ct, epoch);
+                try { await Task.Delay(Timeout.Infinite, pulse.Token); }
+                catch (OperationCanceledException) { }
+                recovered.SetResult();
+                try
+                {
+                    await pause.WaitUntilResumedAsync(ct);
+                    await finish.Task.WaitAsync(ct);
+                }
+                catch (OperationCanceledException) { }
+                return Result(document, id, null, ct.IsCancellationRequested
+                    ? KlaRecipeTerminalStatus.Cancelled : KlaRecipeTerminalStatus.Inconclusive);
+            });
+            return plan with { Assays = [plan.Assays[0] with { PauseControl = pause }] };
+        } };
+        var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(), clock, autonomousWorkSource: source);
+        try
+        {
+            await engine.StartAsync(recipe);
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            engine.Pause();
+            await recovered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(pause.IsPaused);
+            Assert.Equal(RecipeRunState.Paused, engine.State);
+            Assert.False(engine.Completion.IsCompleted);
+            if (stopWhilePaused) await engine.StopAsync("stop during pause");
+            else
+            {
+                engine.Resume();
+                Assert.False(pause.IsPaused);
+                finish.SetResult();
+                await engine.Completion.WaitAsync(TimeSpan.FromSeconds(3));
+            }
+            Assert.Equal(1, calls);
+            Assert.Single(engine.AutonomousResults);
+            Assert.Equal(stopWhilePaused ? RecipeRunState.Stopped : RecipeRunState.Completed, engine.State);
+        }
+        finally { finish.TrySetResult(); await engine.DisposeAsync(); }
+        Assert.Throws<ObjectDisposedException>(() => pause.TryDispatch(_ => { }));
+    }
+
     private sealed class Source : IRecipeAutonomousWorkSource
     {
         public Func<RecipeDocument, Guid, RecipeAutonomousExecutionPlan>? Build { get; init; }

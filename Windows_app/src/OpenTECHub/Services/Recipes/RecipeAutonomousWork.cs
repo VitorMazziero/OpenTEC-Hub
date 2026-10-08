@@ -3,7 +3,8 @@ using OpenTECHub.Services.KlaTesting;
 namespace OpenTECHub.Services.Recipes;
 
 public sealed record RecipeKlaWork(string NodeId, KlaAssayExecutionCapabilities Capabilities,
-    Func<PeriodicBlockInvocation?, CancellationToken, Task<KlaRecipeResult>> Execute);
+    Func<PeriodicBlockInvocation?, CancellationToken, Task<KlaRecipeResult>> Execute,
+    KlaRecipePauseControl? PauseControl = null);
 
 public sealed record RecipePeriodicDefinition(PeriodicBlockInvocation Identity, TimeSpan DispatchTolerance,
     Func<RecipePeriodicSlotRecord, Task> Record);

@@ -14,6 +14,17 @@ public sealed partial class RecipeEngine
     private readonly Dictionary<string, RecipeCascadePeriodicGroup> _graphSchedulerGroups = [];
     private readonly List<KlaRecipeResult> _autonomousResults = [];
     private string _autonomousRecipeHash = "";
+    private readonly object _autonomousPauseTransitionGate = new();
+
+    private void DisposeAutonomousPauseControls()
+    {
+        lock (_autonomousPauseTransitionGate)
+        {
+            KlaRecipePauseControl[] controls;
+            lock (_lock) controls = _klaWork.Values.Select(w => w.PauseControl).OfType<KlaRecipePauseControl>().Distinct().ToArray();
+            foreach (var control in controls) control.Dispose();
+        }
+    }
 
     public IReadOnlyList<KlaRecipeResult> AutonomousResults
     {
@@ -22,6 +33,7 @@ public sealed partial class RecipeEngine
 
     private IReadOnlyList<RecipePeriodicWork> PrepareAutonomousWork(RecipeDocument recipe)
     {
+        DisposeAutonomousPauseControls();
         _klaWork.Clear(); _klaFailurePolicies.Clear(); _graphPeriodicBindings.Clear();
         lock (_lock) { _autonomousResults.Clear(); _graphSchedulerGroups.Clear(); }
         if (!recipe.Nodes.Any(n => n.Type is NodeType.KlaAssay or NodeType.Periodic)) return [];

@@ -93,7 +93,8 @@ public interface IRecipeEngine : IDisposable
     /// <summary>Validates, claims every actuator and begins executing the recipe.</summary>
     Task StartAsync(RecipeDocument recipe, bool resetLoopsBeforeStart = false, CancellationToken cancellationToken = default);
 
-    /// <summary>Pauses execution between blocks. In-flight actuation continues holding.</summary>
+    /// <summary>Pauses flow; an independent kLa matrix recovers its pulse before waiting for resume.
+    /// Periodic slots cancel and missed slots are skipped. Recovery progress remains observable.</summary>
     void Pause();
 
     /// <summary>Resumes a paused recipe.</summary>

@@ -333,5 +333,8 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
         _arbiter.OwnershipRevoked -= OnOwnershipRevoked;
         _cts?.Cancel();
         _pauseGate.Dispose();
+        if (_run.IsCompleted) DisposeAutonomousPauseControls();
+        else _ = _run.ContinueWith(_ => DisposeAutonomousPauseControls(), CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 }

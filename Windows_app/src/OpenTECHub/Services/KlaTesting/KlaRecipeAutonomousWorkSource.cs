@@ -100,9 +100,10 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
         {
             var configuration = RecipeAutonomousBlockConfiguration.ReadKla(node);
             var profile = profiles.Resolve(configuration);
+            var pause = new KlaRecipePauseControl(time);
             return new RecipeKlaWork(node.Id, profile.Capabilities, (slot, ct) => ExecuteAsync(node.Id,
                 $"{recipe.Name} — {node.Definition.Title}", configuration, new() { RecipeRunId = executionId, NodeId = node.Id, InvocationId = Guid.NewGuid(),
-                    CultivationId = cultivation, RecipeSha256 = hash }, slot, resources, ct));
+                    CultivationId = cultivation, RecipeSha256 = hash }, slot, resources, ct, pause), pause);
         }).ToArray();
         var schedules = recipe.Nodes.Where(n => n.Type == NodeType.Periodic).Select(node =>
         {
@@ -117,9 +118,12 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
     }
 
     private async Task<KlaRecipeResult> ExecuteAsync(string nodeId, string sessionName, RecipeKlaBlockConfiguration configuration,
-        RecipeInvocationContext context, PeriodicBlockInvocation? slot, RecipeResourceCoordinator resources, CancellationToken ct)
+        RecipeInvocationContext context, PeriodicBlockInvocation? slot, RecipeResourceCoordinator resources, CancellationToken ct,
+        KlaRecipePauseControl pause)
     {
         var began = time.GetTimestamp();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(configuration.Retry.MaximumBlockSeconds), time);
+        using var preparationCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, deadline.Token);
         ReportProgress(context, configuration, slot, began, KlaRecipeProgressStage.Preparing);
         RecipeAssayResourceLease? initial = null;
         KlaRecipePulsePreparer? preparer = null;
@@ -127,7 +131,15 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
         {
             while (true)
             {
-                ct.ThrowIfCancellationRequested();
+                preparationCancellation.Token.ThrowIfCancellationRequested();
+                if (pause.IsPaused)
+                {
+                    ReportProgress(context, configuration, slot, began, KlaRecipeProgressStage.Paused);
+                    await pause.WaitUntilResumedAsync(preparationCancellation.Token).ConfigureAwait(false);
+                }
+                CancellationToken epoch = default;
+                if (!pause.TryDispatch(token => epoch = token)) continue;
+                using var preparationEpoch = CancellationTokenSource.CreateLinkedTokenSource(preparationCancellation.Token, epoch);
                 var profile = profiles.Resolve(configuration);
                 var remaining = configuration.Retry.MaximumBlockSeconds - time.GetElapsedTime(began).TotalSeconds;
                 if (remaining <= 0) throw new TimeoutException("Prazo do bloco expirou antes de preparar o ensaio.");
@@ -141,12 +153,19 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
                 if (budget.WaitSeconds > 0 && budget.BlockedReason is null && budget.WaitSeconds < remaining)
                 {
                     ReportProgress(context, configuration, slot, began, KlaRecipeProgressStage.WaitingCultivationInterval, query);
-                    await Task.Delay(TimeSpan.FromSeconds(budget.WaitSeconds), time, ct).ConfigureAwait(false);
+                    try { await Task.Delay(TimeSpan.FromSeconds(budget.WaitSeconds), time, preparationEpoch.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (epoch.IsCancellationRequested && !preparationCancellation.IsCancellationRequested) { }
                     continue;
                 }
                 ReportProgress(context, configuration, slot, began, KlaRecipeProgressStage.ReservingResources, query);
-                initial = await resources.ReserveForAssayAsync(context, [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen],
-                    TimeSpan.FromSeconds(Math.Min(profile.ReservationTimeoutSeconds, remaining)), ct).ConfigureAwait(false);
+                try
+                {
+                    initial = await resources.ReserveForAssayAsync(context, [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen],
+                        TimeSpan.FromSeconds(Math.Min(profile.ReservationTimeoutSeconds, remaining)), preparationEpoch.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (epoch.IsCancellationRequested && !preparationCancellation.IsCancellationRequested) { continue; }
+                if (!pause.TryDispatch(epoch, () => { }))
+                { initial.AbortBeforeAssay(); initial = null; continue; }
                 budget = api.ReadCultivationBudget(query);
                 if (budget.WaitSeconds > 0 && budget.BlockedReason is null && budget.WaitSeconds < remaining)
                 { initial.AbortBeforeAssay(); initial = null; continue; }
@@ -164,7 +183,7 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
                 initial = null; // The preparer now owns cancellation and release of the unused first reservation.
                 var orchestrator = new KlaRecipeOrchestrator(api, router, preparer, store, time);
                 lock (_gate) _active.Add(context.InvocationId, new(request, document.FolderName, orchestrator));
-                return await orchestrator.ExecuteAsync(request, document, ct).ConfigureAwait(false);
+                return await orchestrator.ExecuteAsync(request, document, ct, pause).ConfigureAwait(false);
             }
         }
         finally

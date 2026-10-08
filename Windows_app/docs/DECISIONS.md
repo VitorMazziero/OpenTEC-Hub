@@ -1712,6 +1712,44 @@ Os testes gravam imagens numa pasta temporária; `OPENTEC_UPDATE_EVIDENCE=1` atu
 versionada. Relatórios de teste intermediários não citados por recibos ficam fora do repositório.
 A liberação com kLa abiótico/biótico, receitas autônomas e rampas recebe a tag `v0.27.0`.
 
+### D-065 · Controle de O₂ e receita atravessam a queda do enlace PC–Hub
+
+**Status:** Accepted and implemented · 2026-10-08 · substitui o item 5 de D-060
+
+Diagnóstico: a cascata não se desligava por perda do fluxômetro ou do motor (apenas alarmes). O que a
+encerrava sem volta era (1) a queda do enlace PC–Hub, que devolvia todos os donos ao Manual e abortava a
+receita, e (2) três quadros sem leitura de O₂, que desengatavam a cascata Automática.
+
+1. Queda do enlace (estados *Reconectando*, *Falha de enlace*, *Conectando*): o árbitro **mantém** os
+   donos Automático (cascata), Receita e as reservas da receita (kLa autônomo, rampas). Os envios desses
+   donos ficam recusados com `LinkUnavailable` enquanto o enlace estiver fora; nada é bufferizado. O Hub
+   continua aplicando os últimos comandos.
+2. Ao reconectar, a cascata (Automática ou da receita) retoma **sem salto**: preserva esforço e integral,
+   reinicia tempo e derivada na primeira leitura e volta a comandar na seguinte. A receita não inicia
+   blocos novos durante a queda e mostra "Receita aguardando dispositivo"; a rampa congela o tempo ativo.
+3. Ensaio kLa: o retorno ao estado anterior **aguarda a reconexão** e então faz as três tentativas;
+   em seguida a cascata é retomada ou, sem controle, o último setpoint anterior ao ensaio é reenviado.
+4. Leitura de O₂ ausente: a cascata Automática fica em espera, sem comandar, e retoma na próxima leitura
+   válida. Um intervalo maior que max(30 s, 5 períodos) entre amostras é tratado como pausa (rebase).
+5. Continuam devolvendo ao Manual: desconexão explícita (*Desconectado*), parada segura, emergência e o
+   operador assumindo. Ensaio de potência e kLa manual mantêm o aborto seguro na queda do enlace.
+
+### D-066 · kLa condicional conta como réplica
+
+**Status:** Accepted and implemented · 2026-10-08 · substitui Q7 = A
+
+O perfil do operador aceita kLa *Válido* ou *Condicional* (`AcceptAnyConditional`). *Inconclusivo* nunca
+conta. O prazo de confirmação das rampas permanece 900 s.
+
+### D-067 · Gráficos: leitura ao passar o mouse e outliers apenas na exibição
+
+**Status:** Accepted and implemented · 2026-10-08
+
+No sinóptico, passar o mouse perto da linha mostra `valor unidade · t h`. Canais medidos (rotação e
+grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, banho) passam por filtro de
+Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
+preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
+
 ## Open questions
 
 | # | Question | Blocks |

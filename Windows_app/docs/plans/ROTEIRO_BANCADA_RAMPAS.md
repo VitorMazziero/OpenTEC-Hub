@@ -1,6 +1,6 @@
 # Roteiro de bancada — Rampa linear de referências (R6.2)
 
-Data: 08/10/2026. Decisão: [D-058](../DECISIONS.md). Build: instalador `OpenTECHub_Setup_v0.27.0`.
+Data: 08/10/2026. Decisão: [D-058](../DECISIONS.md). Build: instalador `OpenTECHub_Setup_v0.27.1`.
 
 Objetivo: comprovar, no reator real, cada destino da rampa e os caminhos de interrupção. A aprovação em software está na [auditoria final](AUDITORIA_FINAL_RECEITAS.md); este roteiro produz a evidência física que falta. As tolerâncias usadas são as do bloco (padrão D-063: ±0,5 °C, ±5 rpm, ±0,2 L/min, ±0,2 pH, ±1 kPa, 10 s de estabilidade, 900 s de prazo e 1 s entre comandos).
 

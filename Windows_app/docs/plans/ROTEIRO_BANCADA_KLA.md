@@ -1,6 +1,6 @@
 # Roteiro de bancada — kLa autônomo em receitas (R6.2 / E7)
 
-Data: 08/10/2026. Decisões: [D-060 a D-062](../DECISIONS.md). Build: instalador `OpenTECHub_Setup_v0.27.0`.
+Data: 08/10/2026. Decisões: [D-060 a D-062](../DECISIONS.md). Build: instalador `OpenTECHub_Setup_v0.27.1`.
 
 Objetivo: comprovar no reator os blocos **Determinar kLa** e **Periodicidade**, nos protocolos abiótico e biótico, e os caminhos de retorno. A aprovação em software está na [auditoria final](AUDITORIA_FINAL_RECEITAS.md).
 
@@ -25,7 +25,10 @@ Objetivo: comprovar no reator os blocos **Determinar kLa** e **Periodicidade**, 
 | K7 | Parar a receita no corte de ar | Parar em K1 e em K3 | Retorno ao estado anterior confirmado antes do fim | |
 | K8 | Fluxômetro cai no retorno | Desligar o fluxômetro por ~10 s ao fim de K3 | Retorno reenviado até 3 vezes; log mostra "tentativa n/3"; se confirmar, receita segue | |
 | K9 | Retorno não confirmado | Manter o fluxômetro desligado em K3 | Após 3 tentativas: alarme **Retorno do ensaio kLa não confirmado**; motor e gás **não** são parados no biótico; posse volta ao Manual | |
-| K10 | Perda do enlace PC–Hub | Desconectar o USB durante K1 | Receita encerrada com segurança; Hub mantém os últimos comandos; nenhum comando enviado ao reconectar | |
+| K10 | Perda do enlace PC–Hub | Desligar o Hub ou desconectar o USB durante K3 e religar após 1–2 min | Receita **mantida** com "Receita aguardando dispositivo"; Hub mantém os últimos comandos; ao reconectar, retorno ao estado anterior (até 3 tentativas) e a cascata volta a comandar sem salto (D-065) | |
+| K13 | Fluxômetro cai com cascata ativa | Desligar o fluxômetro por ~30 s com o Controle de O₂ (Automático ou receita) | Cascata continua engatada; alarme de fluxômetro offline; ao voltar, segue regulando | |
+| K14 | Sonda de O₂ sem leitura | Desconectar a sonda por ~30 s com cascata ativa | Cascata em espera sem comandar; ao voltar a leitura, retoma sem salto | |
+| K15 | Desconexão pelo operador | Botão Desconectar durante cascata | Volta ao Manual (comportamento de segurança mantido) | |
 | K11 | Emergência | Parada de emergência durante K3 | Saídas seguras; nenhum religamento pelo ensaio | |
 | K12 | Recalcular | Em uma sessão de K1/K3, **Criar cópia editável para recalcular** | Cópia `_edicao` em `Testes-kLa`; curva visível; recálculo e decisão manual disponíveis; original inalterada | |
 

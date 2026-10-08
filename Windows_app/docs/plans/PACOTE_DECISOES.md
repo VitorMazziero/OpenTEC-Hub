@@ -117,7 +117,7 @@ Referência de E1: remoção com N₂ a 100 rpm até alvo de OD de 5–20 %.
 
 Motivos que podem gerar nova tentativa automática (marque os aceitos): janela insuficiente, ruído excessivo, condição instável. Padrão atual: nenhum, uma tentativa por réplica.
 
-**Resposta (08/10/2026):** A. **Explicação de "condicional":** o kLa recebe uma de três qualidades. *Válido*: todos os critérios científicos atendidos. *Condicional*: há valor numérico, mas com ressalva registrada — por exemplo janela curta, tempo de resposta da sonda comparável ao processo, Ceq sensível à escolha da janela ou OUR não confirmado de forma independente. *Inconclusivo*: não há estimativa confiável. Com A, só *Válido* conta como réplica; o condicional fica salvo e visível, mas não é selecionado.
+**Resposta (08/10/2026):** A. **Explicação de "condicional":** o kLa recebe uma de três qualidades. *Válido*: todos os critérios científicos atendidos. *Condicional*: há valor numérico, mas com ressalva registrada — por exemplo janela curta, tempo de resposta da sonda comparável ao processo, Ceq sensível à escolha da janela ou OUR não confirmado de forma independente. *Inconclusivo*: não há estimativa confiável. Com A, só *Válido* conta como réplica; o condicional fica salvo e visível, mas não é selecionado. **Atualização (08/10/2026): o condicional também conta como réplica (D-066).**
 
 ## Q8 · Resultado inconclusivo dentro da receita
 
@@ -147,7 +147,7 @@ Uma rampa só termina quando cada destino confirma o alvo final dentro da toler�
 
 Observação: ±2 rpm pode ser estreito para o ruído do servo; o banho pode precisar de mais de 300 s para estabilizar.
 
-**Resposta (08/10/2026):** agitação ±5 rpm, vazão ±0,2 L/min, pH ±0,2 (só critério de conclusão da rampa, não a histerese do controle), pressão ±1 kPa; temperatura mantida em ±0,5 °C. **Explicação do prazo de confirmação:** depois de enviar o valor final, a rampa espera que a *medição do processo* fique dentro da tolerância durante o tempo de estabilidade (10 s). No banho, a medição é a temperatura do **reator**, não a do banho. Se isso não acontecer dentro do prazo, a rampa termina com falha em vez de declarar conclusão. **Aplicado provisoriamente:** 900 s. Responda se prefere outro valor (por exemplo 1200 s).
+**Resposta (08/10/2026):** agitação ±5 rpm, vazão ±0,2 L/min, pH ±0,2 (só critério de conclusão da rampa, não a histerese do controle), pressão ±1 kPa; temperatura mantida em ±0,5 °C. **Explicação do prazo de confirmação:** depois de enviar o valor final, a rampa espera que a *medição do processo* fique dentro da tolerância durante o tempo de estabilidade (10 s). No banho, a medição é a temperatura do **reator**, não a do banho. Se isso não acontecer dentro do prazo, a rampa termina com falha em vez de declarar conclusão. **Aplicado provisoriamente:** 900 s. **Confirmado: 900 s.**
 
 ## Q10 · Intervalo mínimo entre comandos da rampa
 

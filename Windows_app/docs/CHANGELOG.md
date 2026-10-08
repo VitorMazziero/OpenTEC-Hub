@@ -6,6 +6,15 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.27.1] - 2026-10-08
+
+- controle de O₂ (cascata Automática e da receita), receita, rampas e kLa autônomo atravessam a queda do enlace PC–Hub: donos mantidos, envio suspenso e retomada sem salto ao reconectar; o retorno do ensaio aguarda a reconexão (D-065);
+- leitura de O₂ ausente deixa a cascata em espera em vez de desengatá-la;
+- kLa condicional conta como réplica (D-066);
+- gráficos do sinóptico: valor e tempo em horas ao passar o mouse; outliers de canais medidos removidos apenas da exibição (D-067).
+
+---
+
 ## [0.27.0] - 2026-10-08
 
 ### Decisões do autor para bancada (D-058 a D-064)

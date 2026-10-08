@@ -9,6 +9,13 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampMotorDestinationTests
 {
+    [Fact]
+    public void ChangedMotorToleranceIsValidatedByTheSharedConfirmationPolicy()
+    {
+        var policy = new RecipeRampMotorConfirmationPolicy(2, TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
+        Assert.Throws<ArgumentException>(() => (policy with { ToleranceRpm = -1 }).Validate());
+        Assert.Equal(4, (policy with { ToleranceRpm = 4 }).Tolerance);
+    }
     private static SensorSnapshot Motor(double rpm) => new()
     {
         HasServoTelemetry = true, HasServoSample = true, ServoOnline = true, ServoCommEnabled = true,

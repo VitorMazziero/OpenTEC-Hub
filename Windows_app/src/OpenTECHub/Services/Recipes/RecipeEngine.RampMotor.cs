@@ -10,21 +10,25 @@ public sealed partial class RecipeEngine
     internal IDeviceService RampTelemetryDevice => _device;
     internal TimeProvider RampTimeProvider => _time;
 
-    internal bool TryApplyRampMotorReference(LinearRampSample target, Guid executionId, out bool uart)
+    internal bool TryApplyRampMeasuredReference(LinearRampSample target, Guid executionId, out RecipeRampMeasuredRoute route)
     {
         lock (_lock)
         {
-            uart = _routeCoordinator.IsUartFallback;
+            route = new(_routeCoordinator.IsUartFallback, _hubRoutesTemperatureToBath);
             return TryApplyRampFrame([target], null, 0, executionId);
         }
     }
 
-    internal RecipeRampDestinationAvailability RampMotorAvailability(Guid executionId, bool uart)
+    internal RecipeRampDestinationAvailability RampMeasuredAvailability(Guid executionId, SetpointVariable variable,
+        RecipeRampMeasuredRoute route)
     {
         lock (_lock)
         {
-            if (ExecutionId != executionId || _liveCascades.Count != 0 || _routeCoordinator.IsUartFallback != uart ||
-                _arbiter.OwnerOf(ActuatorId.Agitation) != CommandOwner.Recipe)
+            if (ExecutionId != executionId ||
+                _liveCascades.Count != 0 && variable is SetpointVariable.Agitation or SetpointVariable.Flow or SetpointVariable.Oxygen ||
+                variable == SetpointVariable.Agitation && _routeCoordinator.IsUartFallback != route.MotorViaUart ||
+                variable == SetpointVariable.Temperature && _hubRoutesTemperatureToBath != route.TemperatureViaBath ||
+                _arbiter.OwnerOf(CommandActuators.ForKey(RecipeRampInitialState.KeyFor(variable))!.Value) != CommandOwner.Recipe)
                 return RecipeRampDestinationAvailability.Unavailable;
             return State switch { RecipeRunState.Running => RecipeRampDestinationAvailability.Available,
                 RecipeRunState.Paused => RecipeRampDestinationAvailability.Suspended,

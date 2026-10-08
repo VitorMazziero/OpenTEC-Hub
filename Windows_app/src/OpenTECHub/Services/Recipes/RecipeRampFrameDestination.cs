@@ -90,6 +90,30 @@ public sealed class RecipeRampFrameDestination : IRecipeRampReservedDestination,
         }
     }
 
+    /// <summary>Restore all captured direct configuration, then use the same destination proofs
+    /// for the previous references. The caller keeps producers quiescent and drains the reservation.</summary>
+    public Task<bool> TryRestoreDirectAsync(RecipeRampStartCheckpoint start,
+        Communication.CommandAuthorityLease authority, CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        var frame = RecipeRampRestoreCommands.Build(start, authority);
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _confirmations = []; _applied = []; _revision++;
+            Validate(frame.References);
+            if (frame.References.Any(target => target.Variable == SetpointVariable.Ph) &&
+                RecipeAssayReturnState.Number(OpenTECCommand.Parse(frame.CommandJson), CommandKeys.PHError) != _phInactiveBand)
+                throw new InvalidOperationException("Confirmação do retorno exige a banda de pH capturada.");
+            if (!_engine.TryDispatchRampRestoration(frame, _executionId, authority, _temperatureRoute, out var route))
+                return Task.FromResult(false);
+            foreach (var target in frame.References)
+                ((RecipeRampMeasuredDestination)_destinations[target.Variable]).ObserveAcceptedFrame(target, route);
+            _applied = frame.References;
+            return Task.FromResult(true);
+        }
+    }
+
     public async Task<bool> TryConfirmFinalAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested(); long revision;

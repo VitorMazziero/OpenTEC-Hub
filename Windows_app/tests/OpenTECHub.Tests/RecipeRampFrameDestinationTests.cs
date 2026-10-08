@@ -9,6 +9,45 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampFrameDestinationTests
 {
+    [Fact]
+    public async Task DirectReturnRestoresCapturedSettingsAndConfirmsPreviousReferences()
+    {
+        var time = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
+        var device = new RecordingDeviceService();
+        using var arbiter = new CommandArbiter(device, time);
+        await using var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(new AppSettings()), time);
+        await engine.StartAsync(WaitingRecipe());
+        var configuration = Configuration() with { Definition = Configuration().Definition with {
+            CancellationPolicy = RampCancellationPolicy.RestoreSnapshot }, TemperatureRoute = RampTemperatureRoute.NativeModule };
+        var resources = RecipeRampInitialState.ResourcesFor(configuration.Definition);
+        arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 25));
+        arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.MotorSetpoint(200));
+        arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.FlowRoute(1, 10, GasRoute.Reactor, GasRigConfiguration.Default)
+            .Set(CommandKeys.FlowKp, .3));
+        var authority = await arbiter.ReserveAsync(CommandOwner.Recipe, engine.ExecutionId, "ramp", resources, TimeSpan.FromSeconds(5));
+        await arbiter.DrainReservedCommandsAsync(authority);
+        var start = engine.CaptureRampStartCheckpoint(configuration, authority, Guid.NewGuid());
+        arbiter.ReleaseReservation(authority);
+        using var destination = Destination(engine);
+        Assert.True(await destination.TryApplyAsync(Targets, default));
+        var restoring = await arbiter.ReserveAsync(CommandOwner.Recipe, engine.ExecutionId, "ramp", resources, TimeSpan.FromSeconds(5));
+        await arbiter.DrainReservedCommandsAsync(restoring);
+        var before = device.Sent.Count;
+        Assert.True(await destination.TryRestoreDirectAsync(start, restoring, default));
+        Assert.Equal(before + 1, device.Sent.Count);
+        var restoredCommand = OpenTECCommand.Parse(device.Sent.Last());
+        Assert.Equal("0.3", restoredCommand.GetRawValue(CommandKeys.FlowKp));
+        var frame = RecipeRampRestoreCommands.Build(start, restoring);
+        var confirming = destination.TryConfirmFinalAsync(frame.References, default);
+        Assert.False(confirming.IsCompleted);
+        device.PushTelemetry(Feedback(25, 200) with { TempSetpoint = 25, FlowRate = 1, FlowSetpoint = 1 });
+        Assert.True(await confirming.WaitAsync(TimeSpan.FromSeconds(3)));
+        Assert.Equal(new[] { 25d, 200d, 1d }, destination.FinalConfirmations.Select(proof => proof.Reference));
+        await arbiter.DrainReservedCommandsAsync(restoring);
+        arbiter.ReleaseReservation(restoring);
+        await engine.StopAsync("direct restoration verified");
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -33,4 +33,6 @@ Retorno de R5.2: [evidência de recuperação](receitas-r52/EVIDENCIA_RECUPERACA
 
 Controlador de R5.2: [restauração completa](receitas-r52/RESTAURACAO_CONTROLADOR.md) de estado do PID e dos quatro modos de alocação, com equivalência do próximo passo e rejeição de snapshot inválido sem alteração parcial; 2436 testes na regressão completa. A chamada dessa operação pelo ciclo da receita e a recuperação dos comandos diretos ainda estão pendentes.
 
+Destinos de R5.2: [restauração direta](receitas-r52/RESTAURACAO_DIRETA.md), com comando reservado das configurações anteriores, referências quantizadas, exclusão de ações pontuais e confirmação pelo feedback; 2438 testes na regressão completa. Recuperação conjunta com a cascata e ligação ao cancelamento do bloco permanecem pendentes.
+
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.

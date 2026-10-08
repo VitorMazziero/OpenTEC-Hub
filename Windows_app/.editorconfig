@@ -53,7 +53,10 @@ dotnet_naming_style.pascal.capitalization = pascal_case
 # --- Style preferences ------------------------------------------------------
 csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_expression_bodied_methods = when_on_single_line:suggestion
-csharp_prefer_braces = true:warning
+# Single-line guard clauses without braces are the adopted style (decision D-A06, 08/10/2026).
+# Multi-line bodies still get the IDE suggestion; the build gate is zero CS/CA warnings.
+csharp_prefer_braces = when_multiline:suggestion
+dotnet_diagnostic.IDE0011.severity = suggestion
 dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
 
 # CA1303: literal strings passed to log calls. Our UI strings are localised, log

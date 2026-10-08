@@ -1636,6 +1636,24 @@ saída calculada e resposta física do banho.
    valor pedido (banda e permanência configuráveis). Mudar o SP do banho sozinho não prova nada
    sobre o processo.
 
+### D-058 · Rampas lineares liberadas no ambiente físico para a bancada
+
+**Status:** Accepted · 2026-10-08 · `plans/PLANO_FINALIZACAO.md` (A-04)
+
+O bloco **Rampa linear de referências** permanece executável no ambiente físico, sem gate de
+qualificação por destino, para que o autor teste em bancada todos os destinos (temperatura
+nativa/banho, agitação, vazão, pH, pressão e referência de O₂ da cascata). A rampa usa as mesmas
+rotas, reservas, confirmações e recibos duráveis validados em software. A bancada (R6.2) registra o
+resultado por destino; um destino reprovado deve ser bloqueado por decisão posterior.
+
+### D-059 · Chaves opcionais em instruções de uma linha
+
+**Status:** Accepted and implemented · 2026-10-08 · `plans/PLANO_FINALIZACAO.md` (A-06)
+
+`csharp_prefer_braces = when_multiline:suggestion` e `IDE0011` como sugestão. Guardas de uma linha
+sem chaves são o estilo adotado no código; os 2120 avisos de estilo escondiam avisos reais. O gate de
+compilação passa a ser **zero avisos** (CS, CA e analisadores de teste).
+
 ## Open questions
 
 | # | Question | Blocks |

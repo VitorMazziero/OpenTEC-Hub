@@ -18,6 +18,61 @@ namespace OpenTECHub.Tests;
 public sealed class RecipeEngineTests
 {
     [Fact]
+    public async Task RampFrameUsesLiveDestinationsAndRefusesWholeMixedFrameDuringAssay()
+    {
+        var (engine, device, arbiter, clock) = Build();
+        await using var run = engine;
+        await engine.StartAsync(CascadeWithGateRecipe(out _));
+        PushFrame(device, clock, oxygen: 25);
+        await WaitForCascadeStartedAsync(engine);
+        // Controller registration precedes completion of its first wire frame. Quiesce that
+        // frame before counting commands from the ramp; later steps require fresh telemetry.
+        var initialBarrier = await engine.Resources!.ReserveForAssayAsync(
+            RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId },
+            [ActuatorId.Agitation, ActuatorId.Aeration], TimeSpan.FromSeconds(5));
+        initialBarrier.AbortBeforeAssay();
+        ImmutableArray<LinearRampSample> frame = [
+            new(SetpointVariable.Temperature, null, 31, false),
+            new(SetpointVariable.Oxygen, RampOxygenTarget.ActiveCascadeReference, 42, false)];
+        var monitors = device.Sent.Count(json => OpenTECCommand.Parse(json).Contains(CommandKeys.OxygenMonitor));
+        Assert.True(engine.TryApplyRampFrame(frame, "casc", .1));
+        Assert.True(engine.TryReadCascadeOxygenReference("casc", out var reference));
+        Assert.Equal(42, reference);
+        Assert.Equal(monitors, device.Sent.Count(json => OpenTECCommand.Parse(json).Contains(CommandKeys.OxygenMonitor)));
+        Assert.Contains(device.Sent, json => double.TryParse(OpenTECCommand.Parse(json).GetRawValue(CommandKeys.TempSetpoint),
+            System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value) && value == 31);
+        var before = device.Sent.Count;
+        Assert.Throws<InvalidOperationException>(() => engine.TryApplyRampFrame([
+            new(SetpointVariable.Temperature, null, 32, false), new(SetpointVariable.Flow, null, 2, false)], null, .1));
+        Assert.Equal(before, device.Sent.Count);
+        var occupied = await arbiter.ReserveAsync(CommandOwner.Recipe, engine.ExecutionId, "other-temperature",
+            [ActuatorId.Temperature], TimeSpan.FromSeconds(5));
+        Assert.False(engine.TryApplyRampFrame([
+            new(SetpointVariable.Temperature, null, 32, false),
+            new(SetpointVariable.Oxygen, RampOxygenTarget.ActiveCascadeReference, 47, false)], "casc", .1));
+        Assert.True(engine.TryReadCascadeOxygenReference("casc", out reference));
+        Assert.Equal(42, reference);
+        Assert.Equal(before, device.Sent.Count);
+        arbiter.ReleaseReservation(occupied);
+        var lease = await engine.Resources!.ReserveForAssayAsync(
+            RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId },
+            [ActuatorId.Agitation, ActuatorId.Aeration], TimeSpan.FromSeconds(5));
+        Assert.False(engine.TryApplyRampFrame(frame, "casc", .1));
+        Assert.Equal(before, device.Sent.Count);
+        lease.AbortBeforeAssay();
+        engine.Pause();
+        Assert.False(engine.TryApplyRampFrame(frame, "casc", .1));
+        engine.Resume();
+        Assert.True(engine.TryApplyRampFrame(frame, "casc", .1));
+        arbiter.Claim(CommandOwner.Manual, [ActuatorId.Oxygen], "manual-reference-takeover");
+        before = device.Sent.Count;
+        Assert.False(engine.TryApplyRampFrame(frame, "casc", .1));
+        Assert.Equal(before, device.Sent.Count);
+        await engine.StopAsync("ramp frame verified");
+        Assert.False(engine.TryApplyRampFrame(frame, "casc", .1));
+    }
+
+    [Fact]
     public async Task CascadeReferenceDestinationNeverWritesMonitorAndRejectsSuspendedOrInactiveController()
     {
         var (engine, device, arbiter, clock) = Build();

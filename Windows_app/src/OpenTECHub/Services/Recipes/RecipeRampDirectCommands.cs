@@ -39,7 +39,7 @@ public sealed class RecipeRampDirectCommands(double maximumFlow, bool uartFallba
     {
         if (!Enum.IsDefined(variable) || !double.IsFinite(reference) || !DeviceRanges.Accepts(variable, reference))
             throw new ArgumentException("Referência fora do envelope do dispositivo.");
-        if (!double.IsFinite(maximumFlow) || maximumFlow <= 0 || maximumFlow > DeviceRanges.For(SetpointVariable.Flow).Max ||
+        if (!double.IsFinite(maximumFlow) || maximumFlow <= 0 ||
             !double.IsFinite(phInactiveBand) || phInactiveBand < 0)
             throw new ArgumentException("Limites do destino inválidos.");
         if (variable == SetpointVariable.Flow && reference > maximumFlow ||

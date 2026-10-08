@@ -34,5 +34,11 @@ public sealed class RecipeRampDirectCommandsTests
             StartSource = SetpointStartSource.Explicit, InitialSetpoint = 1, FinalSetpoint = 6, EndAfterSeconds = 30 }] };
         Assert.Throws<ArgumentException>(() => new LinearSetpointRampTrajectory(definition,
             new Dictionary<SetpointVariable, double>(), commands.Quantize));
+        // Saved maximum flow defaults to 50. The trajectory envelope remains 25 without
+        // blocking unrelated parameters or changing the configured route's maximum.
+        var defaultLimits = new RecipeRampDirectCommands(50, false, GasRigConfiguration.Default, .1);
+        Assert.Equal(30, defaultLimits.Quantize(SetpointVariable.Temperature, 30));
+        Assert.Equal(25, defaultLimits.Quantize(SetpointVariable.Flow, 25));
+        Assert.Throws<ArgumentException>(() => defaultLimits.Quantize(SetpointVariable.Flow, 26));
     }
 }

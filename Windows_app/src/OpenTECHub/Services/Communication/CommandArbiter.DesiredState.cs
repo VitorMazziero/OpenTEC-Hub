@@ -38,13 +38,24 @@ public sealed partial class CommandArbiter
     public IReadOnlyList<ReservedDesiredState> CaptureReservedDesiredState(CommandAuthorityLease authority)
     {
         ArgumentNullException.ThrowIfNull(authority);
+        return CaptureReservedDesiredState(authority, authority.Resources);
+    }
+
+    public IReadOnlyList<ReservedDesiredState> CaptureReservedDesiredState(CommandAuthorityLease authority,
+        IReadOnlyList<ActuatorId> resources)
+    {
+        ArgumentNullException.ThrowIfNull(authority);
+        ArgumentNullException.ThrowIfNull(resources);
+        var selected = resources.ToArray();
+        if (selected.Distinct().Count() != selected.Length || selected.Any(resource => !authority.Resources.Contains(resource)))
+            throw new ArgumentException("Captura deve conter recursos únicos dentro da reserva.", nameof(resources));
         lock (_gate)
         {
             if (!IsCurrentUnderLock(authority) ||
                 !_drainedReservations.TryGetValue(authority.ReservationId, out var generation) || generation != authority.Generation)
                 throw new InvalidOperationException("Captura exige reserva atual e barreira de transporte confirmada.");
             var captured = new List<ReservedDesiredState>();
-            foreach (var actuator in authority.Resources)
+            foreach (var actuator in selected)
             {
                 if (!DesiredIsAcceptedUnderLock(actuator))
                     throw new InvalidOperationException($"Estado comandado de {actuator} ausente ou não aceito pelo transporte.");

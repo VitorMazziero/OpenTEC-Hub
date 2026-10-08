@@ -24,6 +24,11 @@ public sealed class RecipeCascadeSuspensionGate(Func<long>? latestObservationVer
         get { lock (_sync) return _paused; }
     }
 
+    public bool IsQuiescentPaused
+    {
+        get { lock (_sync) return _paused && !_stopped && _activeSteps == 0; }
+    }
+
     /// <summary>Returns null while paused. Dispose the lease after the whole command dispatch.</summary>
     public StepLease? TryEnterStep()
     {

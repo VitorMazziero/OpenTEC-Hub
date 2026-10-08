@@ -17,6 +17,7 @@ public interface ICommandAuthorityArbiter : ICommandArbiter
     void ReleaseReservation(CommandAuthorityLease authority);
     Task DrainReservedCommandsAsync(CommandAuthorityLease authority, CancellationToken ct = default);
     IReadOnlyList<ReservedDesiredState> CaptureReservedDesiredState(CommandAuthorityLease authority);
+    IReadOnlyList<ReservedDesiredState> CaptureReservedDesiredState(CommandAuthorityLease authority, IReadOnlyList<ActuatorId> resources);
 }
 
 /// <summary>Requested state and transport evidence are separate; neither is a physical reading.</summary>

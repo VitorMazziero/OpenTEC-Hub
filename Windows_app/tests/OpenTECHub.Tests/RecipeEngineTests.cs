@@ -18,6 +18,34 @@ namespace OpenTECHub.Tests;
 public sealed class RecipeEngineTests
 {
     [Fact]
+    public async Task RampCaptureUsesQuiescentAssociatedControllerInsteadOfOxygenMonitorOrMeasuredOxygen()
+    {
+        var (engine, device, arbiter, clock) = Build();
+        await using var run = engine;
+        await engine.StartAsync(CascadeWithGateRecipe(out _));
+        PushFrame(device, clock, oxygen: 25);
+        await WaitForCascadeStartedAsync(engine);
+        Assert.True(engine.TrySetCascadeOxygenReference("casc", 42));
+        var configuration = new RecipeRampBlockConfiguration(new() { Lines = [new()
+        { Variable = SetpointVariable.Oxygen, OxygenTarget = RampOxygenTarget.ActiveCascadeReference,
+            FinalSetpoint = 50, EndAfterSeconds = 120 }] }, "casc");
+        var lease = await engine.Resources!.ReserveForAssayAsync(
+            RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId, NodeId = "ramp" },
+            RecipeRampInitialState.ResourcesFor(configuration.Definition), TimeSpan.FromSeconds(5));
+        var initial = engine.CaptureRampInitialState(configuration, lease.Authority);
+        var reference = Assert.Single(initial.References);
+        Assert.Equal(42, reference.Reference);
+        Assert.Equal(RampReferenceEvidence.ControllerReference, reference.Evidence);
+        Assert.Equal("casc", initial.Controller!.ControllerId);
+        Assert.Empty(initial.Commands);
+        var trajectory = new LinearSetpointRampTrajectory(configuration.Definition, initial.ConfirmedStarts, (_, value) => value);
+        Assert.Equal(42, trajectory.Sample(0)[0].Reference);
+        lease.AbortBeforeAssay();
+        Assert.Throws<InvalidOperationException>(() => engine.CaptureRampInitialState(configuration, lease.Authority));
+        await engine.StopAsync("ramp capture complete");
+    }
+
+    [Fact]
     public async Task RampFrameUsesLiveDestinationsAndRefusesWholeMixedFrameDuringAssay()
     {
         var (engine, device, arbiter, clock) = Build();

@@ -117,6 +117,8 @@ public sealed partial class RecipeParameterFieldViewModel : ObservableObject
         get
         {
             var value = TextValue;
+            // An obsolete oxygen ramp destination must stay unresolved until explicitly corrected.
+            if (Key == "oxygenTarget" && value == nameof(RampOxygenTarget.MonitorReference)) return null;
             return Options.FirstOrDefault(o => o.Value == value) ?? Options.FirstOrDefault();
         }
         set

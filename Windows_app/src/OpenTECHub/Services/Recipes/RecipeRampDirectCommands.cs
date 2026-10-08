@@ -18,7 +18,7 @@ public sealed class RecipeRampDirectCommands(double maximumFlow, bool uartFallba
     {
         ArgumentNullException.ThrowIfNull(sample);
         var value = Quantize(sample.Variable, sample.Reference);
-        if (sample.Variable == SetpointVariable.Oxygen && sample.OxygenTarget != RampOxygenTarget.MonitorReference)
+        if (sample.Variable == SetpointVariable.Oxygen)
             throw new ArgumentException("Referência da cascata requer destino do controlador, não comando de monitor.");
         if (sample.Variable != SetpointVariable.Oxygen && sample.OxygenTarget is not null)
             throw new ArgumentException("Destino de O₂ incompatível com o parâmetro.");
@@ -28,7 +28,6 @@ public sealed class RecipeRampDirectCommands(double maximumFlow, bool uartFallba
             SetpointVariable.Agitation => CommandBuilders.MotorSetpoint((int)value),
             SetpointVariable.Flow => CommandBuilders.FlowRoute(value, maximumFlow,
                 value > 0 ? GasRoute.Reactor : GasRoute.Closed, gasRig),
-            SetpointVariable.Oxygen => OpenTECCommand.Create().Set(CommandKeys.OxygenMonitor, value),
             SetpointVariable.Pressure => OpenTECCommand.Create().Set(CommandKeys.PressureReference, value),
             SetpointVariable.Ph => OpenTECCommand.Create().Set(CommandKeys.PHSetpoint, value).Set(CommandKeys.PHError, phInactiveBand),
             _ => throw new ArgumentException("Destino desconhecido.")

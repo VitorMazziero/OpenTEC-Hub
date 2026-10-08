@@ -26,11 +26,13 @@ public sealed class RecipeRampCascadeEditorTests
         vm.SelectedRampCascade = vm.AvailableRampCascades.Single();
         Assert.Equal("cascade-a", RecipeRampBlockConfiguration.Read(node).CascadeNodeId);
         var target = row.Fields.Single(field => field.Key == "oxygenTarget");
-        target.SelectedOption = target.Options.Single(option => option.Value == "MonitorReference");
+        Assert.Single(target.Options);
+        Assert.DoesNotContain(target.Options, option => option.Value == "MonitorReference");
+        variable.SelectedOption = variable.Options.Single(option => option.Value == "Temperature");
         Assert.False(vm.UsesRampCascadeReference);
         Assert.Null(RecipeRampBlockConfiguration.Read(node).CascadeNodeId);
         Assert.Equal("cascade-a", node.Text("cascadeNodeId"));
-        target.SelectedOption = target.Options.Single(option => option.Value == "ActiveCascadeReference");
+        variable.SelectedOption = variable.Options.Single(option => option.Value == "Oxygen");
         Assert.Equal("cascade-a", vm.SelectedRampCascade!.Value);
         vm.RefreshRampCascadeChoices([node]);
         Assert.Null(vm.SelectedRampCascade);

@@ -8,7 +8,7 @@ As chamadas ficam vinculadas à execução capturada ao criar o componente. O en
 
 Cada nova aplicação ou tentativa de confirmação limpa o recibo anterior. Suspensão pelo ensaio, mudança de referência, perda de posse e pausa não promovem conclusão. A barreira de rampa respeita um destino que devolve confirmação pendente, em vez de transformar esse retorno em sucesso.
 
-O seletor de controle associado no editor permanece restrito a uma linha com parâmetro O₂ e destino Referência da cascata. Os demais parâmetros e o monitor de O₂ não exibem associação.
+O seletor de controle associado no editor permanece restrito a uma linha com parâmetro O₂ e destino Referência da cascata. Os demais parâmetros não exibem associação. A antiga opção de rampa do monitor foi removida: o firmware trata `oxygenMonitor` como interruptor, sem referência numérica ([correção](CORRECAO_DESTINO_O2.md)).
 
 Validação: 44 testes focados aprovados (engine, destino protegido e persistência terminal). Cobertura nova inclui confirmação sem aplicação anterior, referência divergente, controlador ausente, ensaio ativo, pausa, posse perdida, execução diferente e confirmação pendente do destino. Release compilado em `D:/Temp/OpenTECHub-ramp-cascade-confirmation-release/`, com 0 erros e 1495 avisos. A regressão completa não foi repetida neste incremento.
 

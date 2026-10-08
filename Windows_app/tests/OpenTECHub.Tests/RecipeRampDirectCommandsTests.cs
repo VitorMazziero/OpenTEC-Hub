@@ -18,7 +18,9 @@ public sealed class RecipeRampDirectCommandsTests
         Assert.True(commands.Build(new(SetpointVariable.Temperature, null, 30.123, true)).Contains(CommandKeys.TempSetpoint));
         Assert.True(commands.Build(new(SetpointVariable.Ph, null, 6.8, true)).Contains(CommandKeys.PHError));
         Assert.True(commands.Build(new(SetpointVariable.Pressure, null, 10, true)).Contains(CommandKeys.PressureReference));
-        Assert.True(commands.Build(new(SetpointVariable.Oxygen, RampOxygenTarget.MonitorReference, 30, true)).Contains(CommandKeys.OxygenMonitor));
+        Assert.Throws<ArgumentException>(() => commands.Build(new(SetpointVariable.Oxygen, RampOxygenTarget.MonitorReference, 30, true)));
+        Assert.Throws<ArgumentException>(() => new LinearSetpointRampLine { Variable = SetpointVariable.Oxygen,
+            OxygenTarget = RampOxygenTarget.MonitorReference, FinalSetpoint = 30, EndAfterSeconds = 60 }.Validate());
         Assert.Throws<ArgumentException>(() => commands.Build(new(SetpointVariable.Oxygen, RampOxygenTarget.ActiveCascadeReference, 30, true)));
     }
 

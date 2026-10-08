@@ -222,9 +222,9 @@ Para cada linha i: `SP_i(t) = SP0_i + (SPfim_i − SP0_i) × clamp(t_ativo / T_i
 | Vazão | Reusar desired state completo de gás, confirmação e limites do fluxômetro |
 | pH | Alterar referência mantendo configuração da banda e bombas; não ativar dosagem implicitamente |
 | Pressão | Reusar referência e limites existentes, informando capacidade de confirmação |
-| O₂ | Distinguir referência de monitoramento de referência da cascata; oferecer rampa de controle apenas quando houver controlador ativo e integração explícita com seu setpoint |
+| O₂ | Oferecer rampa apenas para a referência da cascata, com controlador ativo e integração explícita com seu setpoint; `oxygenMonitor` é um interruptor, sem referência numérica |
 
-Para O₂, a implementação deve extrair uma via comum para atualizar a referência da cascata da receita; enviar apenas `OxygenMonitor` não cumpre uma rampa de controle de OD. Sem controlador compatível, bloquear essa modalidade com explicação. A interface deve nomear o destino quando a referência for apenas de monitoramento.
+Para O₂, a implementação deve extrair uma via comum para atualizar a referência da cascata da receita. No firmware atual, `oxygenMonitor` é convertido para booleano e não representa setpoint. Sem controlador compatível, bloquear a rampa de O₂ com explicação. Configurações antigas de rampa com destino `MonitorReference` devem ser recusadas, sem conversão silenciosa para uma cascata.
 
 Reservas são por parâmetro e bloco. Uma rampa de N/Q conflita com kLa e com cascata que manipula os mesmos atuadores. Uma rampa da referência de O₂ pode coexistir com sua própria cascata mediante contrato explícito. O validador e a execução devem verificar ambos os casos.
 
@@ -294,7 +294,7 @@ As nove primeiras etapas da ordem revisada são entregas registradas, não taref
 
 **R4.1 → R4.2:** primeiro implementar duração do grupo paralelo e encerramento aguardável em sucesso/erro/pausa/cancelamento; depois agenda monotônica 2/6/10 h, slots descartados e IDs estáveis; finalmente expor os blocos, campos e resultados no editor. O fim da cascata cancela novos disparos, recupera o ensaio em curso e só então encerra o grupo.
 
-**R5.1 → R5.2:** primeiro implementar interpolação e destinos comuns, incluindo referência da cascata distinta de monitoramento; depois reservas, pausa do tempo ativo, confirmação final e editor. Validar cada trajetória inteira antes de comandar, inclusive intervalos não representáveis entre OFF e operação.
+**R5.1 → R5.2:** primeiro implementar interpolação e destinos comuns, incluindo referência da cascata de O₂; o interruptor de monitoramento não admite rampa numérica. Depois integrar reservas, pausa do tempo ativo, confirmação final e editor. Validar cada trajetória inteira antes de comandar, inclusive intervalos não representáveis entre OFF e operação.
 
 **R6.1 → R6.2:** executar regressão integrada e exemplos no simulador; verificar UI e gerar recibo da revisão final. A habilitação física é uma entrega posterior dependente da bancada, com evidência de instalação/protocolo/perfil e recuperação. Software aprovado não encerra R6.2.
 

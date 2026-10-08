@@ -18,15 +18,14 @@ public sealed class RecipeRampInitialStateTests
         arbiter.Claim(CommandOwner.Recipe, CommandActuators.All, "recipe");
         var command = OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 30)
             .Merge(CommandBuilders.MotorSetpoint(300)).Merge(CommandBuilders.FlowRoute(2, 10, GasRoute.Reactor, GasRigConfiguration.Default))
-            .Set(CommandKeys.OxygenMonitor, 35).Set(CommandKeys.PressureReference, 100).Set(CommandKeys.PHSetpoint, 6.8);
+            .Set(CommandKeys.PressureReference, 100).Set(CommandKeys.PHSetpoint, 6.8);
         arbiter.Dispatch(CommandOwner.Recipe, command);
         device.PushTelemetry(new() { Temperature = 50, ServoRpm = 900, OxygenCalibrated = 5, FlowRate = 9 });
         var expected = new Dictionary<SetpointVariable, double> { [SetpointVariable.Temperature] = 30,
-            [SetpointVariable.Agitation] = 300, [SetpointVariable.Flow] = 2, [SetpointVariable.Oxygen] = 35,
+            [SetpointVariable.Agitation] = 300, [SetpointVariable.Flow] = 2,
             [SetpointVariable.Pressure] = 100, [SetpointVariable.Ph] = 6.8 };
         var definition = new LinearSetpointRampDefinition { Lines = expected.Select(pair => new LinearSetpointRampLine
-        { Variable = pair.Key, FinalSetpoint = pair.Value, EndAfterSeconds = 60,
-            OxygenTarget = pair.Key == SetpointVariable.Oxygen ? RampOxygenTarget.MonitorReference : null }).ToImmutableArray() };
+        { Variable = pair.Key, FinalSetpoint = pair.Value, EndAfterSeconds = 60 }).ToImmutableArray() };
         var configuration = new RecipeRampBlockConfiguration(definition, null);
         var authority = await arbiter.ReserveAsync(CommandOwner.Recipe, Guid.NewGuid(), "ramp",
             RecipeRampInitialState.ResourcesFor(definition), TimeSpan.FromSeconds(5));
@@ -35,7 +34,7 @@ public sealed class RecipeRampInitialStateTests
         var state = RecipeRampInitialState.Capture(configuration, arbiter, authority, time);
         foreach (var pair in expected) Assert.Equal(pair.Value, state.ConfirmedStarts[pair.Key]);
         Assert.All(state.References, reference => Assert.Equal(RampReferenceEvidence.TransportAccepted, reference.Evidence));
-        Assert.Equal(6, state.Commands.Length);
+        Assert.Equal(5, state.Commands.Length);
         var restored = JsonSerializer.Deserialize<RecipeRampInitialState>(JsonSerializer.Serialize(state))!;
         Assert.Equal(state.SnapshotId, restored.SnapshotId);
         Assert.Equal(state.References.ToArray(), restored.References.ToArray());

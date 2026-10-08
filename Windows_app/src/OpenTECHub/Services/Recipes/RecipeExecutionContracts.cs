@@ -346,6 +346,8 @@ public sealed record LinearSetpointRampLine
             }
 
             ContractGuard.Defined(target);
+            if (target != RampOxygenTarget.ActiveCascadeReference)
+                throw new ArgumentException("A rampa de O₂ requer a referência da cascata; o monitor é apenas um interruptor de aquisição.");
         }
         else if (OxygenTarget.HasValue)
         {

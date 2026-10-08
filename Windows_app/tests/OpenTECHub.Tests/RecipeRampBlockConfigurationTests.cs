@@ -7,6 +7,25 @@ namespace OpenTECHub.Tests;
 public sealed class RecipeRampBlockConfigurationTests
 {
     [Fact]
+    public void StoredMonitorRampIsRejectedWithoutSilentCascadeMigration()
+    {
+        var node = RecipeNode.Create(NodeType.LinearSetpointRamp);
+        node.Set("cascadeNodeId", "cascade");
+        node.Set("lines", new JsonArray(new JsonObject { ["variable"] = "Oxygen", ["startSource"] = "Explicit",
+            ["initialSetpoint"] = 30, ["finalSetpoint"] = 40, ["endAfterSeconds"] = 120,
+            ["oxygenTarget"] = "MonitorReference" }));
+        var recipe = new RecipeDocument(); recipe.Nodes.Add(node);
+        var reopened = RecipeSerializer.Deserialize(RecipeSerializer.Serialize(recipe)).Nodes.Single();
+        Assert.Throws<ArgumentException>(() => RecipeRampBlockConfiguration.Read(reopened));
+        Assert.Equal("MonitorReference", reopened.Rows("lines")[0]!["oxygenTarget"]!.GetValue<string>());
+        Assert.Equal("cascade", reopened.Text("cascadeNodeId"));
+        var editor = new OpenTECHub.ViewModels.RecipeNodeViewModel(reopened);
+        var destination = editor.Fields.Single(field => field.Key == "lines").Rows.Single().Fields.Single(field => field.Key == "oxygenTarget");
+        Assert.Null(destination.SelectedOption);
+        Assert.Equal("MonitorReference", destination.TextValue);
+        Assert.Throws<ArgumentException>(() => RecipeRampBlockConfiguration.Read(reopened));
+    }
+    [Fact]
     public void RoundtripPreservesIndependentTimesAndIgnoresInactiveInputs()
     {
         var node = RecipeNode.Create(NodeType.LinearSetpointRamp);

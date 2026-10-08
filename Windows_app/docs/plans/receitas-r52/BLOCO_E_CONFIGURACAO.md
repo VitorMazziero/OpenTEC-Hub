@@ -1,6 +1,6 @@
 # R5.2 — Bloco e configuração da rampa
 
-O catálogo declara Rampa linear de referências, com linhas de parâmetro, origem atual confirmada/explicita, início contextual, valor final e tempo final em segundos. O₂ explicita monitor ou referência da cascata; a cascata associada deve existir no grafo. Política de cancelamento explicita manter referências ou restaurar início.
+O catálogo declara Rampa linear de referências, com linhas de parâmetro, origem atual confirmada/explicita, início contextual, valor final e tempo final em segundos. O₂ usa a referência da cascata; a cascata associada deve existir no grafo. O monitor é um interruptor e não oferece rampa numérica ([correção do contrato](CORRECAO_DESTINO_O2.md)). Política de cancelamento explicita manter referências ou restaurar início.
 
 O parser estrito constrói LinearSetpointRampDefinition, recusando linhas vazias, opções desconhecidas, tempos não positivos, parâmetros duplicados e trajetórias explícitas inválidas. Entradas inativas de início e destino O₂ não entram na definição. O tipo foi acrescentado ao enum sem renumerar tipos antigos.
 

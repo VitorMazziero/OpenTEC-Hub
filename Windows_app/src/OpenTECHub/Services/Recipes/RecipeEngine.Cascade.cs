@@ -225,6 +225,7 @@ public sealed partial class RecipeEngine
             }
             finally
             {
+                await CloseCascadeRampsAsync(node.Id).ConfigureAwait(false);
                 lock (_lock) _periodicGroups.Remove(node.Id);
                 if (!_graphPeriodicBindings.Values.Any(b => b.CascadeNodeId == node.Id)) periodic?.Dispose();
                 suspension.Stop();

@@ -15,6 +15,7 @@ public sealed partial class RecipeEngine
             _joinArrivals.Clear();
             _joinFired.Clear();
             _orWinner.Clear();
+            _closingRampCascades.Clear();
         }
     }
 

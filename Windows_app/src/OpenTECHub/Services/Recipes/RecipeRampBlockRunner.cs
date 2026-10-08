@@ -31,6 +31,8 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
         var execution = engine.ExecutionId;
         if (execution == Guid.Empty || engine.State != RecipeRunState.Running)
             throw new InvalidOperationException("Rampa exige receita em execução.");
+        using var lifecycle = engine.TrackRampLifecycle(configuration.CascadeNodeId);
+        using var requested = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifecycle.StopToken);
         var time = engine.RampTimeProvider;
         var invocation = Guid.NewGuid();
         var activeClock = new RecipeRampActiveClock(time);
@@ -68,11 +70,11 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
         {
             start = await coordinator.PrepareRampAsync(execution, invocation, configuration, producer,
                 authority => engine.CaptureRampStartCheckpoint(configuration, authority, invocation),
-                store, preparationTimeout, cancellation).ConfigureAwait(false);
+                store, preparationTimeout, requested.Token).ConfigureAwait(false);
             destination = createCapturedDestination is null ? createDestination(start.Configuration) : createCapturedDestination(start);
             var guarded = new RecipeRampGuardedDestination(producer, activeClock, destination, time,
                 confirmationTimeout, arbiter, execution, preparationTimeout);
-            using var running = CancellationTokenSource.CreateLinkedTokenSource(cancellation, producer.StopToken, revoked.Token);
+            using var running = CancellationTokenSource.CreateLinkedTokenSource(requested.Token, producer.StopToken, revoked.Token);
             return await new LinearSetpointRampExecutor(time).ExecutePersistedAsync(start, store, activeClock,
                 guarded, destination, (variable, value) => RecipeRampReferenceQuantization.Quantize(variable, value,
                     start.Configuration.TemperatureRoute), minimumDispatchInterval, running.Token).ConfigureAwait(false);

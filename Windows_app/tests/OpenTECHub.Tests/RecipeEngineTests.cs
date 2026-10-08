@@ -17,6 +17,67 @@ namespace OpenTECHub.Tests;
 /// </summary>
 public sealed class RecipeEngineTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CascadeExitWaitsForAssociatedRampRecoveryBeforeRemovingController(bool stopRecipe)
+    {
+        var (engine, device, arbiter, clock) = Build();
+        await using var run = engine;
+        await engine.StartAsync(CascadeWithGateRecipe(out var gate));
+        PushFrame(device, clock, oxygen: 25);
+        await WaitForCascadeStartedAsync(engine);
+        arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 25));
+        var configuration = new RecipeRampBlockConfiguration(new() { CancellationPolicy = RampCancellationPolicy.RestoreSnapshot,
+            Lines = [new() { Variable = SetpointVariable.Temperature, StartSource = SetpointStartSource.Explicit,
+                InitialSetpoint = 28, FinalSetpoint = 30, EndAfterSeconds = 60 },
+                new() { Variable = SetpointVariable.Oxygen, StartSource = SetpointStartSource.Explicit,
+                    InitialSetpoint = 45, OxygenTarget = RampOxygenTarget.ActiveCascadeReference,
+                    FinalSetpoint = 50, EndAfterSeconds = 60 }] }, "casc");
+        using var writer = new BackgroundFileWriter();
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "cascade-ramp-close-" + Guid.NewGuid().ToString("N"));
+        var store = new RecipeRampCheckpointStore(root, writer);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var restoring = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        device.CommandSent += json =>
+        {
+            var command = OpenTECCommand.Parse(json);
+            if (!command.Contains(CommandKeys.TempSetpoint)) return;
+            var value = RecipeAssayReturnState.Number(command, CommandKeys.TempSetpoint);
+            if (value == 28) started.TrySetResult();
+            if (value == 25) restoring.TrySetResult();
+        };
+        var runner = new RecipeRampBlockRunner(engine, arbiter, store, frozen => new(engine, frozen,
+            new(2, TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5)),
+            new(.5, TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5)),
+            new(.1, TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5))));
+        var ramp = runner.ExecuteAsync("ramp", configuration, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5),
+            TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(10), default);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Task ending;
+        if (stopRecipe) ending = engine.StopAsync("cancel with active ramp");
+        else
+        {
+            gate.Set("operacao", nameof(ManualGateOperation.Pass));
+            PushFrame(device, clock, oxygen: 25);
+            ending = Task.CompletedTask;
+        }
+        await restoring.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.False(ramp.IsCompleted);
+        if (stopRecipe) Assert.False(ending.IsCompleted);
+        Assert.Throws<InvalidOperationException>(() => engine.TrackRampLifecycle("casc"));
+        Assert.Empty(System.IO.Directory.GetFiles(root, "terminal.json", System.IO.SearchOption.AllDirectories));
+        device.PushTelemetry(new() { TempControlViaBath = false, TempSetpoint = 25, TempSetpointCommanded = true,
+            Temperature = 25, TemperatureUpdated = true, TemperatureValid = true, TemperatureAgeMs = 0, SensorCommOk = true });
+        var terminal = await ramp.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(RecipeRampTerminalStatus.Cancelled, terminal.Status);
+        Assert.True(terminal.HasVerifiedRecovery);
+        Assert.NotNull(terminal.Recovery!.Controller);
+        Assert.True(store.ReadTerminal(engine.ExecutionId, terminal.InvocationId)!.HasVerifiedRecovery);
+        await ending.WaitAsync(TimeSpan.FromSeconds(3));
+        if (!stopRecipe) await engine.StopAsync("exit verified");
+    }
+
     [Fact]
     public async Task MixedRampReturnConfirmsSavedControllerAndTemperatureWhileCascadeRemainsPaused()
     {

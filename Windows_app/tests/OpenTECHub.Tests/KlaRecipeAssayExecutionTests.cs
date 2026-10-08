@@ -98,10 +98,15 @@ public sealed class KlaRecipeAssayExecutionTests
             var recoveryCommands = 0;
             var diversionDispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var recoveryReferenceDispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var abioticDispatches = new[] { RunPhase.ClosingAllGas, RunPhase.OpeningNitrogen, RunPhase.PrestagingAir,
+                RunPhase.SwitchingToReactor, RunPhase.StoppingRun }.ToDictionary(phase => phase,
+                    _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
             fixture.Device.CommandSent += json =>
             {
                 if (executor.Phase == RunPhase.RestoringCultivation) Interlocked.Increment(ref recoveryCommands);
                 var command = OpenTECCommand.Parse(json);
+                if (command.Contains(CommandKeys.FlowSetpoint) && executor.Phase is { } phase && abioticDispatches.TryGetValue(phase, out var dispatched))
+                    dispatched.TrySetResult();
                 if (executor.Phase == RunPhase.RestoringCultivation && command.Contains(CommandKeys.MotorSetpoint) &&
                     RecipeAssayReturnState.Number(command, CommandKeys.MotorSetpoint) == fixture.Snapshot.AgitationSetpointRpm)
                     recoveryReferenceDispatched.TrySetResult();
@@ -141,13 +146,18 @@ public sealed class KlaRecipeAssayExecutionTests
                 }
                 if (protocol == KlaAssayProtocol.Abiotic)
                 {
+                    await abioticDispatches[RunPhase.ClosingAllGas].Task.WaitAsync(TimeSpan.FromSeconds(3));
                     Push(80, 0, GasRoute.Closed, 2);
+                    await abioticDispatches[RunPhase.OpeningNitrogen].Task.WaitAsync(TimeSpan.FromSeconds(3));
                     Push(70, 0, GasRoute.VentAndNitrogen, 3);
                     Push(10, 0, GasRoute.VentAndNitrogen, 3);
+                    await abioticDispatches[RunPhase.PrestagingAir].Task.WaitAsync(TimeSpan.FromSeconds(3));
                     for (var index = 0; index < 6; index++) Push(10, 2, GasRoute.VentAndNitrogen, 4);
+                    await abioticDispatches[RunPhase.SwitchingToReactor].Task.WaitAsync(TimeSpan.FromSeconds(3));
                     Push(10, 2, GasRoute.Reactor, 5);
                     for (var index = 1; index <= 400; index++)
                         Push(100 - 90 * Math.Exp(-40.0 * index / 3600), 2, GasRoute.Reactor, 5);
+                    await abioticDispatches[RunPhase.StoppingRun].Task.WaitAsync(TimeSpan.FromSeconds(3));
                     fixture.Device.Sent.Clear();
                     Push(99, 0, GasRoute.Closed, 6);
                 }

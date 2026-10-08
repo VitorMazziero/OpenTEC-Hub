@@ -23,8 +23,9 @@ public sealed record RecipeRampBlockConfiguration(LinearSetpointRampDefinition D
         var definition = new LinearSetpointRampDefinition { Lines = lines.ToImmutable(),
             CancellationPolicy = Choice<RampCancellationPolicy>(node.Parameters, "cancellationPolicy") };
         definition.Validate();
-        var cascade = node.Text("cascadeNodeId");
-        if (definition.Lines.Any(line => line.OxygenTarget == RampOxygenTarget.ActiveCascadeReference) && string.IsNullOrWhiteSpace(cascade))
+        var needsCascade = definition.Lines.Any(line => line.OxygenTarget == RampOxygenTarget.ActiveCascadeReference);
+        var cascade = needsCascade ? node.Text("cascadeNodeId") : null;
+        if (needsCascade && string.IsNullOrWhiteSpace(cascade))
             throw new ArgumentException("Rampa da referência de O₂ requer controle associado.");
         return new(definition, string.IsNullOrWhiteSpace(cascade) ? null : cascade);
     }

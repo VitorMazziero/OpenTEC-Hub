@@ -46,6 +46,29 @@ public sealed partial class RecipeParameterFieldViewModel : ObservableObject
 
     public string Label => Parameter.Label;
 
+    public string EditorLabel => string.IsNullOrWhiteSpace(Unit) ? Label : $"{Label} ({Unit})";
+
+    public string HelpText => Key switch
+    {
+        "protocol" => "Abiótico: meio sem atividade biológica. Biótico: considera o consumo de oxigênio do cultivo.",
+        "conditionsMode" => "Use a agitação e a vazão atuais, defina uma condição ou adicione várias condições com suas réplicas.",
+        "requireValidOur" => "OUR é a taxa de consumo de oxigênio. Quando marcado, uma réplica sem OUR válido não será aceita.",
+        "maximumAttemptsPerReplicate" => "Inclui a primeira tentativa. 1 significa que não haverá repetição automática da réplica.",
+        "useProfileRetryReasons" => "O procedimento selecionado define quais problemas permitem uma nova tentativa. Desmarque para escolher os motivos abaixo.",
+        "retryInsufficientWindow" => "Permite repetir quando não houver dados suficientes no trecho usado para calcular kLa.",
+        "retryExcessiveNoise" => "Permite repetir quando a variação do sinal impedir um resultado de qualidade.",
+        "retryUnstableCondition" => "Permite repetir quando agitação ou vazão não estiverem estáveis.",
+        "maximumAttemptsPerCultivation" => "Total de tentativas permitido no mesmo cultivo, incluindo primeiras tentativas, réplicas e repetições periódicas.",
+        "minimumIntervalSeconds" => "Pausa mínima entre ensaios. Não define a periodicidade; use o bloco Periodicidade para isso. Deve respeitar o mínimo do perfil.",
+        "maximumBlockSeconds" => "Tempo máximo para realizar os ensaios deste bloco. Informe um valor maior que zero e dentro do limite do perfil.",
+        "maximumGasOffSeconds" => "Tempo máximo com a aeração interrompida em uma tentativa. Deve cobrir a remoção prevista pelo perfil. Zero não é válido.",
+        "maximumCultivationGasOffSeconds" => "Soma máxima dos períodos sem aeração ao longo do cultivo. Informe um valor maior que zero, dentro do limite do perfil.",
+        "failurePolicy" => "As condições anteriores são restauradas antes de encerrar ou continuar a receita. O resultado inconclusivo permanece registrado.",
+        _ => ""
+    };
+
+    public bool HasHelpText => HelpText.Length > 0;
+
     public string? Unit => Parameter.Unit;
 
     public string? Group => Parameter.Group;
@@ -335,9 +358,16 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     public IReadOnlyList<RecipePortViewModel> Ports { get; }
 
     public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible &&
-        !(IsKlaAssay && f.Key is "profileId" or "profileVersion"));
+        !(IsKlaAssay && f.Key is "profileId" or "profileVersion") &&
+        !(Type == NodeType.LinearSetpointRamp && f.Key == "cascadeNodeId"));
 
     public bool ShowSummary => Type is not (NodeType.Start or NodeType.End or NodeType.And or NodeType.Or or NodeType.ManualIntervention);
+
+    public IEnumerable<RecipeParameterFieldViewModel> KlaProcedureFields => VisibleFields.Where(f => !KlaRetryKeys.Contains(f.Key) && !KlaSafetyKeys.Contains(f.Key));
+    public IEnumerable<RecipeParameterFieldViewModel> KlaRetryFields => VisibleFields.Where(f => KlaRetryKeys.Contains(f.Key));
+    public IEnumerable<RecipeParameterFieldViewModel> KlaSafetyFields => VisibleFields.Where(f => KlaSafetyKeys.Contains(f.Key));
+    private static readonly HashSet<string> KlaRetryKeys = ["maximumAttemptsPerReplicate", "useProfileRetryReasons", "retryInsufficientWindow", "retryExcessiveNoise", "retryUnstableCondition"];
+    private static readonly HashSet<string> KlaSafetyKeys = ["maximumAttemptsPerCultivation", "minimumIntervalSeconds", "maximumBlockSeconds", "maximumGasOffSeconds", "maximumCultivationGasOffSeconds"];
 
     public bool IsManualIntervention => Type == NodeType.ManualIntervention;
 
@@ -552,6 +582,8 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(VisibleFields));
+        OnPropertyChanged(nameof(UsesRampCascadeReference));
+        OnPropertyChanged(nameof(RampCascadeStatus));
         OnPropertyChanged(nameof(ManualButtonText));
         OnPropertyChanged(nameof(ManualButtonIcon));
         OnPropertyChanged(nameof(ManualButtonColor));
@@ -980,6 +1012,9 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         OnPropertyChanged(nameof(CascadeRateEstimationFields));
         Summary = BuildSummary();
         OnPropertyChanged(nameof(VisibleFields));
+        OnPropertyChanged(nameof(KlaProcedureFields));
+        OnPropertyChanged(nameof(KlaRetryFields));
+        OnPropertyChanged(nameof(KlaSafetyFields));
         RefreshOperationalProfiles();
 
         if (Type == NodeType.CascadeControl && CascadeUsesMap)
@@ -1083,6 +1118,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
     /// </remarks>
     private static bool IsParameterActive(RecipeNode node, RecipeParameter parameter)
     {
+        if (node.Type == NodeType.LinearSetpointRamp && parameter.Key == "cascadeNodeId") return false;
         if (parameter.VisibleWhen is not { } guard)
         {
             return true;

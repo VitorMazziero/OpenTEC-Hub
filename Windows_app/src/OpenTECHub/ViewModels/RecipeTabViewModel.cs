@@ -77,6 +77,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
     partial void OnSelectedNodeChanged(RecipeNodeViewModel? value)
     {
         value?.RefreshOperationalProfiles();
+        value?.RefreshRampCascadeChoices(Document.Nodes);
         if (value is { Type: NodeType.CascadeControl } cascade)
         {
             cascade.RefreshPresets();
@@ -405,6 +406,7 @@ public sealed partial class RecipeTabViewModel : ObservableObject
 
     private void OnNodeChanged()
     {
+        SelectedNode?.RefreshRampCascadeChoices(Document.Nodes);
         RefreshGateRoles();
         RecomputeConnections();
         MarkDirty();

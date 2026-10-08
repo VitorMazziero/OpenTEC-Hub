@@ -17,7 +17,8 @@
         <!-- One scalar editor, chosen from the schema kind. -->
         <DataTemplate x:Key="ScalarFieldTemplate" DataType="{x:Type vm:RecipeParameterFieldViewModel}">
             <StackPanel Margin="0,0,0,10" Visibility="{Binding IsVisible, Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="{Binding Label}" FontSize="11"
+                <TextBlock Text="{Binding EditorLabel}" FontSize="11"
+                           Visibility="{Binding IsBool, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}"
                            Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,3" />
                 <TextBox Text="{Binding NumberValue, UpdateSourceTrigger=LostFocus}"
                          Visibility="{Binding IsNumber, Converter={StaticResource BoolToVis}}"
@@ -33,6 +34,9 @@
                 <CheckBox IsChecked="{Binding BoolValue, Mode=TwoWay}" Content="{Binding Label}"
                           Foreground="{DynamicResource TextPrimaryBrush}"
                           Visibility="{Binding IsBool, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding HelpText}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Visibility="{Binding HasHelpText, Converter={StaticResource BoolToVis}}" />
             </StackPanel>
         </DataTemplate>
 
@@ -701,6 +705,14 @@
                             </Grid>
 
                             <!-- Intervenção Manual properties button & explanation -->
+                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.UsesRampCascadeReference, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
+                                <TextBlock Text="Controle de O₂ que receberá a rampa" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding SelectedTab.SelectedNode.AvailableRampCascades}"
+                                          SelectedItem="{Binding SelectedTab.SelectedNode.SelectedRampCascade, Mode=TwoWay}"
+                                          DisplayMemberPath="Label" />
+                                <TextBlock Text="{Binding SelectedTab.SelectedNode.RampCascadeStatus}" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,6,0,0" />
+                            </StackPanel>
                             <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsKlaAssay, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
                                 <TextBlock Text="Perfil operacional" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
                                 <ComboBox ItemsSource="{Binding SelectedTab.SelectedNode.AvailableOperationalProfiles}"
@@ -1029,11 +1041,27 @@
                             </StackPanel>
 
                             <!-- Generic Fields (for all other nodes) -->
-                            <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.Fields}"
+                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsKlaAssay, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Como realizar o ensaio" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.KlaProcedureFields}" ItemTemplate="{StaticResource FieldTemplate}" />
+                                <Expander Header="Repetir quando a qualidade for insuficiente" Margin="0,4,0,10">
+                                    <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedTab.SelectedNode.KlaRetryFields}" ItemTemplate="{StaticResource FieldTemplate}" />
+                                </Expander>
+                                <Expander Header="Limites de tempo e proteção do cultivo" IsExpanded="True" Margin="0,4,0,10">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="Configure estes limites dentro dos valores permitidos pelo perfil operacional. Eles não definem a frequência dos testes." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.KlaSafetyFields}" ItemTemplate="{StaticResource FieldTemplate}" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding SelectedTab.SelectedNode.VisibleFields}"
                                           ItemTemplate="{StaticResource FieldTemplate}">
                                 <ItemsControl.Style>
                                     <Style TargetType="ItemsControl">
                                         <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedTab.SelectedNode.IsKlaAssay}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding SelectedTab.SelectedNode.IsManualIntervention}" Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>

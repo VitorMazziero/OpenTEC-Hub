@@ -207,7 +207,14 @@ public sealed class KlaRecipeAssayExecutionTests
             await recoveryReferenceDispatched.Task.WaitAsync(TimeSpan.FromSeconds(3));
             if (failPersistence) writer.Run(Path.Combine(directory, document.FolderName, "controlled-error"),
                 () => throw new IOException("terminal persistence failure"));
-            await fixture.PushStable(command: 20);
+            // Recovery requires consecutive observations. Task.Yield may deliver the entire
+            // virtual burst before its consumer runs, leaving no complete stability window.
+            for (var index = 0; index < 12 && !cancelling.IsCompleted; index++)
+            {
+                fixture.Clock.Advance(TimeSpan.FromSeconds(1));
+                fixture.Device.PushTelemetry(fixture.Sample(command: 20));
+                await Task.Delay(10);
+            }
             var completed = await cancelling.WaitAsync(TimeSpan.FromSeconds(10));
             if (completeNormally) Assert.True(completed.State is KlaAssayApiState.Completed or KlaAssayApiState.Inconclusive);
             else Assert.Equal(failPersistence ? KlaAssayApiState.PersistenceFailed : KlaAssayApiState.Cancelled, completed.State);

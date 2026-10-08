@@ -15,8 +15,8 @@ public sealed class RecipeDomainTests
     [Fact]
     public void Catalog_declares_every_block_type_exactly_once()
     {
-        // Original blocks, external devices, unattended kLa and periodic scheduling.
-        Assert.Equal(23, RecipeNodeCatalog.All.Count);
+        // Original blocks, external devices, unattended kLa, periodic scheduling and ramps.
+        Assert.Equal(24, RecipeNodeCatalog.All.Count);
         Assert.Equal(Enum.GetValues<NodeType>().Length, RecipeNodeCatalog.All.Count);
 
         foreach (var type in Enum.GetValues<NodeType>())

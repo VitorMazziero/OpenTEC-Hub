@@ -95,6 +95,7 @@ public enum NodeType
 
     /// <summary>Monotonic periodic trigger; missed slots are skipped.</summary>
     Periodic,
+    LinearSetpointRamp,
 }
 
 public enum RecipeKlaConditionMode { SingleAtCurrentCondition, SingleExplicit, Multiple }

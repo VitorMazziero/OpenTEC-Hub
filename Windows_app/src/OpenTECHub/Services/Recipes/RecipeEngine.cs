@@ -92,6 +92,12 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(recipe);
 
+        if (recipe.Nodes.Any(node => node.Type == NodeType.LinearSetpointRamp))
+        {
+            reason = "Execução de rampas aguarda integração de reservas e confirmação dos destinos.";
+            return false;
+        }
+
         if (State is RecipeRunState.Running or RecipeRunState.Paused)
         {
             reason = "Uma receita já está em execução.";

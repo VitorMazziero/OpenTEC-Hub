@@ -146,6 +146,17 @@ public static class RecipeValidator
 
         ValidateCascadeContinuations(recipe, findings);
         ValidatePeriodicCascadeReferences(recipe, reachable, findings);
+        foreach (var ramp in recipe.Nodes.Where(node => node.Type == NodeType.LinearSetpointRamp))
+        {
+            try
+            {
+                var configuration = RecipeRampBlockConfiguration.Read(ramp);
+                if (configuration.Definition.Lines.Any(line => line.OxygenTarget == RampOxygenTarget.ActiveCascadeReference) &&
+                    recipe.Node(configuration.CascadeNodeId!)?.Type != NodeType.CascadeControl)
+                    findings.Add(Error("Controle de O₂ associado à rampa não existe.", ramp.Id));
+            }
+            catch (ArgumentException) { /* Node validation reports malformed rows. */ }
+        }
         ValidateAssayResourceConflicts(recipe, findings);
     }
 
@@ -339,6 +350,10 @@ public static class RecipeValidator
     {
         switch (node.Type)
         {
+            case NodeType.LinearSetpointRamp:
+                try { RecipeRampBlockConfiguration.Read(node); }
+                catch (ArgumentException error) { findings.Add(Error(error.Message, node.Id)); }
+                break;
             case NodeType.KlaAssay:
             case NodeType.Periodic:
                 try

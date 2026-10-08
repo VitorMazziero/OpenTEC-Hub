@@ -250,6 +250,26 @@ public static class RecipeNodeCatalog
         },
         new()
         {
+            Type = NodeType.LinearSetpointRamp, Title = "Rampa linear de referências", Category = BlockCategory.Actions,
+            Ports = [PortIn, PortOut],
+            Parameters = [
+                ListP("lines", "Parâmetros e tempos finais", [
+                    EnumP("variable", "Parâmetro", nameof(SetpointVariable.Temperature), SetpointVariables),
+                    EnumP("startSource", "Referência inicial", nameof(SetpointStartSource.CurrentConfirmed),
+                        [new(nameof(SetpointStartSource.CurrentConfirmed), "Atual confirmada"), new(nameof(SetpointStartSource.Explicit), "Explícita")]),
+                    Num("initialSetpoint", "Valor inicial", 30, visibleWhen: "startSource=Explicit"),
+                    Num("finalSetpoint", "Valor final", 30),
+                    Num("endAfterSeconds", "Terminar após", 60, min: 0, unit: "s"),
+                    EnumP("oxygenTarget", "Destino de O₂", nameof(RampOxygenTarget.ActiveCascadeReference),
+                        [new(nameof(RampOxygenTarget.ActiveCascadeReference), "Referência da cascata"),
+                         new(nameof(RampOxygenTarget.MonitorReference), "Referência do monitor")], visibleWhen: "variable=Oxygen")]),
+                Text("cascadeNodeId", "Controle de O₂ associado", ""),
+                EnumP("cancellationPolicy", "Ao cancelar", nameof(RampCancellationPolicy.HoldLastReferences),
+                    [new(nameof(RampCancellationPolicy.HoldLastReferences), "Manter últimas referências"),
+                     new(nameof(RampCancellationPolicy.RestoreSnapshot), "Restaurar referências iniciais")])]
+        },
+        new()
+        {
             Type = NodeType.Periodic, Title = "Periodicidade", Category = BlockCategory.Triggers,
             Ports = [PortIn, new RecipePort(ConnectorNames.Out, PortDirection.Out, "Alvo periódico")],
             Parameters =

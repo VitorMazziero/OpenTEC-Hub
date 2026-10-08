@@ -79,10 +79,13 @@ public sealed class RecipeRampBlockRunnerTests
     }
 
     [Theory]
-    [InlineData(false, RampCancellationPolicy.HoldLastReferences)]
-    [InlineData(true, RampCancellationPolicy.HoldLastReferences)]
-    [InlineData(true, RampCancellationPolicy.RestoreSnapshot)]
-    public async Task InvocationPreparesExecutesAndPersistsItsCompletionOrCancellation(bool cancel, RampCancellationPolicy policy)
+    [InlineData(false, RampCancellationPolicy.HoldLastReferences, 0)]
+    [InlineData(true, RampCancellationPolicy.HoldLastReferences, 0)]
+    [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 0)]
+    [InlineData(false, RampCancellationPolicy.HoldLastReferences, 1)]
+    [InlineData(false, RampCancellationPolicy.HoldLastReferences, 2)]
+    [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 3)]
+    public async Task InvocationPreparesExecutesAndPersistsItsCompletionOrCancellation(bool cancel, RampCancellationPolicy policy, int pauseKind)
     {
         var device = new RecordingDeviceService();
         using var arbiter = new CommandArbiter(device, TimeProvider.System);
@@ -100,7 +103,7 @@ public sealed class RecipeRampBlockRunnerTests
         var store = new RecipeRampCheckpointStore(root, writer);
         var configuration = new RecipeRampBlockConfiguration(new() { CancellationPolicy = policy, Lines = [new() {
             Variable = SetpointVariable.Temperature, StartSource = SetpointStartSource.Explicit, InitialSetpoint = 28,
-            FinalSetpoint = 30, EndAfterSeconds = cancel ? 60 : .05 }] }, null, RampTemperatureRoute.NativeModule);
+            FinalSetpoint = 30, EndAfterSeconds = cancel ? 60 : pauseKind != 0 ? .2 : .05 }] }, null, RampTemperatureRoute.NativeModule);
         var expectedSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         double reference = 25;
         device.CommandSent += json =>
@@ -109,7 +112,7 @@ public sealed class RecipeRampBlockRunnerTests
             if (!command.Contains(CommandKeys.TempSetpoint)) return;
             var value = RecipeAssayReturnState.Number(command, CommandKeys.TempSetpoint);
             Volatile.Write(ref reference, value);
-            if (value == (cancel ? 28 : 30)) expectedSent.TrySetResult();
+            if (value == (cancel || pauseKind != 0 ? 28 : 30)) expectedSent.TrySetResult();
         };
         using var telemetryStop = new CancellationTokenSource();
         var telemetry = Task.Run(async () =>
@@ -136,11 +139,30 @@ public sealed class RecipeRampBlockRunnerTests
             var running = runner.ExecuteAsync("ramp", configuration, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3),
                 TimeSpan.FromSeconds(3), TimeSpan.FromMilliseconds(10), cancellation.Token);
             await expectedSent.Task.WaitAsync(TimeSpan.FromSeconds(3));
-            if (cancel) cancellation.Cancel();
+            if (pauseKind is 1 or 2)
+            {
+                RecipeAssayResourceLease? assay = null;
+                if (pauseKind == 1) engine.Pause();
+                else assay = await engine.Resources!.ReserveForAssayAsync(
+                    RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId, NodeId = "assay" },
+                    [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Temperature], TimeSpan.FromSeconds(3));
+                await Task.Delay(50);
+                var pausedReference = Volatile.Read(ref reference);
+                var count = device.Sent.Count;
+                await Task.Delay(300);
+                Assert.False(running.IsCompleted);
+                Assert.Equal(pausedReference, Volatile.Read(ref reference));
+                Assert.Equal(count, device.Sent.Count);
+                if (assay is not null) assay.AbortBeforeAssay(); else engine.Resume();
+            }
+            if (pauseKind == 3) arbiter.DispatchSafety(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 0), "emergency during ramp");
+            else if (cancel) cancellation.Cancel();
             var terminal = await running.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(cancel ? RecipeRampTerminalStatus.Cancelled : RecipeRampTerminalStatus.Completed, terminal.Status);
-            Assert.Equal(cancel ? policy == RampCancellationPolicy.RestoreSnapshot ? 25 : 28 : 30, Volatile.Read(ref reference));
-            Assert.Equal(cancel && policy == RampCancellationPolicy.RestoreSnapshot, terminal.HasVerifiedRecovery);
+            Assert.Equal(pauseKind == 3 ? RecipeRampTerminalStatus.EmergencyStopped :
+                cancel ? RecipeRampTerminalStatus.Cancelled : RecipeRampTerminalStatus.Completed, terminal.Status);
+            Assert.Equal(pauseKind == 3 ? 0 : cancel ? policy == RampCancellationPolicy.RestoreSnapshot ? 25 : 28 : 30, Volatile.Read(ref reference));
+            Assert.Equal(pauseKind != 3 && cancel && policy == RampCancellationPolicy.RestoreSnapshot, terminal.HasVerifiedRecovery);
+            if (pauseKind == 3) Assert.Equal(RecipeRampReturnOutcome.SuppressedForEmergency, terminal.ReturnOutcome);
             Assert.Equal(terminal.Status, store.ReadTerminal(engine.ExecutionId, terminal.InvocationId)!.Status);
             Assert.NotNull(store.ReadStart(engine.ExecutionId, terminal.InvocationId));
             await Assert.ThrowsAsync<InvalidOperationException>(() => runner.ExecuteAsync("ramp", configuration,

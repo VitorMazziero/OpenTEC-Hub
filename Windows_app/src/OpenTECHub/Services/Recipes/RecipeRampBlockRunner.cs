@@ -31,6 +31,18 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
             RecipeRampInitialState.ResourcesFor(configuration.Definition), activeClock);
         var pauseGate = new object();
         var detached = false;
+        OwnershipTransfer? revocation = null;
+        using var revoked = new CancellationTokenSource();
+        void ObserveRevocation(OwnershipTransfer transfer)
+        {
+            if (transfer.To != CommandOwner.Manual || !transfer.Actuators.Intersect(producer.Resources).Any()) return;
+            lock (pauseGate)
+            {
+                if (detached) return;
+                revocation = transfer;
+                revoked.Cancel();
+            }
+        }
         void ObserveState()
         {
             lock (pauseGate)
@@ -41,6 +53,7 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
             }
         }
         engine.StateChanged += ObserveState;
+        arbiter.OwnershipRevoked += ObserveRevocation;
         ObserveState();
         RecipeRampStartCheckpoint? start = null;
         RecipeRampFrameDestination? destination = null;
@@ -52,7 +65,7 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
             destination = createDestination(start.Configuration);
             var guarded = new RecipeRampGuardedDestination(producer, activeClock, destination, time,
                 confirmationTimeout, arbiter, execution, preparationTimeout);
-            using var running = CancellationTokenSource.CreateLinkedTokenSource(cancellation, producer.StopToken);
+            using var running = CancellationTokenSource.CreateLinkedTokenSource(cancellation, producer.StopToken, revoked.Token);
             return await new LinearSetpointRampExecutor(time).ExecutePersistedAsync(start, store, activeClock,
                 guarded, destination, (variable, value) => RecipeRampReferenceQuantization.Quantize(variable, value,
                     start.Configuration.TemperatureRoute), minimumDispatchInterval, running.Token).ConfigureAwait(false);
@@ -60,6 +73,17 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
         catch (Exception error) when (start is not null && destination is not null)
         {
             activeClock.Suspend("ending");
+            OwnershipTransfer? lost;
+            lock (pauseGate) lost = revocation;
+            if (lost is not null)
+            {
+                var interrupted = new RecipeRampTerminalCheckpoint(1, execution, start.InvocationId,
+                    start.InitialState.SnapshotId, nodeId,
+                    lost.IsSafeAbort ? RecipeRampTerminalStatus.EmergencyStopped : RecipeRampTerminalStatus.Faulted,
+                    lost.IsSafeAbort ? RecipeRampReturnOutcome.SuppressedForEmergency : RecipeRampReturnOutcome.Failed,
+                    activeClock.ActiveSeconds, time.GetUtcNow(), lost.Reason, []);
+                return await store.PersistTerminalAsync(interrupted, CancellationToken.None).ConfigureAwait(false);
+            }
             var status = error is OperationCanceledException ? RecipeRampTerminalStatus.Cancelled : RecipeRampTerminalStatus.Faulted;
             try
             {
@@ -75,6 +99,7 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
         {
             lock (pauseGate) detached = true;
             engine.StateChanged -= ObserveState;
+            arbiter.OwnershipRevoked -= ObserveRevocation;
             destination?.Dispose();
             if (start is not null) coordinator.Unregister(nodeId);
         }

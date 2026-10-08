@@ -41,7 +41,8 @@ public static class RecipeAutonomousBlockConfiguration
         var retry = new KlaAutomaticRetryPolicy
         {
             MaximumAttemptsPerReplicate = Integer(Number(node.Parameters, "maximumAttemptsPerReplicate")),
-            MaximumAttemptsPerCultivation = Integer(Number(node.Parameters, "maximumAttemptsPerCultivation")),
+            MaximumAttemptsPerCultivation = Number(node.Parameters, "maximumAttemptsPerCultivation") <= 0
+                ? KlaRecipeOperatorProfile.NotApplicableAttempts : Integer(Number(node.Parameters, "maximumAttemptsPerCultivation")),
             MinimumInterAssaySeconds = Number(node.Parameters, "minimumIntervalSeconds"),
             MaximumBlockSeconds = NotApplicableAsDefault(Number(node.Parameters, "maximumBlockSeconds"), MaximumBlockDefaultSeconds),
             MaximumGasOffSecondsPerAttempt = NotApplicableAsDefault(Number(node.Parameters, "maximumGasOffSeconds"),

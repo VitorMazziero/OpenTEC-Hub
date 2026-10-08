@@ -48,7 +48,7 @@ public sealed class KlaRecipeApplicationHost : IRecipeAutonomousWorkSource, IDis
             ProfileStore.RegisterAvailable(Profiles);
             _api ??= new(Path.Combine(_root, "assay-journal.json"), _router, _time);
             _source ??= new(Profiles, _router, _api, _factory, _store, _settings, _time, _writer,
-                Path.Combine(_root, "periodic"), () => Context.CultivationId, _measurementSource);
+                Path.Combine(_root, "periodic"), _measurementSource);
             AvailabilityError = null;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException or InvalidOperationException or AggregateException)
@@ -65,8 +65,6 @@ public sealed class KlaRecipeApplicationHost : IRecipeAutonomousWorkSource, IDis
 
     public bool CanExecute(RecipeDocument recipe, out string? reason)
     {
-        if (Context?.IsChangingCultivation == true)
-        { reason = "Aguarde a gravação do cultivo antes de iniciar o ensaio."; return false; }
         if (AvailabilityError is not null || _source is null)
         { reason = AvailabilityError ?? "Serviço de ensaio automático indisponível."; return false; }
         return _source.CanExecute(recipe, out reason);

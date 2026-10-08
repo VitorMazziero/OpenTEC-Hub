@@ -13,7 +13,7 @@ public sealed record KlaRecipeActiveInvocation(KlaRecipeRequest Request, string 
 public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileRegistry profiles,
     KlaRecipeExecutionRouter router, IKlaAssayApi api, KlaRecipeAssayExecutionFactory factory,
     IKlaTestStore store, ISettingsService settings, TimeProvider time, BackgroundFileWriter writer,
-    string periodicJournalRoot, Func<string?> activeCultivation,
+    string periodicJournalRoot,
     KlaMeasurementSource measurementSource = KlaMeasurementSource.Simulation) : IRecipeAutonomousWorkSource
 {
     private readonly object _gate = new();
@@ -71,8 +71,8 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
             {
                 var profile = profiles.Resolve(profiles.Normalize(RecipeAutonomousBlockConfiguration.ReadKla(node)));
                 if (!string.IsNullOrWhiteSpace(profile.Template.Context?.CultivationId) &&
-                    profile.Template.Context.CultivationId != activeCultivation())
-                    throw new InvalidOperationException("Perfil científico pertence a outro cultivo.");
+                    profile.Template.Context.CultivationId != CultivationFor(recipe))
+                    throw new InvalidOperationException("Perfil científico pertence a outra receita.");
                 if (recipe.IncomingTo(node.Id).Count() != 1)
                     throw new ArgumentException("Ensaio exige uma única entrada; sincronize seus ramos antes do bloco.");
             }
@@ -92,9 +92,7 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
     public RecipeAutonomousExecutionPlan CreateWork(RecipeDocument recipe, Guid executionId, RecipeResourceCoordinator resources)
     {
         if (!CanExecute(recipe, out var reason)) throw new InvalidOperationException(reason);
-        // Without an operator-entered cultivation, each recipe run is its own cultivation for the budget journal.
-        var cultivation = string.IsNullOrWhiteSpace(activeCultivation())
-            ? $"receita-{time.GetLocalNow():yyyyMMdd-HHmmss}-{executionId.ToString("N")[..6]}" : activeCultivation()!;
+        var cultivation = CultivationFor(recipe);
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(RecipeSerializer.Serialize(recipe)))).ToLowerInvariant();
         var journal = new RecipePeriodicJournal(periodicJournalRoot, executionId, hash, writer, time);
         var assays = recipe.Nodes.Where(n => n.Type == NodeType.KlaAssay).Select(node =>
@@ -118,12 +116,28 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
         return new(assays, schedules);
     }
 
+    /// <summary>The recipe's name is the identifier of its assays and of their budget journal (D-068).</summary>
+    internal static string CultivationFor(RecipeDocument recipe)
+    {
+        var name = FileSafe(recipe.Name, 60);
+        return name.Length == 0 ? "receita" : name;
+    }
+
+    private static string FileSafe(string? value, int maximumLength)
+    {
+        var invalid = System.IO.Path.GetInvalidFileNameChars();
+        var cleaned = new string((value ?? "").Trim().Select(c => char.IsControl(c) || invalid.Contains(c) ? '-' : c).ToArray())
+            .Trim(' ', '.');
+        return cleaned.Length <= maximumLength ? cleaned : cleaned[..maximumLength].TrimEnd(' ', '.');
+    }
+
     /// <summary>
-    /// Testes-kLa/Receitas-automaticas/&lt;date&gt;_&lt;protocol&gt;_&lt;mode&gt;_&lt;conditions&gt;; runs inside keep N/Q/replicate names.
+    /// Testes-kLa/Receitas-automaticas/&lt;recipe&gt;_&lt;date&gt;_&lt;protocol&gt;_&lt;mode&gt;_&lt;conditions&gt;; runs inside keep N/Q/replicate names.
     /// </summary>
     internal static string SessionName(KlaRecipeRequest request, DateTimeOffset local, int duplicate = 1)
     {
         var definition = request.Definition;
+        var recipe = FileSafe(request.Context.CultivationId, 28);
         var protocol = definition.Protocol == KlaAssayProtocol.Biotic ? "Biotico" : "Abiotico";
         var conditions = definition.Conditions;
         var values = conditions.Length == 1
@@ -131,7 +145,7 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
             : $"Matriz_{conditions.Length}cond_{conditions.Sum(c => c.RequestedReplicates)}rep";
         var slot = request.PeriodicInvocation is { } periodic ? $"_disparo{periodic.SlotIndex + 1:D2}" : "";
         var suffix = duplicate > 1 ? $"_{duplicate:D2}" : "";
-        return $"{local:yyyy-MM-dd_HH'h'mm'm'ss's'}_{protocol}_{values}{slot}{suffix}";
+        return $"{(recipe.Length == 0 ? "receita" : recipe)}_{local:yyyy-MM-dd_HH'h'mm'm'ss's'}_{protocol}_{values}{slot}{suffix}";
 
         static string Condition(KlaAssayCondition condition)
         {

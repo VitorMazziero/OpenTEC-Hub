@@ -69,7 +69,7 @@ public sealed class KlaRecipeAutonomousWorkSourceTests
         using var api = new KlaAssayApi(Path.Combine(root, "api.json"), router, clock);
         var factory = new KlaRecipeAssayExecutionFactory(fixture.Device, arbiter, store, new KlaAnalysisEngine(), settings, clock, true);
         var source = new KlaRecipeAutonomousWorkSource(registry, router, api, factory, store, settings, clock, writer,
-            Path.Combine(root, "journal"), () => "culture-1");
+            Path.Combine(root, "journal"));
         var coordinator = new RecipeResourceCoordinator(arbiter, clock);
         var desired = 300;
         var producer = new Producer(() => arbiter.Dispatch(CommandOwner.Recipe, CommandBuilders.MotorSetpoint(desired += 10)));

@@ -58,7 +58,6 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         _operationalProfiles = operationalProfiles;
         _klaHost = klaHost;
         _files = files;
-        KlaCultivationId = klaHost?.Context?.CultivationId ?? "";
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         Library = BuildLibrary();
@@ -129,10 +128,6 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(SaveRecipeCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddBlockCommand))]
     [NotifyCanExecuteChangedFor(nameof(DeleteSelectedCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveKlaCultivationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ImportKlaOperationalProfileCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ReloadKlaOperationalProfilesCommand))]
-    [NotifyPropertyChangedFor(nameof(CanConfigureKlaAutomation))]
     public partial RecipeRunState RunState { get; set; } = RecipeRunState.Idle;
 
     public bool IsRunning => RunState is RecipeRunState.Running or RecipeRunState.Paused;
@@ -385,7 +380,6 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanStartRecipe))]
     private async Task Start()
     {
-        if (IsKlaConfigurationBusy) return;
         if (SelectedTab is not { } tab)
         {
             return;
@@ -418,7 +412,7 @@ public sealed partial class ReceitasViewModel : ObservableObject, IDisposable
         }
     }
 
-    private bool CanStartRecipe() => IsStopped && !IsKlaConfigurationBusy && ShowCanvas && SelectedTab is { IsValid: true };
+    private bool CanStartRecipe() => IsStopped && ShowCanvas && SelectedTab is { IsValid: true };
 
     [RelayCommand(CanExecute = nameof(IsRunning))]
     private void Pause()

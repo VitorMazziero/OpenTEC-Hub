@@ -91,7 +91,8 @@ public sealed class KlaOperatorDecisionTests
             var request = RecipeExecutionContractTests.Request(KlaAssayProtocol.Biotic);
             var local = new DateTimeOffset(2026, 10, 8, 14, 30, 5, TimeSpan.FromHours(-3));
             var name = KlaRecipeAutonomousWorkSource.SessionName(request, local);
-            Assert.StartsWith("2026-10-08_14h30m05s_Biotico_", name);
+            Assert.Contains("_2026-10-08_14h30m05s_Biotico_", name); // <recipe>_<date>_<protocol>_… (D-068)
+            Assert.Equal(request.Context.CultivationId, name[..name.IndexOf("_2026-10-08", StringComparison.Ordinal)]);
             Assert.Contains(request.Definition.Conditions.Length == 1 ? "_Unico_N" : "_Matriz_", name);
             Assert.EndsWith("_02", KlaRecipeAutonomousWorkSource.SessionName(request, local, 2));
 

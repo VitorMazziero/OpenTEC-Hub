@@ -90,7 +90,7 @@ public sealed class KlaRecipeApplicationHostTests : IDisposable
     }
 
     [Fact]
-    public async Task Configured_host_resolves_recipe_work_without_actuation_and_ui_locks_cultivation_during_run()
+    public async Task Configured_host_resolves_recipe_work_without_actuation()
     {
         using var host = Host();
         var profile = KlaRecipeOperationalProfileTests.Profile(_fixture.Clock);
@@ -104,23 +104,17 @@ public sealed class KlaRecipeApplicationHostTests : IDisposable
             new("kla", ConnectorNames.Out, "end", ConnectorNames.In)]);
         using var engine = new RecipeEngine(_fixture.Arbiter, _fixture.Device, new MemorySettingsService(), _fixture.Clock,
             autonomousWorkSource: host);
-        using var vm = new ReceitasViewModel(engine, new RecipeStore(Path.Combine(_root, "recipes")),
-            operationalProfiles: host.Profiles, klaHost: host);
-        vm.KlaCultivationId = profile.Template.Context?.CultivationId ?? "culture-A";
-        await vm.SaveKlaCultivationCommand.ExecuteAsync(null);
-        Assert.Equal(vm.KlaCultivationId, host.Context.CultivationId);
+        recipe.Name = profile.Template.Context?.CultivationId ?? "Receita A"; // the recipe name is the identifier (D-068)
         Assert.True(host.CanExecute(recipe, out var reason), reason);
         var work = host.CreateWork(recipe, Guid.NewGuid(), engine.Resources!);
         Assert.Single(work.Assays); Assert.Empty(work.Schedules); Assert.Empty(_fixture.Device.Sent);
-        foreach (var state in new[] { RecipeRunState.Running, RecipeRunState.Paused })
+
+        // An imported profile bound to another recipe name is refused.
+        recipe.Name = "Outra receita";
+        if (profile.Template.Context?.CultivationId is not null)
         {
-            vm.RunState = state;
-            Assert.False(vm.CanConfigureKlaAutomation);
-            Assert.False(vm.SaveKlaCultivationCommand.CanExecute(null));
-            Assert.False(vm.ImportKlaOperationalProfileCommand.CanExecute(null));
-            vm.KlaCultivationId = "another-culture";
-            await vm.SaveKlaCultivationCommand.ExecuteAsync(null);
-            Assert.NotEqual(vm.KlaCultivationId, host.Context.CultivationId);
+            Assert.False(host.CanExecute(recipe, out var other));
+            Assert.Contains("outra receita", other);
         }
     }
 
@@ -153,33 +147,6 @@ public sealed class KlaRecipeApplicationHostTests : IDisposable
     }
 
     [Fact]
-    public async Task Pending_cultivation_write_blocks_recipe_start_and_automatic_preflight_until_durable_completion()
-    {
-        using var writer = new BackgroundFileWriter();
-        using var host = Host(writer: writer);
-        using var engine = new RecipeEngine(_fixture.Arbiter, _fixture.Device, new MemorySettingsService(), _fixture.Clock,
-            autonomousWorkSource: host);
-        using var vm = new ReceitasViewModel(engine, new RecipeStore(Path.Combine(_root, "recipes")), klaHost: host);
-        using var release = new ManualResetEventSlim(false);
-        writer.Run(Path.Combine(_root, "controlled-wait"), () => release.Wait(TimeSpan.FromSeconds(5)));
-        vm.KlaCultivationId = "culture-pending";
-        var save = vm.SaveKlaCultivationCommand.ExecuteAsync(null);
-        try
-        {
-            Assert.True(host.Context!.IsChangingCultivation);
-            Assert.True(vm.IsKlaConfigurationBusy);
-            Assert.False(vm.StartCommand.CanExecute(null));
-            Assert.False(host.CanExecute(new RecipeDocument(), out var reason));
-            Assert.Contains("gravação do cultivo", reason);
-        }
-        finally { release.Set(); }
-        await save.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.False(vm.IsKlaConfigurationBusy);
-        Assert.False(host.Context!.IsChangingCultivation);
-        Assert.Equal("culture-pending", host.Context.CultivationId);
-    }
-
-    [Fact]
     public void Application_registration_uses_one_host_for_engine_and_editor_and_renders_configuration()
     {
         WpfRenderingHost.Run(() =>
@@ -189,14 +156,15 @@ public sealed class KlaRecipeApplicationHostTests : IDisposable
             Assert.Same(host, services.GetRequiredService<IRecipeAutonomousWorkSource>());
             Assert.Same(host.Profiles, services.GetRequiredService<KlaRecipeOperationalProfileRegistry>());
             var vm = services.GetRequiredService<ReceitasViewModel>();
-            Assert.True(vm.HasKlaApplicationHost);
-            Assert.Equal(host.Context?.InstallationId ?? "Indisponível", vm.KlaInstallationId);
+            // D-068: no preparation panel; the strip above the tabs only shows a failure or live results.
+            Assert.Null(vm.KlaAvailabilityError);
+            Assert.False(vm.ShowKlaStrip);
             var view = new ReceitasView { DataContext = vm };
-            ((Expander)view.FindName("KlaPreparationExpander")).IsExpanded = true;
+            Assert.Null(view.FindName("KlaPreparationExpander"));
             var bitmap = WpfRenderingHost.RenderElement(view, 1280, 800, 120);
             Assert.InRange(((Border)view.FindName("RecipeTabsBar")).ActualHeight, 20, 70);
             Assert.True(((System.Windows.FrameworkElement)view.FindName("RecipeBody")).ActualHeight > 400,
-                "Preparation must preserve the recipe workspace and must not stretch the tab controls.");
+                "The recipe workspace must keep the whole height now that the preparation panel is gone.");
             Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
             WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.EvidenceRoot, "docs", "plans", "receitas-r42",
                 "evidence", "application-configuration-125dpi.png"));

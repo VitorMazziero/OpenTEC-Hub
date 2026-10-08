@@ -12,6 +12,9 @@ public sealed record RecipeOperationalProfileChoice(string ProfileId, string Ver
 public sealed partial class RecipeNodeViewModel
 {
     public bool IsKlaAssay => Type == NodeType.KlaAssay;
+
+    /// <summary>The selector only exists for blocks that name an imported profile; the operator profile needs no choice (D-068).</summary>
+    public bool UsesImportedKlaProfile => IsKlaAssay && !KlaRecipeOperatorProfile.Applies(Model.Text("profileId"));
     public ObservableCollection<RecipeOperationalProfileChoice> AvailableOperationalProfiles { get; } = [];
     private RecipeOperationalProfileChoice? _selectedOperationalProfile;
     private bool _refreshingOperationalProfiles;
@@ -74,6 +77,7 @@ public sealed partial class RecipeNodeViewModel
                 p.ProfileId == Model.Text("profileId") && p.Version == Model.Text("profileVersion"));
             OnPropertyChanged(nameof(SelectedOperationalProfile));
             OnPropertyChanged(nameof(OperationalProfileStatus));
+            OnPropertyChanged(nameof(UsesImportedKlaProfile));
         }
         finally { _refreshingOperationalProfiles = false; }
     }

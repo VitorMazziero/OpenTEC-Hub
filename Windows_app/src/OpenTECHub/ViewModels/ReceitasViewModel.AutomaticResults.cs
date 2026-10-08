@@ -57,6 +57,7 @@ public sealed partial class ReceitasViewModel
         }
         OnPropertyChanged(nameof(HasAutomaticSessions));
         OnPropertyChanged(nameof(HasKlaObservations));
+        OnPropertyChanged(nameof(ShowKlaStrip));
     }
 
     [RelayCommand]

@@ -144,24 +144,13 @@
         </Border>
 
 
-        <Border Grid.Row="1" Padding="8,4" Background="{DynamicResource SurfaceSunkenBrush}">
+        <Border Grid.Row="1" Padding="8,4" Background="{DynamicResource SurfaceSunkenBrush}"
+                Visibility="{Binding ShowKlaStrip, Converter={StaticResource BoolToVis}}">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal">
-                <Expander x:Name="KlaPreparationExpander" VerticalAlignment="Top" Header="Preparar kLa" Margin="8,0"
-                          Visibility="{Binding HasKlaApplicationHost, Converter={StaticResource BoolToVis}}">
-                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto"><StackPanel Width="380" Margin="8">
-                        <TextBlock Text="{Binding KlaAutomationAvailability}" TextWrapping="Wrap" Margin="0,0,0,6" />
-                        <TextBlock Text="Instalação" FontWeight="SemiBold" />
-                        <TextBox Text="{Binding KlaInstallationId, Mode=OneWay}" IsReadOnly="True" Margin="0,4,0,8" />
-                        <TextBlock Text="{Binding KlaActiveCultivation}" TextWrapping="Wrap" />
-                        <TextBox Text="{Binding KlaCultivationId, UpdateSourceTrigger=PropertyChanged}" Margin="0,4"
-                                 IsEnabled="{Binding CanConfigureKlaAutomation}" ToolTip="Identificação única do cultivo; mantém os limites entre receitas." />
-                        <Button Content="Gravar identificação do cultivo" Command="{Binding SaveKlaCultivationCommand}" Margin="0,4" />
-                        <Button Content="Importar perfil qualificado" Command="{Binding ImportKlaOperationalProfileCommand}" Margin="0,4" />
-                        <Button Content="Atualizar perfis" Command="{Binding ReloadKlaOperationalProfilesCommand}" Margin="0,4" />
-                        <TextBlock Text="{Binding KlaConfigurationMessage}" TextWrapping="Wrap" Margin="0,6" />
-                    </StackPanel></ScrollViewer>
-                </Expander>
+                <TextBlock VerticalAlignment="Center" Margin="8,0" TextWrapping="Wrap" MaxWidth="900"
+                           Text="{Binding KlaAvailabilityError}" Foreground="{DynamicResource StateAlarmTextBrush}"
+                           Visibility="{Binding HasKlaAvailabilityError, Converter={StaticResource BoolToVis}}" />
                 <Expander x:Name="KlaObservationsExpander" VerticalAlignment="Top" Header="Ensaios e resultados kLa" Margin="8,0"
                           Visibility="{Binding HasKlaObservations, Converter={StaticResource BoolToVis}}">
                     <ScrollViewer MaxHeight="180" Width="420" VerticalScrollBarVisibility="Auto">
@@ -717,7 +706,7 @@
                                 <TextBlock Text="{Binding SelectedTab.SelectedNode.RampCascadeStatus}" TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="0,6,0,0" />
                             </StackPanel>
-                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.IsKlaAssay, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
+                            <StackPanel Visibility="{Binding SelectedTab.SelectedNode.UsesImportedKlaProfile, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
                                 <TextBlock Text="Perfil operacional" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
                                 <ComboBox ItemsSource="{Binding SelectedTab.SelectedNode.AvailableOperationalProfiles}"
                                           SelectedItem="{Binding SelectedTab.SelectedNode.SelectedOperationalProfile, Mode=TwoWay}"

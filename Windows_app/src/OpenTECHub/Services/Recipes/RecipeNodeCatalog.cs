@@ -240,7 +240,7 @@ public static class RecipeNodeCatalog
                 Bool("retryInsufficientWindow", "Repetir se a janela de medição for insuficiente", false, visibleWhen: "useProfileRetryReasons=false"),
                 Bool("retryExcessiveNoise", "Repetir se o ruído for excessivo", false, visibleWhen: "useProfileRetryReasons=false"),
                 Bool("retryUnstableCondition", "Repetir se a condição for instável", false, visibleWhen: "useProfileRetryReasons=false"),
-                Int("maximumAttemptsPerCultivation", "Máximo de tentativas no cultivo", 1000, min: 1),
+                Int("maximumAttemptsPerCultivation", "Máximo de tentativas da receita (0 = não aplicável)", 0, min: 0),
                 Num("minimumIntervalSeconds", "Intervalo mínimo entre ensaios (estabilização)", 30, min: 0, unit: "s"),
                 Num("maximumBlockSeconds", "Prazo total do bloco (0 = não aplicável)", 21600, min: 0, unit: "s"),
                 Num("maximumGasOffSeconds", "Tempo máximo sem ar por tentativa (0 = desoxigenação máxima da página kLa)", 0,
@@ -587,21 +587,21 @@ public static class RecipeNodeCatalog
         [
             Num("spO2", "SP de O₂", 30.0, min: 0, max: 100, unit: "%", group: "Setpoint"),
 
-            Num("kDot", "K_DOT (laço externo)", 0.07, group: "Ganhos"),
-            Num("kp", "Kp", 0.065, group: "Ganhos"),
+            Num("kDot", "K_DOT (laço externo)", 0.075, group: "Ganhos"),
+            Num("kp", "Kp", 0.035, group: "Ganhos"),
             Num("ki", "Ki", 0.0010, group: "Ganhos"),
-            Num("kd", "Kd", 0.50, group: "Ganhos"),
+            Num("kd", "Kd", 1.50, group: "Ganhos"),
 
-            Num("iMin", "I_min", -30, group: "Anti-windup"),
-            Num("iMax", "I_max", 30, group: "Anti-windup"),
-            Num("janelaIntegradorS", "Janela do integrador", 120, min: 0, unit: "s", group: "Anti-windup"),
+            Num("iMin", "I_min", -1, group: "Anti-windup"),
+            Num("iMax", "I_max", 1, group: "Anti-windup"),
+            Num("janelaIntegradorS", "Janela do integrador", 2400, min: 0, unit: "s", group: "Anti-windup"),
 
-            Num("horizonteTPredS", "Horizonte t_pred", 60, min: 0, unit: "s", group: "Predição"),
-            Int("janelaPreditorAmostras", "Janela do preditor", 7, min: 2, unit: "amostras", group: "Predição"),
-            Num("tauDFiltroS", "τ_D do filtro", 20, min: 0, unit: "s", group: "Predição"),
+            Num("horizonteTPredS", "Horizonte t_pred", 90, min: 0, unit: "s", group: "Predição"),
+            Int("janelaPreditorAmostras", "Janela do preditor", 20, min: 2, unit: "amostras", group: "Predição"),
+            Num("tauDFiltroS", "τ_D do filtro", 25, min: 0, unit: "s", group: "Predição"),
 
             EnumP("metodoTaxa", "Método", "LeastSquares", RateMethods, group: "Estimativa de taxa"),
-            Int("janelaMediaAmostras", "Janela da média", 9, min: 2, unit: "amostras", group: "Estimativa de taxa"),
+            Int("janelaMediaAmostras", "Janela da média", 8, min: 2, unit: "amostras", group: "Estimativa de taxa"),
             Num("intervaloPidS", "Intervalo de cálculo do PID", 3.0, min: 0.1, max: 60, unit: "s", group: "Temporização"),
 
             EnumP("modo", "Modo de atuação", "DualCascade", new RecipeOption[]
@@ -614,15 +614,16 @@ public static class RecipeNodeCatalog
 
             Text("klaMapId", "ID do Mapa kLa", ""),
 
-            Num("nMinRpm", "N_min", 150, min: 0, unit: "rpm", group: "Faixas físicas"),
-            Num("nMaxRpm", "N_max", 350, min: 0, unit: "rpm", group: "Faixas físicas"),
-            Num("qMinVvm", "Q_min", 0.5, min: 0, unit: "vvm", group: "Faixas físicas"),
-            Num("qMaxVvm", "Q_max", 5.0, min: 0, unit: "vvm", group: "Faixas físicas"),
+            Num("nMinRpm", "N_min", 50, min: 0, unit: "rpm", group: "Faixas físicas"),
+            Num("nMaxRpm", "N_max", 800, min: 0, unit: "rpm", group: "Faixas físicas"),
+            // The aeration window is applied directly in L/min (RecipeEngine.Cascade); the key keeps its old name.
+            Num("qMinVvm", "Q_min", 0.5, min: 0, unit: "L/min", group: "Faixas físicas"),
+            Num("qMaxVvm", "Q_max", 12.0, min: 0, unit: "L/min", group: "Faixas físicas"),
 
             Num("agitacaoOutMin", "Agitação OutMin", 0, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
-            Num("agitacaoOutMax", "Agitação OutMax", 40, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
-            Num("aeracaoOutMin", "Aeração OutMin", 30, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
-            Num("aeracaoOutMax", "Aeração OutMax", 70, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
+            Num("agitacaoOutMax", "Agitação OutMax", 90, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
+            Num("aeracaoOutMin", "Aeração OutMin", 10, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
+            Num("aeracaoOutMax", "Aeração OutMax", 100, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
 
             Num("agitacaoGanho", "Agitação (ganho relativo)", 1.0, min: 0, group: "Ganhos relativos"),
             Num("aeracaoGanho", "Aeração (ganho relativo)", 1.43, min: 0, group: "Ganhos relativos"),

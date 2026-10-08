@@ -127,7 +127,7 @@ public sealed class RecipePeriodicKlaIntegrationTests
                 }, journal.RecordAsync);
         });
         var concreteSource = new KlaRecipeAutonomousWorkSource(registry, router, api, factory, store, settings, clock, writer,
-            Path.Combine(root, "recipe-journal"), () => template.Context.CultivationId);
+            Path.Combine(root, "recipe-journal"));
         using var engine = new RecipeEngine(arbiter, arbiter, settings, clock,
             periodicWorkSource: graph ? null : source,
             autonomousWorkSource: concrete ? concreteSource : graph ? new GraphSource(source, capabilities, () => result!) : null,

@@ -77,7 +77,7 @@
         "maximumGasOffSeconds": 0,
         "minimumIntervalSeconds": 30,
         "profileVersion": "atual",
-        "maximumAttemptsPerCultivation": 1000,
+        "maximumAttemptsPerCultivation": 0,
         "maximumCultivationGasOffSeconds": 0,
         "failurePolicy": "ContinueWithoutResultAfterRestoration",
         "minimumDoPercent": 5,

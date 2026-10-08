@@ -96,9 +96,12 @@ public sealed class KlaRecipeAssayExecutionTests
                 }, capabilities);
             var api = activeApi = new KlaAssayApi(Path.Combine(directory, "api.json"), executor, fixture.Clock);
             var recoveryCommands = 0;
-            fixture.Device.CommandSent += _ =>
+            var diversionDispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            fixture.Device.CommandSent += json =>
             {
                 if (executor.Phase == RunPhase.RestoringCultivation) Interlocked.Increment(ref recoveryCommands);
+                if (executor.Phase == RunPhase.DivertingAir && OpenTECCommand.Parse(json).Contains(CommandKeys.FlowSetpoint))
+                    diversionDispatched.TrySetResult();
             };
             activeRequest = request.RequestId;
             api.Create(request); await api.StartAsync(request.RequestId);
@@ -145,6 +148,9 @@ public sealed class KlaRecipeAssayExecutionTests
                 }
                 else
                 {
+                    // The first command can be the motor. A vent echo before the subsequent
+                    // gas dispatch becomes its baseline, so the same ack can never confirm it.
+                    await diversionDispatched.Task.WaitAsync(TimeSpan.FromSeconds(3));
                     Push(80, 2, GasRoute.VentAndNitrogen, 2);
                     await Task.Delay(1);
                     for (var index = 1; index <= 10; index++)

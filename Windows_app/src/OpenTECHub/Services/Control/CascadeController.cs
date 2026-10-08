@@ -19,7 +19,7 @@ public sealed record CascadeActuationResult(
 /// The oxygen cascade: a dual-loop PID controller whose scalar effort is split across the
 /// agitation and aeration actuators.
 /// </summary>
-public sealed class CascadeController
+public sealed partial class CascadeController
 {
     /// <summary>Actuator name for agitation, shared with the allocator and the wire mapping.</summary>
     public const string AgitationActuator = "agitation";

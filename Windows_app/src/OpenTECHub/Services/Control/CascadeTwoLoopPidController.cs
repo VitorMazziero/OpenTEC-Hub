@@ -33,7 +33,7 @@ public enum CascadeSlopeMethod
 /// active in <see cref="CascadeMode.DualCascade"/> (Cascata).
 /// </para>
 /// </remarks>
-public sealed class CascadeTwoLoopPidController
+public sealed partial class CascadeTwoLoopPidController
 {
     private readonly Queue<double> _dotHistory = new();
     private readonly Queue<double> _errorWindow = new();
@@ -60,12 +60,8 @@ public sealed class CascadeTwoLoopPidController
     public CascadeTerms LastTerms { get; private set; } = CascadeTerms.Empty;
 
     /// <summary>Audit snapshot while the caller holds the controller's computation/tuning gate.</summary>
-    public object CaptureState() => new
-    {
-        Tuning, Setpoint, Output = _output, Integral = _integral, PreviousError = _ePrev,
-        PreviousDerivative = _dfPrev, HasPrevious = _hasPrevious,
-        MeasurementHistory = _dotHistory.ToArray(), ErrorWindow = _errorWindow.ToArray(), LastTerms
-    };
+    public CascadePidState CaptureState() => new(Tuning, Setpoint, _output, _integral, _ePrev,
+        _dfPrev, _hasPrevious, _dotHistory.ToArray(), _errorWindow.ToArray(), LastTerms);
 
     public void Retune(CascadeTuning tuning)
     {

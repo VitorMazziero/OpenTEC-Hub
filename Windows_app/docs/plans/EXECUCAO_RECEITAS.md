@@ -31,4 +31,6 @@ Preparação de R5.2: [preparação coordenada](receitas-r52/PREPARACAO_COORDENA
 
 Retorno de R5.2: [evidência de recuperação](receitas-r52/EVIDENCIA_RECUPERACAO.md) exige confirmação das referências anteriores e estado da cascata nos novos resultados restaurados; históricos sem prova permanecem legíveis, sem retorno verificado. 2428 testes na regressão completa. Execução da recuperação e ciclo do bloco no engine permanecem pendentes.
 
+Controlador de R5.2: [restauração completa](receitas-r52/RESTAURACAO_CONTROLADOR.md) de estado do PID e dos quatro modos de alocação, com equivalência do próximo passo e rejeição de snapshot inválido sem alteração parcial; 2436 testes na regressão completa. A chamada dessa operação pelo ciclo da receita e a recuperação dos comandos diretos ainda estão pendentes.
+
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.

@@ -34,7 +34,7 @@ public sealed class RecipeAutonomousEngineTests
         engine.Resume();
         clock.Advance(TimeSpan.FromSeconds(4));
         await Until(() => engine.AutonomousResults.Count == 1);
-        Assert.Equal(2, Assert.Single(records.Where(r => r.State == RecipePeriodicSlotState.Started)).Invocation.SlotIndex);
+        Assert.Equal(2, Assert.Single(records, r => r.State == RecipePeriodicSlotState.Started).Invocation.SlotIndex);
         recipe.Node("gate")!.Set("operacao", nameof(ManualGateOperation.Pass));
         device.PushTelemetry(new SensorSnapshot { OxygenCalibrated = 25, OxygenRaw = 25 });
         await engine.Completion.WaitAsync(TimeSpan.FromSeconds(5));

@@ -41,8 +41,8 @@ public sealed partial class KlaDeterminationViewModelTests
                 _vm.RefreshConditionsList();
                 var view = new KlaDeterminationView { DataContext = _vm };
                 WpfRenderingHost.RenderElement(view, 1280, 800, 120);
-                var expander = Assert.Single(HistoryControls<Expander>(view)
-                    .Where(item => Equals(item.Header, "Todas as tentativas · inclui recusadas")));
+                var expander = Assert.Single(HistoryControls<Expander>(view),
+                    item => Equals(item.Header, "Todas as tentativas · inclui recusadas"));
                 expander.IsExpanded = true;
                 var bitmap = WpfRenderingHost.RenderElement(view, 1280, 800, 120);
                 Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
@@ -66,7 +66,7 @@ public sealed partial class KlaDeterminationViewModelTests
                 Assert.Null(_vm.RecordedAutomaticAttempts[0].Run.AutomaticDecision!.KlaPerHour);
                 var review = WpfRenderingHost.RenderElement(view, 1280, 800, 120);
                 var chart = Assert.IsType<ScottPlot.WPF.WpfPlot>(((Border)view.FindName("ChartDoHost")).Child);
-                var series = Assert.Single(chart.Plot.GetPlottables<ScottPlot.Plottables.DataLogger>().Where(series => series.IsVisible));
+                var series = Assert.Single(chart.Plot.GetPlottables<ScottPlot.Plottables.DataLogger>(), series => series.IsVisible);
                 var limits = series.GetAxisLimits();
                 Assert.Equal(0, limits.Left);
                 Assert.Equal(39, limits.Right);

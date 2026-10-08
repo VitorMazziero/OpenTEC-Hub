@@ -95,8 +95,8 @@ public sealed class ReceitasViewModelTests
                 Assert.Contains(TerminalControls<TextBlock>(view), text => text.Text.Contains("Falha de restauração"));
                 Assert.Contains(TerminalControls<TextBlock>(view), text => text.Text.Contains("Retorno: não confirmado"));
                 Assert.Contains(TerminalControls<TextBlock>(view), text => text.Text.Contains("gravação: confirmada"));
-                var button = Assert.Single(TerminalControls<Button>(view)
-                    .Where(button => Equals(button.Content, "Abrir sessão e tentativas")));
+                var button = Assert.Single(TerminalControls<Button>(view),
+                    button => Equals(button.Content, "Abrir sessão e tentativas"));
                 Assert.True(button.IsEnabled);
                 Assert.True(button.Command!.CanExecute(button.CommandParameter));
                 button.Command.Execute(button.CommandParameter);

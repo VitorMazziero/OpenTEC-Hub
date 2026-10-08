@@ -69,7 +69,7 @@ public sealed partial class KlaDeterminationViewModelTests
         await mapping.SaveExperimentCommand.ExecuteAsync(null);
         saved = Assert.Single(await profiles.LoadExperimentsAsync());
         Assert.Equal(2, saved.ImportedMeasurements.Length);
-        Assert.Single(saved.ImportedMeasurements.Where(m => m.Included));
+        Assert.Single(saved.ImportedMeasurements, m => m.Included);
 
         var other = SaveAcceptedE5Point("Outro meio E5", context with { Medium = "Meio B" }, 90);
         mapping.SelectedKlaTestForImport = _store.ListTests().Single(t => t.TestId == other.TestId);
@@ -127,7 +127,7 @@ public sealed partial class KlaDeterminationViewModelTests
         Assert.Equal(before, File.ReadAllBytes(publishedPath));
         var documents = await profiles.LoadExperimentsAsync();
         Assert.Equal(2, documents.Count);
-        var draft = Assert.Single(documents.Where(d => d.Snapshot.Id != published.Snapshot.Id));
+        var draft = Assert.Single(documents, d => d.Snapshot.Id != published.Snapshot.Id);
         Assert.False(draft.IsAvailableForControl);
         Assert.Equal(KlaWorkflowStage.Draft, draft.Stage);
         Assert.Equal(draft.Snapshot.Name, mapping.ExperimentName);

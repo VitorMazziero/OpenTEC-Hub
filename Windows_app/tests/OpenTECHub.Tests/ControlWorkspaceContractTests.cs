@@ -16,8 +16,8 @@ public sealed class ControlWorkspaceContractTests
     {
         XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         var view = XDocument.Load(ViewPath);
-        var toggle = Assert.Single(view.Descendants(wpf + "ToggleButton")
-            .Where(element => (string?)element.Attribute("IsChecked") == "{Binding IsCascadeEngaged, Mode=TwoWay}"));
+        var toggle = Assert.Single(view.Descendants(wpf + "ToggleButton"),
+            element => (string?)element.Attribute("IsChecked") == "{Binding IsCascadeEngaged, Mode=TwoWay}");
         var trigger = Assert.Single(toggle.Descendants(wpf + "DataTrigger"));
         Assert.Equal("{Binding CanToggleCascade}", (string?)trigger.Attribute("Binding"));
         Assert.Equal("False", (string?)trigger.Attribute("Value"));
@@ -33,12 +33,12 @@ public sealed class ControlWorkspaceContractTests
         var view = XDocument.Load(ViewPath);
         foreach (var binding in new[] { "RequestedValve1", "RequestedValve2", "RequestedMainValveClosed" })
         {
-            var toggle = Assert.Single(view.Descendants(wpf + "ToggleButton")
-                .Where(element => (string?)element.Attribute("IsChecked") == $"{{Binding {binding}, Mode=TwoWay}}"));
+            var toggle = Assert.Single(view.Descendants(wpf + "ToggleButton"),
+                element => (string?)element.Attribute("IsChecked") == $"{{Binding {binding}, Mode=TwoWay}}");
             Assert.Empty(toggle.Ancestors(wpf + "Expander"));
         }
-        var tuning = Assert.Single(view.Descendants(wpf + "Expander")
-            .Where(element => (string?)element.Attribute("ToolTip") == "{Binding TuningUnavailableText}"));
+        var tuning = Assert.Single(view.Descendants(wpf + "Expander"),
+            element => (string?)element.Attribute("ToolTip") == "{Binding TuningUnavailableText}");
         Assert.Equal("Avançado", (string?)tuning.Attribute("Header"));
     }
 
@@ -48,8 +48,8 @@ public sealed class ControlWorkspaceContractTests
         XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         XNamespace controls = "clr-namespace:OpenTECHub.Controls";
         var view = XDocument.Load(ViewPath);
-        var dot = Assert.Single(view.Descendants(controls + "StateDot")
-            .Where(element => (string?)element.Attribute("Label") == "Vazão de Ar"));
+        var dot = Assert.Single(view.Descendants(controls + "StateDot"),
+            element => (string?)element.Attribute("Label") == "Vazão de Ar");
         var binding = Assert.Single(dot.Descendants(wpf + "MultiBinding"));
         Assert.Equal("{StaticResource ExternalDeviceState}", (string?)binding.Attribute("Converter"));
         Assert.Equal(new[] { "EffectiveActive", "DataContext.FlowControl.Status.IsOffline",

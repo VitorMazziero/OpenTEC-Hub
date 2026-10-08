@@ -100,14 +100,14 @@ public sealed class KlaTestStoreTests : IDisposable
 
     [Theory]
     [InlineData(3)] [InlineData(4)] [InlineData(5)] [InlineData(6)] [InlineData(7)]
-    public void Invalid_numeric_cells_preserve_unknowns_without_ADC_or_zero_substitution(int column)
+    public async Task Invalid_numeric_cells_preserve_unknowns_without_ADC_or_zero_substitution(int column)
     {
         var doc = _store.CreateTest("Unknown observations", new KlaTestSettings());
         var run = new KlaTestRun { TestId = doc.TestId, ConditionId = Guid.NewGuid(), ReplicateNumber = 1 };
         var folder = _store.InitializeRunFolder(doc.FolderName, run);
         var point = new KlaRawDataPoint(DateTimeOffset.UtcNow, 1, RunPhase.Reoxygenating, 12345, 40, 3, 3, 400, false, true, false);
         _store.SaveRunRawData(doc.FolderName, folder, [point]);
-        _store.FlushAsync().GetAwaiter().GetResult();
+        await _store.FlushAsync();
         var path = _store.GetRunRawDataPath(doc.FolderName, folder);
         var lines = File.ReadAllLines(path); var cells = lines[1].Split(','); cells[column] = "invalid";
         lines[1] = string.Join(',', cells); File.WriteAllLines(path, lines);
@@ -128,13 +128,13 @@ public sealed class KlaTestStoreTests : IDisposable
     }
 
     [Fact]
-    public void Corrupt_rows_are_reported_instead_of_silently_removed()
+    public async Task Corrupt_rows_are_reported_instead_of_silently_removed()
     {
         var doc = _store.CreateTest("Corrupt observations", new KlaTestSettings());
         var run = new KlaTestRun { TestId = doc.TestId, ConditionId = Guid.NewGuid(), ReplicateNumber = 1 };
         var folder = _store.InitializeRunFolder(doc.FolderName, run);
         _store.SaveRunRawData(doc.FolderName, folder, []);
-        _store.FlushAsync().GetAwaiter().GetResult();
+        await _store.FlushAsync();
         var path = _store.GetRunRawDataPath(doc.FolderName, folder);
         File.AppendAllText(path, "invalid,short,row\n");
         Assert.Contains("Linha 2", Assert.Throws<InvalidDataException>(() => _store.LoadRunRawData(doc.FolderName, folder)).Message);

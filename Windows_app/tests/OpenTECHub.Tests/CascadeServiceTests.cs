@@ -137,7 +137,7 @@ public class CascadeServiceTests
         Assert.True(service.IsArmed);
         Assert.NotNull(service.LastActuation);
         Assert.True(service.Terms.Output > 0, "The loop should command a positive effort when oxygen is short.");
-        Assert.InRange(service.LastActuation!.AgitationRpm, 200, 800);
+        Assert.InRange(service.LastActuation!.AgitationRpm, 50, 800); // default window 50-800 rpm (D-068)
 
         // The whole point of this WP: advisory, so nothing reaches the wire.
         Assert.Empty(device.Sent);

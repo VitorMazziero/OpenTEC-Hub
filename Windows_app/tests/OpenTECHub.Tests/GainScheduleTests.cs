@@ -123,6 +123,12 @@ public sealed class GainScheduleTests
             {
                 OxygenSetpointPercent = 30,
                 MapPid = new ModePidSettings { Kp = 0.25 },
+                // A fast, wide-clamp tuning: this test is about the scheduler, not about the author's slow bench defaults.
+                CascadePid = new ModePidSettings
+                {
+                    KDot = 0.07, Kp = 0.065, Ki = 0.001, Kd = 0.50, TPred = 60, TauD = 20,
+                    IMin = -30, IMax = 30, MWindow = 120, JAvg = 9, NPred = 7, IntervalSeconds = 3.0, HabilitarGainScheduling = true,
+                },
             },
             GainSchedule = new GainScheduleSettings
             {

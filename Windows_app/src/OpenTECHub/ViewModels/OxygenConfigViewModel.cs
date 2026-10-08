@@ -107,32 +107,32 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
 
     // ── PID Fields ──
 
-    [ObservableProperty] public partial string KDotText { get; set; } = "0.070";
-    [ObservableProperty] public partial string KpText { get; set; } = "0.065";
+    [ObservableProperty] public partial string KDotText { get; set; } = "0.075";
+    [ObservableProperty] public partial string KpText { get; set; } = "0.035";
     [ObservableProperty] public partial string KiText { get; set; } = "0.0010";
-    [ObservableProperty] public partial string KdText { get; set; } = "0.500";
-    [ObservableProperty] public partial string TPredText { get; set; } = "60.0";
-    [ObservableProperty] public partial string TauDText { get; set; } = "20.0";
-    [ObservableProperty] public partial string IMinText { get; set; } = "-30.0";
-    [ObservableProperty] public partial string IMaxText { get; set; } = "30.0";
-    [ObservableProperty] public partial string MWindowText { get; set; } = "120";
-    [ObservableProperty] public partial string JAvgText { get; set; } = "9";
-    [ObservableProperty] public partial string NPredText { get; set; } = "7";
+    [ObservableProperty] public partial string KdText { get; set; } = "1.500";
+    [ObservableProperty] public partial string TPredText { get; set; } = "90.0";
+    [ObservableProperty] public partial string TauDText { get; set; } = "25.0";
+    [ObservableProperty] public partial string IMinText { get; set; } = "-1.0";
+    [ObservableProperty] public partial string IMaxText { get; set; } = "1.0";
+    [ObservableProperty] public partial string MWindowText { get; set; } = "2400";
+    [ObservableProperty] public partial string JAvgText { get; set; } = "8";
+    [ObservableProperty] public partial string NPredText { get; set; } = "20";
     [ObservableProperty] public partial string IntervalText { get; set; } = "3.0";
 
     // ── Physical Limits ──
 
-    [ObservableProperty] public partial string AgitationMinRpmText { get; set; } = "150";
-    [ObservableProperty] public partial string AgitationMaxRpmText { get; set; } = "350";
-    [ObservableProperty] public partial string AerationMinLpmText { get; set; } = "0.5";
-    [ObservableProperty] public partial string AerationMaxLpmText { get; set; } = "5.0";
+    [ObservableProperty] public partial string AgitationMinRpmText { get; set; } = "50";
+    [ObservableProperty] public partial string AgitationMaxRpmText { get; set; } = "800";
+    [ObservableProperty] public partial string AerationMinLpmText { get; set; } = "0.50";
+    [ObservableProperty] public partial string AerationMaxLpmText { get; set; } = "12.00";
 
     // ── Effort Windows (Cascata) ──
 
     [ObservableProperty] public partial string AgitationEffortStartText { get; set; } = "0";
-    [ObservableProperty] public partial string AgitationEffortEndText { get; set; } = "40";
-    [ObservableProperty] public partial string AerationEffortStartText { get; set; } = "30";
-    [ObservableProperty] public partial string AerationEffortEndText { get; set; } = "70";
+    [ObservableProperty] public partial string AgitationEffortEndText { get; set; } = "90";
+    [ObservableProperty] public partial string AerationEffortStartText { get; set; } = "10";
+    [ObservableProperty] public partial string AerationEffortEndText { get; set; } = "100";
 
     // ── Advanced Gains (Cascata) ──
 
@@ -198,17 +198,17 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
     {
         _modePids[mode] = new ModePidSettings
         {
-            KDot = ParseDouble(KDotText, 0.07),
-            Kp = ParseDouble(KpText, 0.065),
+            KDot = ParseDouble(KDotText, 0.075),
+            Kp = ParseDouble(KpText, 0.035),
             Ki = ParseDouble(KiText, 0.001),
-            Kd = ParseDouble(KdText, 0.50),
-            TPred = ParseDouble(TPredText, 60.0),
-            TauD = ParseDouble(TauDText, 20.0),
-            IMin = ParseDouble(IMinText, -30.0),
-            IMax = ParseDouble(IMaxText, 30.0),
-            MWindow = ParseInt(MWindowText, 120),
-            JAvg = ParseInt(JAvgText, 9),
-            NPred = ParseInt(NPredText, 7),
+            Kd = ParseDouble(KdText, 1.50),
+            TPred = ParseDouble(TPredText, 90.0),
+            TauD = ParseDouble(TauDText, 25.0),
+            IMin = ParseDouble(IMinText, -1.0),
+            IMax = ParseDouble(IMaxText, 1.0),
+            MWindow = ParseInt(MWindowText, 2400),
+            JAvg = ParseInt(JAvgText, 8),
+            NPred = ParseInt(NPredText, 20),
             IntervalSeconds = ParseDouble(IntervalText, 3.0),
             FatorGanhoAeracao = ParseDouble(FatorGanhoAeracaoText, 1.43),
             HabilitarGainScheduling = HabilitarGainScheduling,

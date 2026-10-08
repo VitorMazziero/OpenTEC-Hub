@@ -771,27 +771,27 @@ public sealed record SetpointPreset
         {
             OxygenSetpointPercent = 30.0,
             Mode = CascadeMode.DualCascade,
-            AgitationMinRpm = 150,
-            AgitationMaxRpm = 350,
+            AgitationMinRpm = 50,
+            AgitationMaxRpm = 800,
             AgitationEffortStart = 0,
-            AgitationEffortEnd = 40,
+            AgitationEffortEnd = 90,
             AerationMinLpm = 0.5,
-            AerationMaxLpm = 5.0,
-            AerationEffortStart = 30,
-            AerationEffortEnd = 70,
+            AerationMaxLpm = 12.0,
+            AerationEffortStart = 10,
+            AerationEffortEnd = 100,
             CascadePid = new ModePidSettings
             {
-                KDot = 0.07,
-                Kp = 0.065,
-                Ki = 0.001,
-                Kd = 0.50,
-                TPred = 60.0,
-                TauD = 20.0,
-                IMin = -30.0,
-                IMax = 30.0,
-                MWindow = 120,
-                JAvg = 9,
-                NPred = 7,
+                KDot = 0.075,
+                Kp = 0.035,
+                Ki = 0.0010,
+                Kd = 1.500,
+                TPred = 90.0,
+                TauD = 25.0,
+                IMin = -1.0,
+                IMax = 1.0,
+                MWindow = 2400,
+                JAvg = 8,
+                NPred = 20,
                 IntervalSeconds = 3.0,
                 FatorGanhoAeracao = 1.43,
                 HabilitarGainScheduling = true,
@@ -807,17 +807,17 @@ public sealed record SetpointPreset
 /// </summary>
 public sealed record ModePidSettings
 {
-    public double KDot { get; init; } = 0.07;
-    public double Kp { get; init; } = 0.065;
+    public double KDot { get; init; } = 0.075;
+    public double Kp { get; init; } = 0.035;
     public double Ki { get; init; } = 0.001;
-    public double Kd { get; init; } = 0.50;
-    public double TPred { get; init; } = 60.0;
-    public double TauD { get; init; } = 20.0;
-    public double IMin { get; init; } = -30.0;
-    public double IMax { get; init; } = 30.0;
-    public int MWindow { get; init; } = 120;
-    public int JAvg { get; init; } = 9;
-    public int NPred { get; init; } = 7;
+    public double Kd { get; init; } = 1.50;
+    public double TPred { get; init; } = 90.0;
+    public double TauD { get; init; } = 25.0;
+    public double IMin { get; init; } = -1.0;
+    public double IMax { get; init; } = 1.0;
+    public int MWindow { get; init; } = 2400;
+    public int JAvg { get; init; } = 8;
+    public int NPred { get; init; } = 20;
     public double IntervalSeconds { get; init; } = 3.0;
     public double FatorGanhoAeracao { get; init; } = 1.43;
     public bool HabilitarGainScheduling { get; init; } = true;
@@ -831,15 +831,15 @@ public sealed record CascadeSettings
     public double OxygenSetpointPercent { get; init; } = 30.0;
     public CascadeMode Mode { get; init; } = CascadeMode.DualCascade;
 
-    public double AgitationMinRpm { get; init; } = 200;
+    public double AgitationMinRpm { get; init; } = 50;
     public double AgitationMaxRpm { get; init; } = 800;
     public double AgitationEffortStart { get; init; } = 0;
-    public double AgitationEffortEnd { get; init; } = 40;
+    public double AgitationEffortEnd { get; init; } = 90;
 
     public double AerationMinLpm { get; init; } = 0.5;
-    public double AerationMaxLpm { get; init; } = 5.0;
-    public double AerationEffortStart { get; init; } = 30;
-    public double AerationEffortEnd { get; init; } = 70;
+    public double AerationMaxLpm { get; init; } = 12.0;
+    public double AerationEffortStart { get; init; } = 10;
+    public double AerationEffortEnd { get; init; } = 100;
 
     public ModePidSettings AgitationPid { get; init; } = new()
     {
@@ -875,19 +875,20 @@ public sealed record CascadeSettings
         HabilitarGainScheduling = false,
     };
 
+    /// <summary>Author's bench defaults for the cascade mode (08/10/2026, D-068).</summary>
     public ModePidSettings CascadePid { get; init; } = new()
     {
-        KDot = 0.07,
-        Kp = 0.065,
-        Ki = 0.001,
-        Kd = 0.50,
-        TPred = 60.0,
-        TauD = 20.0,
-        IMin = -30.0,
-        IMax = 30.0,
-        MWindow = 120,
-        JAvg = 9,
-        NPred = 7,
+        KDot = 0.075,
+        Kp = 0.035,
+        Ki = 0.0010,
+        Kd = 1.500,
+        TPred = 90.0,
+        TauD = 25.0,
+        IMin = -1.0,
+        IMax = 1.0,
+        MWindow = 2400,
+        JAvg = 8,
+        NPred = 20,
         IntervalSeconds = 3.0,
         FatorGanhoAeracao = 1.43,
         HabilitarGainScheduling = true,

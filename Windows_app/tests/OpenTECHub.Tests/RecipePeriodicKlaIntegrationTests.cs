@@ -195,6 +195,19 @@ public sealed class RecipePeriodicKlaIntegrationTests
             }
             else while (matrix is null) await Task.Delay(1, timeout.Token);
             var exit = false; var resumed = false; var emergencyCommandCount = 0;
+            double? resumedReference = null;
+            DateTimeOffset? resumedAt = null;
+            double? ReadRampReference()
+            {
+                for (var step = 8000; step <= 8100; step++)
+                {
+                    var reference = step / 100d;
+                    if (engine.TryConfirmRampCascadeReference("casc", new(SetpointVariable.Oxygen,
+                        RampOxygenTarget.ActiveCascadeReference, reference, true), engine.ExecutionId) is not null)
+                        return reference;
+                }
+                return null;
+            }
             using var cancellation = new CancellationTokenSource();
             await KlaRecipeOrchestratorTests.Drive(engine.Completion, orchestrator!, fixture, request!, () => false,
                 KlaRecipeOrchestratorTests.Scenario.Normal, cancellation, current =>
@@ -203,6 +216,20 @@ public sealed class RecipePeriodicKlaIntegrationTests
                     {
                         if (!exit && engine.AutonomousResults.Count == 1)
                         {
+                            if (ramp)
+                            {
+                                var reference = ReadRampReference();
+                                if (reference is null) return;
+                                resumedReference ??= reference;
+                                resumedAt ??= clock.GetUtcNow();
+                                if (clock.GetUtcNow() - resumedAt.Value < TimeSpan.FromSeconds(5))
+                                {
+                                    clock.Advance(TimeSpan.FromSeconds(1));
+                                    return;
+                                }
+                                Assert.True(reference > resumedReference, "Rampa não voltou a avançar após devolver o controle.");
+                                Assert.True(reference - resumedReference < .15, "Rampa saltou o tempo suspenso do ensaio.");
+                            }
                             exit = true;
                             gate.Set("operacao", nameof(ManualGateOperation.Pass));
                         }

@@ -57,7 +57,7 @@ public sealed class RecipeLiveAssayViewModelTests
                 var bitmap = WpfRenderingHost.RenderElement(view, 1280, 800, 120);
                 Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
                 Assert.InRange(((Border)view.FindName("RecipeTabsBar")).ActualHeight, 20, 70);
-                WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r42",
+                WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.EvidenceRoot, "docs", "plans", "receitas-r42",
                     "evidence", "live-progress-125dpi.png"));
             }
             finally { vm.RefreshAutomaticSessions(); }

@@ -25,7 +25,7 @@ namespace OpenTECHub.Tests;
 public sealed class DocumentationEvidenceTests
 {
     private static readonly string EvidenceRoot = Path.Combine(
-        TestPaths.RepositoryRoot, "docs", "evidence", "ui-documentation");
+        TestPaths.EvidenceRoot, "docs", "evidence", "ui-documentation");
 
     [Fact]
     public void Capture_power_assembly_tab_with_the_reorganised_assay_card()

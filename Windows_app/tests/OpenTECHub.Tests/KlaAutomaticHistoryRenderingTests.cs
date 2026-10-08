@@ -56,7 +56,7 @@ public sealed partial class KlaDeterminationViewModelTests
                 Assert.Equal(protocol == KlaAssayProtocol.Biotic, _vm.IsBiotic);
                 Assert.False(_vm.CanDecideRun);
                 Assert.All(document.Runs, run => Assert.Equal(KlaOperatorDecision.Pending, run.EffectiveOutcome.OperatorDecision));
-                WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
+                WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.EvidenceRoot, "docs", "plans", "receitas-r61",
                     "evidence", "ui-results", $"history-{protocol}-{dark}.png"));
                 attempts[0].Command!.Execute(attempts[0].CommandParameter);
                 Assert.True(_vm.IsReviewOpen);
@@ -72,10 +72,10 @@ public sealed partial class KlaDeterminationViewModelTests
                 Assert.Equal(39, limits.Right);
                 Assert.Equal(20, limits.Bottom, 6);
                 Assert.Equal(_vm.LivePoints[^1].DOFiltered, limits.Top, 6);
-                var curvePath = Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
+                var curvePath = Path.Combine(TestPaths.EvidenceRoot, "docs", "plans", "receitas-r61",
                     "evidence", "ui-results", $"curve-{protocol}-{dark}.png");
                 chart.Plot.SavePng(curvePath, 1000, 650);
-                WpfRenderingHost.SavePng(review, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
+                WpfRenderingHost.SavePng(review, Path.Combine(TestPaths.EvidenceRoot, "docs", "plans", "receitas-r61",
                     "evidence", "ui-results", $"review-{protocol}-{dark}.png"));
             }
             finally { WpfRenderingHost.SetTheme(false); }

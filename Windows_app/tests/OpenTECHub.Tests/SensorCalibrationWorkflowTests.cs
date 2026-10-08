@@ -121,7 +121,7 @@ public sealed class SensorCalibrationWorkflowTests
                 Assert.All(workflow.Steps, step => Assert.True(step.IsComplete));
                 Assert.False(workflow.ShowProposal);
             }
-            var directory = Path.Combine(TestPaths.RepositoryRoot, "docs", "evidence", "ui-calibration");
+            var directory = Path.Combine(TestPaths.EvidenceRoot, "docs", "evidence", "ui-calibration");
             Directory.CreateDirectory(directory);
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bitmap));

@@ -163,7 +163,7 @@ public sealed class CalibrationAcquisitionTests
             Assert.Contains(1000.ToString("F1", CultureInfo.CurrentCulture), texts);
             Assert.Contains(tab == 0 ? vm.PH.InstructionText : vm.Oxygen.InstructionText, texts);
             Assert.Contains(tab == 0 ? vm.PH.StageText : vm.Oxygen.StageText, texts);
-            var path = System.IO.Path.Combine(TestPaths.RepositoryRoot, "docs", "evidence", "ui-calibration");
+            var path = System.IO.Path.Combine(TestPaths.EvidenceRoot, "docs", "evidence", "ui-calibration");
             System.IO.Directory.CreateDirectory(path);
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bitmap));

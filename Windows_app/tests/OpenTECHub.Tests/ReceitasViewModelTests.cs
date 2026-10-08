@@ -101,7 +101,7 @@ public sealed class ReceitasViewModelTests
                 Assert.True(button.Command!.CanExecute(button.CommandParameter));
                 button.Command.Execute(button.CommandParameter);
                 Assert.Equal(result.SessionFolder, opened);
-                WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
+                WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.EvidenceRoot, "docs", "plans", "receitas-r61",
                     "evidence", "ui-terminal", $"restoration-failure-{dark}.png"));
             }
             finally { WpfRenderingHost.SetTheme(false); }

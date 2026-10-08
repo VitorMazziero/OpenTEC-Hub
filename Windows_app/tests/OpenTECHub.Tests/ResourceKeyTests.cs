@@ -134,6 +134,15 @@ internal static class TestPaths
 {
     public static string RepositoryRoot { get; } = Find();
 
+    /// <summary>
+    /// Where rendering tests write their images. Versioned evidence is refreshed only with
+    /// <c>OPENTEC_UPDATE_EVIDENCE=1</c>; otherwise a temporary mirror keeps the working tree clean (A-07).
+    /// </summary>
+    public static string EvidenceRoot { get; } =
+        Environment.GetEnvironmentVariable("OPENTEC_UPDATE_EVIDENCE") == "1"
+            ? RepositoryRoot
+            : Path.Combine(Path.GetTempPath(), "OpenTECHub-test-evidence");
+
     private static string Find()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

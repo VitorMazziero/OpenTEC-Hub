@@ -34,7 +34,7 @@ public sealed partial class KlaDeterminationViewModelTests
             }
             var bitmap = WpfRenderingHost.RenderElement(view, 1280, 800, dpi);
             Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
-            var output = Path.Combine(TestPaths.RepositoryRoot, "docs", "evidence", "ui-kla-e4",
+            var output = Path.Combine(TestPaths.EvidenceRoot, "docs", "evidence", "ui-kla-e4",
                 $"{(biotic ? "biotico" : "abiotico")}-{(single ? "unico" : "multiplos")}-{dpi / 96 * 100:F0}dpi.png");
             WpfRenderingHost.SavePng(bitmap, output);
         });
@@ -52,7 +52,7 @@ public sealed partial class KlaDeterminationViewModelTests
             var issues = CompactLayoutTests.ArrangeAndInspect(view, 936, 534);
             Assert.True(issues.Count == 0, string.Join("\n", issues.Take(20)));
             WpfRenderingHost.SavePng(WpfRenderingHost.RenderElement(view, 1280, 800),
-                Path.Combine(TestPaths.RepositoryRoot, "docs", "evidence", "ui-kla-e4", $"revisao-{biotic}.png"));
+                Path.Combine(TestPaths.EvidenceRoot, "docs", "evidence", "ui-kla-e4", $"revisao-{biotic}.png"));
             var chartHost = (Border)view.FindName("ChartDoHost");
             var chart = (ScottPlot.WPF.WpfPlot)chartHost.Child;
             Assert.True(chart.Plot.Axes.GetLimits().Top < 150,

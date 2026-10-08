@@ -145,7 +145,7 @@ public sealed class RecipeEditorRenderingTests
             bitmap.CopyPixels(corner, pixel, 4, 0);
             Assert.Equal(byte.MaxValue, pixel[3]);
         }
-        WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61", "evidence", "ui", name + ".png"));
+        WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.EvidenceRoot, "docs", "plans", "receitas-r61", "evidence", "ui", name + ".png"));
     }
     private static IEnumerable<T> Shown<T>(DependencyObject root) where T : FrameworkElement
         => Descendants<T>(root).Where(element => IsShown(element));

@@ -20,7 +20,7 @@ namespace OpenTECHub.Tests;
 public sealed class ScreenshotCaptureTests
 {
     private static readonly string ScreenshotsRoot = Path.Combine(
-        TestPaths.RepositoryRoot, "docs", "evidence", "screenshots");
+        TestPaths.EvidenceRoot, "docs", "evidence", "screenshots");
 
     [Theory]
     [InlineData(96.0, "100dpi", 1280, 800)]

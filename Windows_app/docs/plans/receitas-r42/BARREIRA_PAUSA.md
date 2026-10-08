@@ -1,0 +1,7 @@
+# R4.2 — Barreira de pausa por invocação
+
+KlaRecipePauseControl serializa a pausa com o despacho síncrono de criação/início. Cada retomada abre uma nova época de cancelamento; o token da época anterior permanece cancelado mesmo se a retomada ocorrer antes do término da recuperação. A espera permite cancelamento do bloco sem reabrir o despacho. Callbacks de cancelamento executam fora do lock, incluindo encerramento concorrente/reentrante, e a liberação das fontes aguarda esses callbacks.
+
+Cinco testes focados aprovados: época anterior não reativada; espera cancelável; exclusão entre despacho e pausa; liberação de espera no encerramento; encerramento chamado pelo callback de cancelamento. Release compilado sem erros. A regressão completa não foi repetida nesta alteração de infraestrutura.
+
+Esta classe ainda não está ligada ao engine/orquestrador e não habilita pausa independente na interface. Integração deve preservar a mesma matriz, deadline absoluto, histórico e orçamento; registrar a interrupção operacional sem convertê-la em aprovação científica; aguardar recuperação e gravação antes de nova reserva. Há um caso pré-aquisição a resolver: cancelamento na espera da primeira observação pode ocorrer antes de existir corrida/checkpoint durável. Não retomar esse caso reutilizando request com outro snapshot nem declarar confirmação de gravação inexistente. A evidência de pausa deve preservar a leitura e os hashes dos checkpoints antigos.

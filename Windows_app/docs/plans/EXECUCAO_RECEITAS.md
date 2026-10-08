@@ -27,4 +27,6 @@ Atualização de R5.2 em 08/10/2026: [precisão da temperatura](receitas-r52/PRE
 
 Novo incremento de R5.2: [reserva por quadro](receitas-r52/RESERVA_POR_QUADRO.md), com tempo ativo congelado na espera, despacho reservado do quadro e drenagem antes da liberação; 2423 testes na regressão completa. A preparação/captura coordenada do bloco e recuperação ao cancelar permanecem pendentes.
 
+Preparação de R5.2: [preparação coordenada](receitas-r52/PREPARACAO_COORDENADA.md) serializa captura e gravação com os ensaios, registra o produtor após o recibo inicial e preserva a cascata associada; 2427 testes na regressão completa. Ligação ao executor do bloco e recuperação após cancelamento permanecem pendentes.
+
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.

@@ -20,7 +20,7 @@ public interface IRecipeResourceProducer
 }
 
 /// <summary>Coordinates recipe producers before issuing actuator authority for an assay.</summary>
-public sealed class RecipeResourceCoordinator(ICommandAuthorityArbiter arbiter, TimeProvider time)
+public sealed partial class RecipeResourceCoordinator(ICommandAuthorityArbiter arbiter, TimeProvider time)
 {
     private readonly object _sync = new();
     private readonly Dictionary<string, IRecipeResourceProducer> _producers = new();

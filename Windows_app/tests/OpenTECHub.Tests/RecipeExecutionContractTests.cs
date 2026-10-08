@@ -309,7 +309,7 @@ public sealed class RecipeExecutionContractTests
     }
 
     [Theory]
-    [InlineData("LinearSetpointRamp")]
+    [InlineData("LinearSetpointRampV2")]
     [InlineData("ForeignBlock")]
     public void Unsupported_recipe_blocks_are_rejected_instead_of_silently_removed(string type)
     {

@@ -73,8 +73,7 @@ public sealed partial class RecipeRampCheckpointStore(string rootDirectory, Back
         configuration.CompletionCriteria?.Validate();
         if (configuration.TemperatureRoute is { } temperatureRoute && !Enum.IsDefined(temperatureRoute))
             throw new InvalidDataException("Rota de temperatura inválida na captura.");
-        var required = configuration.Definition.Lines.Where(line => line.StartSource == SetpointStartSource.CurrentConfirmed ||
-            configuration.Definition.CancellationPolicy == RampCancellationPolicy.RestoreSnapshot).ToArray();
+        var required = RecipeRampInitialState.RequiredCapturedLines(configuration);
         if (initial.References.Length != required.Length || initial.References.Select(r => r.Variable).Distinct().Count() != required.Length)
             throw new InvalidDataException("Referências iniciais incompletas ou duplicadas.");
         var direct = required.Where(line => line.OxygenTarget != RampOxygenTarget.ActiveCascadeReference).ToArray();
@@ -108,6 +107,8 @@ public sealed partial class RecipeRampCheckpointStore(string rootDirectory, Back
                     RecipeAssayReturnState.Number(OpenTECCommand.Parse(command.DesiredCommandJson), key) != reference.Reference ||
                     RecipeAssayReturnState.Number(OpenTECCommand.Parse(command.TransportAcceptedCommandJson), key) != reference.Reference)
                     throw new InvalidDataException("Referência inicial diverge dos comandos aceitos.");
+                if (line.Variable == SetpointVariable.Ph && configuration.CompletionCriteria is not null)
+                    _ = RecipeRampInitialState.CapturedPhBand(command);
             }
         }
         if (!required.Any(line => line.OxygenTarget == RampOxygenTarget.ActiveCascadeReference) && initial.Controller is not null)

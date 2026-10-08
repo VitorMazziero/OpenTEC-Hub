@@ -5,6 +5,20 @@ public sealed record RecipeRampCompletionCriteria(double TemperatureToleranceCel
     double FlowToleranceLpm, double PhTolerance, double PressureToleranceKilopascals, double StabilitySeconds,
     double MaximumSampleGapSeconds, double TimeoutSeconds)
 {
+    public RecipeRampFrameDestination CreateCapturedDestination(RecipeEngine engine, RecipeRampStartCheckpoint start)
+    {
+        if (start.Configuration.CompletionCriteria is { } expected && expected != this)
+            throw new InvalidOperationException("Critérios de confirmação divergem da captura inicial.");
+        double? phBand = null;
+        if (start.Configuration.Definition.Lines.Any(line => line.Variable == SetpointVariable.Ph))
+        {
+            var state = start.InitialState.Commands.SingleOrDefault(command => command.Actuator == Protocol.ActuatorId.PHDosing)
+                ?? throw new InvalidOperationException("Confirmação do pH exige configuração inicial capturada.");
+            phBand = RecipeRampInitialState.CapturedPhBand(state);
+        }
+        return CreateDestination(engine, start.Configuration, phBand);
+    }
+
     public void Validate()
     {
         foreach (var tolerance in new[] { TemperatureToleranceCelsius, AgitationToleranceRpm, FlowToleranceLpm, PhTolerance, PressureToleranceKilopascals })

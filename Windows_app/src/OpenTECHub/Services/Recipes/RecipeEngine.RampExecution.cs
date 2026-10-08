@@ -12,7 +12,8 @@ public sealed partial class RecipeEngine
         var configuration = RecipeRampBlockConfiguration.Read(node);
         Log(RecipeLogSeverity.Info, "Rampa iniciada; captura e resultado serão gravados automaticamente.", node.Id);
         var terminal = await new RecipeRampBlockRunner(this, authority, runtime.Store,
-            frozen => runtime.CreateDestination(this, frozen)).ExecuteAsync(node.Id, configuration,
+            frozen => runtime.CreateDestination(this, frozen), runtime.CreateCapturedDestination is { } captured
+                ? start => captured(this, start) : null).ExecuteAsync(node.Id, configuration,
                 runtime.PreparationTimeout, runtime.ConfirmationTimeout, runtime.RecoveryTimeout,
                 runtime.MinimumDispatchInterval, cancellation).ConfigureAwait(false);
         if (terminal.Status != RecipeRampTerminalStatus.Completed)

@@ -38,8 +38,7 @@ public sealed record RecipeRampInitialState(Guid SnapshotId, Guid ExecutionId, s
         if (authority.Owner != CommandOwner.Recipe || !arbiter.IsCurrent(authority) ||
             ResourcesFor(configuration.Definition).Any(resource => !authority.Resources.Contains(resource)))
             throw new InvalidOperationException("Captura da rampa exige reserva atual dos destinos pela receita.");
-        var required = configuration.Definition.Lines.Where(line => line.StartSource == SetpointStartSource.CurrentConfirmed ||
-            configuration.Definition.CancellationPolicy == RampCancellationPolicy.RestoreSnapshot).ToArray();
+        var required = RequiredCapturedLines(configuration);
         var directResources = required.Where(line => line.OxygenTarget != RampOxygenTarget.ActiveCascadeReference)
             .Select(line => CommandActuators.ForKey(KeyFor(line.Variable))!.Value).Distinct().ToArray();
         // Even an empty subset verifies that the generation was drained. Explicit starts do not
@@ -71,6 +70,8 @@ public sealed record RecipeRampInitialState(Guid SnapshotId, Guid ExecutionId, s
                 value = RecipeAssayReturnState.Number(OpenTECCommand.Parse(state.DesiredCommandJson), key);
                 var accepted = RecipeAssayReturnState.Number(OpenTECCommand.Parse(state.TransportAcceptedCommandJson), key);
                 if (value != accepted) throw new InvalidOperationException("Referência inicial não aceita pelo transporte.");
+                if (line.Variable == SetpointVariable.Ph && configuration.CompletionCriteria is not null)
+                    _ = CapturedPhBand(state);
                 evidence = RampReferenceEvidence.TransportAccepted;
                 recorded = state.TransportUpdatedUtc;
             }
@@ -81,6 +82,20 @@ public sealed record RecipeRampInitialState(Guid SnapshotId, Guid ExecutionId, s
         }
         return new(Guid.NewGuid(), authority.ExecutionId, authority.BlockId, now, references.ToImmutable(), commands,
             required.Any(line => line.OxygenTarget == RampOxygenTarget.ActiveCascadeReference) ? controller : null);
+    }
+
+    internal static LinearSetpointRampLine[] RequiredCapturedLines(RecipeRampBlockConfiguration configuration)
+        => configuration.Definition.Lines.Where(line => line.StartSource == SetpointStartSource.CurrentConfirmed ||
+            configuration.Definition.CancellationPolicy == RampCancellationPolicy.RestoreSnapshot ||
+            line.Variable == SetpointVariable.Ph && configuration.CompletionCriteria is not null).ToArray();
+
+    internal static double CapturedPhBand(ReservedDesiredState state)
+    {
+        var band = RecipeAssayReturnState.Number(OpenTECCommand.Parse(state.DesiredCommandJson), CommandKeys.PHError);
+        var accepted = RecipeAssayReturnState.Number(OpenTECCommand.Parse(state.TransportAcceptedCommandJson), CommandKeys.PHError);
+        if (!double.IsFinite(band) || band < 0 || band != accepted || Math.Round(band, 2, MidpointRounding.AwayFromZero) != band)
+            throw new InvalidOperationException("Banda inicial de pH não aceita ou não representável.");
+        return band;
     }
 
     internal static string KeyFor(SetpointVariable variable) => variable switch

@@ -6,6 +6,8 @@ public sealed record RecipeRampExecutionConfiguration(RecipeRampCheckpointStore 
     TimeSpan PreparationTimeout, TimeSpan ConfirmationTimeout, TimeSpan RecoveryTimeout,
     TimeSpan MinimumDispatchInterval)
 {
+    public Func<RecipeEngine, RecipeRampStartCheckpoint, RecipeRampFrameDestination>? CreateCapturedDestination { get; init; }
+
     public void Validate()
     {
         ArgumentNullException.ThrowIfNull(Store); ArgumentNullException.ThrowIfNull(CreateDestination);

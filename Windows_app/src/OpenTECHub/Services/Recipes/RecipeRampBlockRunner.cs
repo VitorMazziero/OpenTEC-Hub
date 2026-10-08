@@ -5,7 +5,8 @@ namespace OpenTECHub.Services.Recipes;
 /// <summary>One invocation: durable preparation, guarded trajectory, then durable completion or return.
 /// The graph must inspect terminal status before advancing. No persisted invocation is resumed.</summary>
 public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthorityArbiter arbiter,
-    RecipeRampCheckpointStore store, Func<RecipeRampBlockConfiguration, RecipeRampFrameDestination> createDestination)
+    RecipeRampCheckpointStore store, Func<RecipeRampBlockConfiguration, RecipeRampFrameDestination> createDestination,
+    Func<RecipeRampStartCheckpoint, RecipeRampFrameDestination>? createCapturedDestination = null)
 {
     private int _started;
 
@@ -63,7 +64,7 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
             start = await coordinator.PrepareRampAsync(execution, invocation, configuration, producer,
                 authority => engine.CaptureRampStartCheckpoint(configuration, authority, invocation),
                 store, preparationTimeout, cancellation).ConfigureAwait(false);
-            destination = createDestination(start.Configuration);
+            destination = createCapturedDestination is null ? createDestination(start.Configuration) : createCapturedDestination(start);
             var guarded = new RecipeRampGuardedDestination(producer, activeClock, destination, time,
                 confirmationTimeout, arbiter, execution, preparationTimeout);
             using var running = CancellationTokenSource.CreateLinkedTokenSource(cancellation, producer.StopToken, revoked.Token);

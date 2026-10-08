@@ -9,6 +9,44 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampSensorModuleDestinationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CapturedFactoryPreservesPhBandAndRejectsMissingStateOrChangedCriteria(bool explicitStart)
+    {
+        var clock = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
+        var device = new RecordingDeviceService(); using var arbiter = new CommandArbiter(device, clock);
+        await using var engine = new RecipeEngine(arbiter, arbiter, new MemorySettingsService(), clock);
+        await engine.StartAsync(WaitingRecipe());
+        arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.PHSetpoint, 6.5).Set(CommandKeys.PHError, .15));
+        var criteria = new RecipeRampCompletionCriteria(.5, 2, .1, .1, .5, 0, 3, 10);
+        var configuration = new RecipeRampBlockConfiguration(new() { Lines = [new() {
+            Variable = SetpointVariable.Ph, StartSource = explicitStart ? SetpointStartSource.Explicit : SetpointStartSource.CurrentConfirmed,
+            InitialSetpoint = explicitStart ? 7 : null, FinalSetpoint = 6.8, EndAfterSeconds = 60 }] }, null) { CompletionCriteria = criteria };
+        var authority = await arbiter.ReserveAsync(CommandOwner.Recipe, engine.ExecutionId, "ramp",
+            RecipeRampInitialState.ResourcesFor(configuration.Definition), TimeSpan.FromSeconds(3));
+        await arbiter.DrainReservedCommandsAsync(authority);
+        var start = engine.CaptureRampStartCheckpoint(configuration, authority, Guid.NewGuid());
+        Assert.Equal(6.5, Assert.Single(start.InitialState.References).Reference);
+        Assert.Equal(explicitStart ? 7 : 6.5,
+            new LinearSetpointRampTrajectory(configuration.Definition, start.InitialState.ConfirmedStarts, (_, value) => value).Sample(0)[0].Reference);
+        arbiter.ReleaseReservation(authority);
+        Assert.Throws<InvalidOperationException>(() => criteria.CreateCapturedDestination(engine,
+            start with { InitialState = start.InitialState with { Commands = [] } }));
+        Assert.Throws<InvalidOperationException>(() => (criteria with { PhTolerance = 1 }).CreateCapturedDestination(engine, start));
+        using var destination = criteria.CreateCapturedDestination(engine, start);
+        ImmutableArray<LinearRampSample> target = [new(SetpointVariable.Ph, null, 6.8, true)];
+        Assert.True(await destination.TryApplyAsync(target, default));
+        Assert.Equal(.15, RecipeAssayReturnState.Number(OpenTECCommand.Parse(device.Sent.Last()), CommandKeys.PHError));
+        var confirming = destination.TryConfirmFinalAsync(target, default);
+        device.PushTelemetry(Feedback() with { PHError = 0 });
+        Assert.False(confirming.IsCompleted);
+        device.PushTelemetry(Feedback());
+        Assert.True(await confirming.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal(6.8, Assert.Single(destination.FinalConfirmations).Reference);
+        await engine.StopAsync("captured pH criteria verified");
+    }
+
     private static RecipeDocument WaitingRecipe()
     {
         var recipe = new RecipeDocument();

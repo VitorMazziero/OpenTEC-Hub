@@ -17,6 +17,39 @@ namespace OpenTECHub.Tests;
 /// </summary>
 public sealed class RecipeEngineTests
 {
+    [Fact]
+    public async Task CascadeReferenceDestinationNeverWritesMonitorAndRejectsSuspendedOrInactiveController()
+    {
+        var (engine, device, arbiter, clock) = Build();
+        await using var run = engine;
+        Assert.False(engine.TryReadCascadeOxygenReference("casc", out _));
+        Assert.False(engine.TrySetCascadeOxygenReference("casc", 40));
+        foreach (var invalid in new[] { -1, 101, double.NaN, double.PositiveInfinity })
+            Assert.Throws<ArgumentOutOfRangeException>(() => engine.TrySetCascadeOxygenReference("casc", invalid));
+        await engine.StartAsync(CascadeWithGateRecipe(out _));
+        PushFrame(device, clock, oxygen: 25);
+        await WaitForCascadeStartedAsync(engine);
+        Assert.True(engine.TryReadCascadeOxygenReference("casc", out _));
+        var monitorCommands = device.Sent.Count(json => OpenTECCommand.Parse(json).Contains(CommandKeys.OxygenMonitor));
+        Assert.True(engine.TrySetCascadeOxygenReference("casc", 42));
+        Assert.True(engine.TryReadCascadeOxygenReference("casc", out var updated));
+        Assert.Equal(42, updated);
+        Assert.Equal(monitorCommands, device.Sent.Count(json => OpenTECCommand.Parse(json).Contains(CommandKeys.OxygenMonitor)));
+        var context = RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId };
+        var lease = await engine.Resources!.ReserveForAssayAsync(context,
+            [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen], TimeSpan.FromSeconds(5));
+        Assert.False(engine.TrySetCascadeOxygenReference("casc", 50));
+        Assert.True(engine.TryReadCascadeOxygenReference("casc", out updated));
+        Assert.Equal(42, updated);
+        lease.AbortBeforeAssay();
+        engine.Pause();
+        Assert.False(engine.TrySetCascadeOxygenReference("casc", 50));
+        engine.Resume();
+        Assert.True(engine.TrySetCascadeOxygenReference("casc", 50));
+        await engine.StopAsync("reference destination complete");
+        Assert.False(engine.TrySetCascadeOxygenReference("casc", 60));
+    }
+
     private static (RecipeEngine Engine, RecordingDeviceService Device, CommandArbiter Arbiter, TestClock Clock) Build()
     {
         var device = new RecordingDeviceService();

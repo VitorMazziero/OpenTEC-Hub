@@ -31,15 +31,73 @@ public sealed class LinearSetpointRampExecutor(TimeProvider time)
 {
     private int _started;
 
+    /// <summary>Persist the frozen start before dispatch and return only a durable, validated completion.
+    /// The caller retains reservations and handles recovery on cancellation or failure.</summary>
+    public async Task<RecipeRampTerminalCheckpoint> ExecutePersistedAsync(RecipeRampStartCheckpoint start,
+        RecipeRampCheckpointStore store, RecipeRampActiveClock activeClock, IRecipeRampDestination destination,
+        IRecipeRampConfirmationSource confirmations, Func<SetpointVariable, double, double> quantize,
+        TimeSpan minimumDispatchInterval, CancellationToken cancellation)
+    {
+        ArgumentNullException.ThrowIfNull(start);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(activeClock);
+        ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(confirmations);
+        ArgumentNullException.ThrowIfNull(quantize);
+        ValidateInterval(minimumDispatchInterval);
+        ClaimExecution();
+        var reason = $"initial-storage:{Guid.NewGuid():N}";
+        activeClock.Suspend(reason);
+        LinearSetpointRampTrajectory trajectory;
+        RecipeRampStartCheckpoint persisted;
+        try
+        {
+            persisted = await store.PersistStartAsync(start, cancellation).ConfigureAwait(false);
+            trajectory = new(persisted.Configuration.Definition, persisted.InitialState.ConfirmedStarts, (variable, value) =>
+            {
+                var represented = quantize(variable, value);
+                if (represented != RecipeRampReferenceQuantization.Quantize(variable, value, persisted.Configuration.TemperatureRoute))
+                    throw new InvalidOperationException("Quantização do destino diverge da rota capturada.");
+                return represented;
+            });
+            cancellation.ThrowIfCancellationRequested();
+        }
+        finally { activeClock.Resume(reason); }
+        await ExecuteCoreAsync(trajectory, activeClock, destination, minimumDispatchInterval, cancellation).ConfigureAwait(false);
+        var initial = persisted.InitialState;
+        var terminal = new RecipeRampTerminalCheckpoint(1, initial.ExecutionId, persisted.InvocationId,
+            initial.SnapshotId, initial.NodeId, RecipeRampTerminalStatus.Completed, RecipeRampReturnOutcome.NotRequired,
+            activeClock.ActiveSeconds, time.GetUtcNow(), null, confirmations.FinalConfirmations);
+        // Confirmation is already complete: finish the durable receipt even if cancellation arrives
+        // while writing. A missing receipt must never authorize graph advancement.
+        return await store.PersistTerminalAsync(terminal, CancellationToken.None).ConfigureAwait(false);
+    }
+
     public async Task ExecuteAsync(LinearSetpointRampTrajectory trajectory, RecipeRampActiveClock activeClock,
         IRecipeRampDestination destination, TimeSpan minimumDispatchInterval, CancellationToken cancellation)
     {
         ArgumentNullException.ThrowIfNull(trajectory);
         ArgumentNullException.ThrowIfNull(activeClock);
         ArgumentNullException.ThrowIfNull(destination);
+        ValidateInterval(minimumDispatchInterval);
+        ClaimExecution();
+        await ExecuteCoreAsync(trajectory, activeClock, destination, minimumDispatchInterval, cancellation).ConfigureAwait(false);
+    }
+
+    private static void ValidateInterval(TimeSpan minimumDispatchInterval)
+    {
         if (minimumDispatchInterval <= TimeSpan.Zero || minimumDispatchInterval.TotalMilliseconds > uint.MaxValue - 1)
             throw new ArgumentOutOfRangeException(nameof(minimumDispatchInterval));
+    }
+
+    private void ClaimExecution()
+    {
         if (Interlocked.Exchange(ref _started, 1) != 0) throw new InvalidOperationException("Executor de rampa já utilizado.");
+    }
+
+    private async Task ExecuteCoreAsync(LinearSetpointRampTrajectory trajectory, RecipeRampActiveClock activeClock,
+        IRecipeRampDestination destination, TimeSpan minimumDispatchInterval, CancellationToken cancellation)
+    {
         ImmutableArray<LinearRampSample> last = [];
         while (true)
         {

@@ -23,4 +23,6 @@ Requisitos de entrega confirmados pelo autor: preservar suas correções do apli
 
 Incrementos de R5.2: [captura inicial durável](receitas-r52/GRAVACAO_INICIAL.md) e [resultado terminal durável](receitas-r52/GRAVACAO_TERMINAL.md). Os armazenamentos estão implementados; consumo dos recibos pelo ciclo de vida do bloco e confirmação dos destinos permanecem pendentes. A revisão do editor está descrita em [edição guiada](receitas-r42/EDICAO_GUIADA.md).
 
+Atualização de R5.2 em 08/10/2026: [precisão da temperatura](receitas-r52/PRECISAO_TEMPERATURA.md) implementada em `a886009`, com 2416 testes na regressão completa, 135 contratos do Hub e compilações do aplicativo/firmware. Portanto, a precisão nativa citada como pendente na tabela já foi resolvida. O [executor com recibos](receitas-r52/EXECUTOR_E_RECIBOS.md) conecta gravação inicial, trajetória, confirmação e gravação terminal; integração das reservas ao engine e recuperação continuam pendentes.
+
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.

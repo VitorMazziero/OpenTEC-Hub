@@ -100,7 +100,33 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
                     : await coordinator.HoldInterruptedRampAsync(start, producer, store, status, error.Message,
                         recoveryTimeout, CancellationToken.None).ConfigureAwait(false);
             }
-            catch (Exception recovery) { throw new AggregateException("Rampa encerrada sem retorno confirmado.", error, recovery); }
+            catch (Exception recovery)
+            {
+                // Recovery can lose authority after the first interruption check. Never reopen it,
+                // and preserve an existing receipt if failure occurred after durable recording.
+                RecipeRampTerminalCheckpoint? failed = null;
+                try
+                {
+                    if (store.ReadTerminal(execution, start.InvocationId) is null)
+                    {
+                        lock (pauseGate) lost = revocation;
+                        failed = new RecipeRampTerminalCheckpoint(1, execution, start.InvocationId,
+                            start.InitialState.SnapshotId, nodeId,
+                            lost?.IsSafeAbort == true ? RecipeRampTerminalStatus.EmergencyStopped : RecipeRampTerminalStatus.Faulted,
+                            lost?.IsSafeAbort == true ? RecipeRampReturnOutcome.SuppressedForEmergency : RecipeRampReturnOutcome.Failed,
+                            activeClock.ActiveSeconds, time.GetUtcNow(),
+                            $"{error.Message}; retorno: {recovery.Message}" + (lost is null ? "" : $"; {lost.Reason}"), []);
+                        failed = await store.PersistTerminalAsync(failed, CancellationToken.None).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception persistence)
+                {
+                    throw new AggregateException("Rampa encerrada sem retorno confirmado e sem novo recibo durável.",
+                        error, recovery, persistence);
+                }
+                if (failed?.Status == RecipeRampTerminalStatus.EmergencyStopped) return failed;
+                throw new AggregateException("Rampa encerrada sem retorno confirmado.", error, recovery);
+            }
         }
         finally
         {

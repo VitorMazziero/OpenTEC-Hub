@@ -53,4 +53,24 @@ public sealed class RecipeRampActiveClockTests
         time.Advance(TimeSpan.FromSeconds(6));
         Assert.True(trajectory.Sample(clock.ActiveSeconds)[0].AtFinalTarget);
     }
+
+    [Fact]
+    public void CivilClockChangesNeitherAdvanceNorRewindTheRamp()
+    {
+        var time = new TestClock(DateTimeOffset.UnixEpoch);
+        var clock = new RecipeRampActiveClock(time);
+        var trajectory = new LinearSetpointRampTrajectory(new() { Lines = [
+            new() { Variable = SetpointVariable.Temperature, StartSource = SetpointStartSource.Explicit,
+                InitialSetpoint = 30, FinalSetpoint = 37, EndAfterSeconds = 3600 }] },
+            new Dictionary<SetpointVariable, double>(), (_, value) => value);
+        time.Advance(TimeSpan.FromMinutes(20));
+        var before = trajectory.Sample(clock.ActiveSeconds)[0].Reference;
+        time.ShiftUtc(TimeSpan.FromHours(1));
+        Assert.Equal(before, trajectory.Sample(clock.ActiveSeconds)[0].Reference);
+        time.ShiftUtc(TimeSpan.FromHours(-3));
+        Assert.Equal(before, trajectory.Sample(clock.ActiveSeconds)[0].Reference);
+        Assert.Equal(1200, clock.ActiveSeconds);
+        time.Advance(TimeSpan.FromMinutes(40));
+        Assert.True(trajectory.Sample(clock.ActiveSeconds)[0].AtFinalTarget);
+    }
 }

@@ -9,6 +9,7 @@ namespace OpenTECHub.Services.Recipes;
 public enum RecipeDecisionAuthor { AutomaticPolicy, Operator }
 public enum SetpointStartSource { CurrentConfirmed, Explicit }
 public enum RampOxygenTarget { MonitorReference, ActiveCascadeReference }
+public enum RampTemperatureRoute { NativeModule, ExternalBath }
 public enum RampCancellationPolicy { HoldLastReferences, RestoreSnapshot }
 public enum MissedPeriodicSlotPolicy { Skip }
 public enum RecipeActuatorHandoffPhase

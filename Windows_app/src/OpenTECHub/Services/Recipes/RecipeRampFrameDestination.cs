@@ -18,6 +18,7 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
     private SensorSnapshot? _latestFrame;
     private long _frameSequence;
     private readonly double _phInactiveBand;
+    private readonly RampTemperatureRoute? _temperatureRoute;
 
     public RecipeRampFrameDestination(RecipeEngine engine, RecipeRampBlockConfiguration configuration,
         RecipeRampMotorConfirmationPolicy motor, RecipeRampTemperatureConfirmationPolicy temperature,
@@ -39,6 +40,9 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
             pressure.Validate();
         }
         _phInactiveBand = phInactiveBand is { } savedBand ? Math.Round(savedBand, 2, MidpointRounding.AwayFromZero) : 0;
+        _temperatureRoute = configuration.Definition.Lines.Any(line => line.Variable == SetpointVariable.Temperature)
+            ? configuration.TemperatureRoute ?? engine.RampTemperatureRoute : null;
+        if (_temperatureRoute is { } temperaturePath && !Enum.IsDefined(temperaturePath)) throw new ArgumentException("Rota de temperatura inválida.");
         if (configuration.Definition.Lines.Any(line => line.Variable == SetpointVariable.Oxygen) && string.IsNullOrWhiteSpace(configuration.CascadeNodeId))
             throw new ArgumentException("Rampa de O₂ requer controle associado.");
         _engine = engine; _executionId = engine.ExecutionId; _cascadeNodeId = configuration.CascadeNodeId;
@@ -47,7 +51,7 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
             line => (IRecipeRampDestination)(line.Variable switch
             {
                 SetpointVariable.Agitation => new RecipeRampMotorDestination(engine, motor),
-                SetpointVariable.Temperature => new RecipeRampTemperatureDestination(engine, temperature),
+                SetpointVariable.Temperature => new RecipeRampTemperatureDestination(engine, temperature, _temperatureRoute),
                 SetpointVariable.Flow => new RecipeRampFlowDestination(engine, flow),
                 SetpointVariable.Oxygen => new RecipeRampCascadeDestination(engine, _cascadeNodeId!),
                 SetpointVariable.Ph => new RecipeRampSensorModuleDestination(engine, SetpointVariable.Ph, ph!, _phInactiveBand),
@@ -66,7 +70,7 @@ public sealed class RecipeRampFrameDestination : IRecipeRampDestination, IRecipe
             ObjectDisposedException.ThrowIf(_disposed, this);
             _confirmations = []; _applied = []; _revision++;
             Validate(references);
-            if (!_engine.TryApplyRampMeasuredFrame(references, _cascadeNodeId, _phInactiveBand, _executionId, out var route)) return Task.FromResult(false);
+            if (!_engine.TryApplyRampMeasuredFrame(references, _cascadeNodeId, _phInactiveBand, _executionId, out var route, _temperatureRoute)) return Task.FromResult(false);
             foreach (var target in references)
                 if (_destinations[target.Variable] is RecipeRampMeasuredDestination measured) measured.ObserveAcceptedFrame(target, route);
                 else ((RecipeRampCascadeDestination)_destinations[target.Variable]).ObserveAcceptedFrame(target);

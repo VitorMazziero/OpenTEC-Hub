@@ -5,6 +5,20 @@ namespace OpenTECHub.Services.Recipes;
 
 public sealed partial class RecipeEngine
 {
+    public RecipeRampStartCheckpoint CaptureRampStartCheckpoint(RecipeRampBlockConfiguration configuration,
+        CommandAuthorityLease authority, Guid invocationId)
+    {
+        if (invocationId == Guid.Empty) throw new ArgumentException("Invocação da rampa ausente.");
+        ArgumentNullException.ThrowIfNull(configuration);
+        lock (_lock)
+        {
+            var needsTemperature = configuration.Definition.Lines.Any(line => line.Variable == SetpointVariable.Temperature);
+            if (needsTemperature && configuration.TemperatureRoute is { } expected && expected != RampTemperatureRoute)
+                throw new InvalidOperationException("Rota capturada da temperatura diverge da rota atual.");
+            var frozen = configuration with { TemperatureRoute = needsTemperature ? RampTemperatureRoute : null };
+            return new(1, invocationId, frozen, CaptureRampInitialState(frozen, authority));
+        }
+    }
     /// <summary>Caller reserves the destinations and quiesces any coordinated cascade before capturing.</summary>
     public RecipeRampInitialState CaptureRampInitialState(RecipeRampBlockConfiguration configuration,
         CommandAuthorityLease authority)

@@ -15,7 +15,7 @@ public sealed partial class RecipeEngine
         {
             if (State != RecipeRunState.Running || expectedExecutionId is { } execution && execution != ExecutionId) return false;
             var commands = new RecipeRampDirectCommands(MaxFlow, _routeCoordinator.IsUartFallback,
-                _settings.Current.GasRig.ToConfiguration(), phInactiveBand);
+                _settings.Current.GasRig.ToConfiguration(), phInactiveBand, RampTemperatureRoute);
             var combined = OpenTECCommand.Create();
             LinearRampSample? cascadeReference = null;
             foreach (var sample in references)

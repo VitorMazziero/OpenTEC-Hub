@@ -458,7 +458,7 @@ void processJsonCommand(const String &json);
 void processOutgoingCommands();
 void readAndBroadcastSensorData();
 void setMotor(int rpm);
-void setTemperature(float t);
+void setTemperature(float t, bool exactReference = false);
 void setPH(float pH, float err, int op, int mix, int intensity);
 void setPHCalibration(int calVal);
 void setNutrient(int op, int mix, int opCycle, int mixCycle, int intensity);

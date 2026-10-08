@@ -87,6 +87,7 @@ public static class CommandActuators
         new Dictionary<string, ActuatorId>(StringComparer.Ordinal)
         {
             [CommandKeys.TempSetpoint] = ActuatorId.Temperature,
+            [CommandKeys.TempSetpointExact] = ActuatorId.Temperature,
             [CommandKeys.TempControlMode] = ActuatorId.Temperature,
             [CommandKeys.BathComm] = ActuatorId.Temperature,
             [CommandKeys.BathMode] = ActuatorId.Temperature,

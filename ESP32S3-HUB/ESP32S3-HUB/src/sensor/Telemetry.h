@@ -583,8 +583,8 @@ void readAndBroadcastSensorData() {
   // On the external route an uncommanded (persisted) reference is not active and is
   // published as null; the UART route keeps its historical echo.
   appendBathNullable("TempSetpoint", snapTempReference,
-                     isfinite(snapTempReference) && snapTempReference > 0.0f &&
-                         (!snapBathViaBath || snapTempCommanded), 2);
+                     isfinite(snapTempReference) && snapTempReference >= 0.0f &&
+                         (snapTempReference == 0.0f || !snapBathViaBath || snapTempCommanded), 2);
   // Node values are only facts while the node is online (C12).
   appendBathNullable("BathSp", snapBathSp, snapBathOnline && snapBathSpValid, 2);
   appendBathNullable("BathTarget", snapBathTarget, snapBathOnline && isfinite(snapBathTarget), 2);

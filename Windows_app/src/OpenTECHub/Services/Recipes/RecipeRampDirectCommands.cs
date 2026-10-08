@@ -5,12 +5,12 @@ namespace OpenTECHub.Services.Recipes;
 
 /// <summary>Direct ramp destinations. Rejects route clipping; does not dispatch or claim confirmation.</summary>
 public sealed class RecipeRampDirectCommands(double maximumFlow, bool uartFallback, GasRigConfiguration gasRig,
-    double phInactiveBand)
+    double phInactiveBand, RampTemperatureRoute temperatureRoute = RampTemperatureRoute.NativeModule)
 {
     public double Quantize(SetpointVariable variable, double reference)
     {
         Validate(variable, reference);
-        var quantized = RecipeRampReferenceQuantization.Quantize(variable, reference);
+        var quantized = RecipeRampReferenceQuantization.Quantize(variable, reference, temperatureRoute);
         Validate(variable, quantized);
         return quantized;
     }
@@ -25,7 +25,7 @@ public sealed class RecipeRampDirectCommands(double maximumFlow, bool uartFallba
             throw new ArgumentException("Destino de O₂ incompatível com o parâmetro.");
         return sample.Variable switch
         {
-            SetpointVariable.Temperature => OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, value),
+            SetpointVariable.Temperature => OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, value).Set(CommandKeys.TempSetpointExact, true),
             SetpointVariable.Agitation => CommandBuilders.MotorSetpoint((int)value),
             SetpointVariable.Flow => CommandBuilders.FlowRoute(value, maximumFlow,
                 value > 0 ? GasRoute.Reactor : GasRoute.Closed, gasRig),

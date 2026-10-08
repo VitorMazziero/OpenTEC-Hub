@@ -57,7 +57,8 @@ public sealed class RecipeRampTemperatureDestinationTests
         Assert.False(confirming.IsCompleted);
         foreach (var invalid in new[] { Temperature(bath, 25), Temperature(bath, 37) with { TemperatureUpdated = false },
             Temperature(bath, 37) with { TemperatureAgeMs = 5000 }, Temperature(bath, 37) with { TemperatureValid = false },
-            Temperature(bath, 37) with { TempSetpoint = 36 } })
+            Temperature(bath, 37) with { TempSetpoint = 36 },
+            Temperature(bath, 37) with { TempSetpoint = 37.01 } })
         {
             device.PushTelemetry(invalid); await Task.Delay(10);
             Assert.False(confirming.IsCompleted);

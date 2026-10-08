@@ -6,6 +6,37 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampDirectCommandsTests
 {
+    [Theory]
+    [InlineData(RampTemperatureRoute.NativeModule, 37.1)]
+    [InlineData(RampTemperatureRoute.ExternalBath, 37.12)]
+    public void TemperatureTrajectoryAndWireUseCapturedRoutePrecision(RampTemperatureRoute route, double represented)
+    {
+        var commands = new RecipeRampDirectCommands(10, false, GasRigConfiguration.Default, .1, route);
+        var definition = new LinearSetpointRampDefinition { Lines = [new() {
+            Variable = SetpointVariable.Temperature, StartSource = SetpointStartSource.Explicit,
+            InitialSetpoint = 30, FinalSetpoint = 37.123, EndAfterSeconds = 60 }] };
+        var trajectory = new LinearSetpointRampTrajectory(definition, new Dictionary<SetpointVariable, double>(), commands.Quantize);
+        var final = Assert.Single(trajectory.Sample(60));
+        Assert.Equal(represented, final.Reference);
+        Assert.Equal(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, represented)
+            .Set(CommandKeys.TempSetpointExact, true).ToJson(), commands.Build(final).ToJson());
+        Assert.Equal(37.123, definition.Lines[0].FinalSetpoint);
+        foreach (var seconds in new[] { 0d, 10d, 20d, 30d, 60d })
+        {
+            var sample = Assert.Single(trajectory.Sample(seconds));
+            Assert.Equal(sample.Reference, RecipeRampReferenceQuantization.Quantize(sample.Variable, sample.Reference, route));
+        }
+    }
+
+    [Fact]
+    public void TemperaturePrecisionRequiresKnownRouteAndCannotRoundPositiveReferenceToOff()
+    {
+        Assert.Equal(30, RecipeRampReferenceQuantization.Quantize(SetpointVariable.Temperature, 30));
+        Assert.Throws<ArgumentException>(() => RecipeRampReferenceQuantization.Quantize(SetpointVariable.Temperature, 30.12));
+        Assert.Throws<ArgumentException>(() => RecipeRampReferenceQuantization.Quantize(SetpointVariable.Temperature, 30, (RampTemperatureRoute)99));
+        Assert.Throws<ArgumentException>(() => RecipeRampReferenceQuantization.Quantize(SetpointVariable.Temperature, .004, RampTemperatureRoute.ExternalBath));
+    }
+
     [Fact]
     public void PhQuantizationCannotSilentlyDisableDosingOrCrossTheOffSentinel()
     {

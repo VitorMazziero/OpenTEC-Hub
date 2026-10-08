@@ -17,20 +17,21 @@ void setMotor(int rpm) {
   }
 }
 
-void setTemperature(float temp) {
+void setTemperature(float temp, bool exactReference) {
   // Range Check (typical bioreactor range)
   if (temp < 0.0f) temp = 0.0f;
   if (temp > 100.0f) temp = 100.0f;
 
   const bool changed = fabs(tempReference - temp) > 0.01f;
-  if (changed) {
+  const bool exactChanged = exactReference && tempReference != temp;
+  if (changed || exactChanged) {
       tempReference = temp;
   }
   // Um novo comando após reboot/troca de via precisa rearmar a UART mesmo se
   // repetir numericamente o último valor armazenado. Na via externa a mesma
   // referência alimenta apenas a cascata e nunca segue diretamente ao C404.
   if (tempControlRoute == TempControlRoute::UartModule &&
-      (changed || !tempReferenceCommanded)) {
+      (changed || exactChanged || !tempReferenceCommanded)) {
     flagTempDirty = true;
   }
 }

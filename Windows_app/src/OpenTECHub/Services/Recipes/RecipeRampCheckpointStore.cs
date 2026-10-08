@@ -70,6 +70,8 @@ public sealed partial class RecipeRampCheckpointStore(string rootDirectory, Back
             initial.ExecutionId == Guid.Empty || string.IsNullOrWhiteSpace(initial.NodeId) || initial.References.IsDefault || initial.Commands.IsDefault)
             throw new InvalidDataException("Identificação ou versão da captura inicial inválida.");
         configuration.Definition.Validate();
+        if (configuration.TemperatureRoute is { } temperatureRoute && !Enum.IsDefined(temperatureRoute))
+            throw new InvalidDataException("Rota de temperatura inválida na captura.");
         var required = configuration.Definition.Lines.Where(line => line.StartSource == SetpointStartSource.CurrentConfirmed ||
             configuration.Definition.CancellationPolicy == RampCancellationPolicy.RestoreSnapshot).ToArray();
         if (initial.References.Length != required.Length || initial.References.Select(r => r.Variable).Distinct().Count() != required.Length)
@@ -110,7 +112,8 @@ public sealed partial class RecipeRampCheckpointStore(string rootDirectory, Back
         if (!required.Any(line => line.OxygenTarget == RampOxygenTarget.ActiveCascadeReference) && initial.Controller is not null)
             throw new InvalidDataException("Snapshot de cascata não utilizado pela rampa.");
         initial.Controller?.Validate();
-        _ = new LinearSetpointRampTrajectory(configuration.Definition, initial.ConfirmedStarts, RecipeRampReferenceQuantization.Quantize);
+        _ = new LinearSetpointRampTrajectory(configuration.Definition, initial.ConfirmedStarts,
+            (variable, value) => RecipeRampReferenceQuantization.Quantize(variable, value, configuration.TemperatureRoute));
         return checkpoint;
     }
 }

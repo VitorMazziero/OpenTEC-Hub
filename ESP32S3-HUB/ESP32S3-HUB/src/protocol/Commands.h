@@ -597,7 +597,11 @@ void processJsonCommand(const String &json) {
           JsonUtils::parseFiniteFloat(raw, requested) &&
           requested >= 0.0f && requested <= 100.0f) {
         const bool bathRoute = tempControlRoute == TempControlRoute::ExternalBath;
-        setTemperature(requested);
+        String exactRaw;
+        bool exactReference = false;
+        if (JsonUtils::getRaw(json, "tempSetpointExact", exactRaw)) JsonUtils::parseBool(exactRaw, exactReference);
+        if (exactReference) setTemperature(requested, true);
+        else setTemperature(requested);
         if (bathRoute && requested < 0.001f) {
           // Desligar a temperatura na via externa é a parada do banho (D-2).
           bathStopRequested = true;

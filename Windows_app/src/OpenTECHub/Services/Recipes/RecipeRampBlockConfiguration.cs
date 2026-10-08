@@ -3,7 +3,8 @@ using System.Text.Json.Nodes;
 
 namespace OpenTECHub.Services.Recipes;
 
-public sealed record RecipeRampBlockConfiguration(LinearSetpointRampDefinition Definition, string? CascadeNodeId)
+public sealed record RecipeRampBlockConfiguration(LinearSetpointRampDefinition Definition, string? CascadeNodeId,
+    RampTemperatureRoute? TemperatureRoute = null)
 {
     public static RecipeRampBlockConfiguration Read(RecipeNode node)
     {

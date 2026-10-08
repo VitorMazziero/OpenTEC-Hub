@@ -10,16 +10,21 @@ public sealed partial class RecipeEngine
 {
     internal IDeviceService RampTelemetryDevice => _device;
     internal TimeProvider RampTimeProvider => _time;
+    internal RampTemperatureRoute RampTemperatureRoute
+    {
+        get { lock (_lock) return _hubRoutesTemperatureToBath ? Recipes.RampTemperatureRoute.ExternalBath : Recipes.RampTemperatureRoute.NativeModule; }
+    }
 
     internal bool TryApplyRampMeasuredReference(LinearRampSample target, Guid executionId, out RecipeRampMeasuredRoute route)
         => TryApplyRampMeasuredFrame([target], null, 0, executionId, out route);
 
     internal bool TryApplyRampMeasuredFrame(ImmutableArray<LinearRampSample> targets, string? cascadeNodeId, double phInactiveBand,
-        Guid executionId, out RecipeRampMeasuredRoute route)
+        Guid executionId, out RecipeRampMeasuredRoute route, RampTemperatureRoute? expectedTemperatureRoute = null)
     {
         lock (_lock)
         {
             route = new(_routeCoordinator.IsUartFallback, _hubRoutesTemperatureToBath, _settings.Current.GasRig.ToConfiguration());
+            if (expectedTemperatureRoute is { } expected && expected != RampTemperatureRoute) return false;
             return TryApplyRampFrame(targets, cascadeNodeId, phInactiveBand, executionId);
         }
     }

@@ -58,7 +58,7 @@ class BathRoutingTests(unittest.TestCase):
     def test_same_value_rearms_uart_and_long_running_command_faults(self):
         uart = self.read("src/sensor/SensorUart.h")
         runtime = self.read("src/core/Runtime.h")
-        self.assertIn("changed || !tempReferenceCommanded", uart)
+        self.assertIn("changed || exactChanged || !tempReferenceCommanded", uart)
         self.assertIn("BATH_COMMAND_COMPLETION_TIMEOUT_MS", runtime)
         self.assertIn('"bath_completion_timeout"', runtime)
         self.assertIn('"target_override"', runtime)

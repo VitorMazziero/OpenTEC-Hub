@@ -19,6 +19,7 @@ public static class CommandKeys
 
     // ---- Core loop (Phase 1) ---------------------------------------------
     public const string TempSetpoint = "tempSetpoint";
+    public const string TempSetpointExact = "tempSetpointExact";
 
     // ---- External bath / thermal cascade (Hub 10.5.1) --------------------
     public const string TempControlMode = "tempControlMode";

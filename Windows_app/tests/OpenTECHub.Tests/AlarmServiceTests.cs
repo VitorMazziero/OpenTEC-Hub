@@ -345,6 +345,26 @@ public sealed class AlarmServiceTests
     }
 
     [Fact]
+    public void The_end_of_the_silence_window_is_announced_so_the_button_can_be_enabled_again()
+    {
+        using var h = new Harness();
+        h.Device.PushState(ConnectionState.Faulted);
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1.1));
+        h.Service.Silence();
+
+        var notifications = 0;
+        h.Service.Changed += () => notifications++;
+        h.AdvanceAndPoll(AlarmService.SilenceWindow - TimeSpan.FromSeconds(30));
+        Assert.Equal(0, notifications);
+        Assert.False(h.Service.IsAudible);
+
+        // The sound returns with no alarm transition: observers must be told (D-068).
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(31));
+        Assert.True(h.Service.IsAudible);
+        Assert.Equal(1, notifications);
+    }
+
+    [Fact]
     public void A_new_alarm_re_sounds_through_an_active_silence()
     {
         using var h = new Harness();
@@ -420,6 +440,13 @@ public sealed class AlarmServiceTests
         h.Device.PushTelemetry(HealthyFrame() with { FlowmeterOnline = false });
         h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
 
+        // D-068: the flowmeter's usual blink does not raise the critical flag; only a longer absence does.
+        Assert.True(h.Latched(AlarmId.FlowmeterOffline));
+        Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(8));
+        Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(6));
+
         Assert.True(h.Latched(AlarmId.UnsupervisedGasFlow));
         Assert.Equal(AlarmSeverity.Critical, h.Get(AlarmId.UnsupervisedGasFlow)!.Severity);
         Assert.Contains("fail-in-place", h.Get(AlarmId.UnsupervisedGasFlow)!.Detail, StringComparison.Ordinal);
@@ -458,7 +485,7 @@ public sealed class AlarmServiceTests
         h.Device.PushTelemetry(HealthyFrame() with { FlowSetpoint = 5.0, FlowRate = 4.8 });
         h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
         h.Device.PushTelemetry(HealthyFrame() with { FlowmeterOnline = false });
-        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        h.AdvanceAndPoll(AlarmService.UnsupervisedGasFlowOnDelay + TimeSpan.FromSeconds(1));
         Assert.True(h.Latched(AlarmId.UnsupervisedGasFlow));
 
         h.Service.Acknowledge(AlarmId.UnsupervisedGasFlow);

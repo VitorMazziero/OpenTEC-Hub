@@ -22,6 +22,24 @@ public sealed class AlarmBannerPresenterTests
         => latched.OrderByDescending(a => a.IsAnnunciating).ThenByDescending(a => a.Severity).FirstOrDefault();
 
     [Fact]
+    public void The_icon_dot_follows_the_most_urgent_alarm_still_to_be_acknowledged()
+    {
+        Assert.Null(AlarmBannerPresenter.IndicatorSeverity([]));
+        Assert.Null(AlarmBannerPresenter.IndicatorSeverity([Alarm(AlarmId.LinkLost, acknowledged: true)]));
+
+        Assert.Equal(AlarmSeverity.Critical, AlarmBannerPresenter.IndicatorSeverity([Alarm(AlarmId.LinkLost)]));
+        Assert.Equal(AlarmSeverity.Warning, AlarmBannerPresenter.IndicatorSeverity(
+            [Alarm(AlarmId.FlowmeterOffline, severity: AlarmSeverity.Warning)]));
+        // A critical fault that already returned to normal only waits for acknowledgement: amber, not red.
+        Assert.Equal(AlarmSeverity.Warning, AlarmBannerPresenter.IndicatorSeverity([Alarm(AlarmId.LinkLost, conditionActive: false)]));
+        // Red wins over amber; an acknowledged red does not keep the dot red.
+        Assert.Equal(AlarmSeverity.Critical, AlarmBannerPresenter.IndicatorSeverity(
+            [Alarm(AlarmId.FlowmeterOffline, severity: AlarmSeverity.Warning), Alarm(AlarmId.LinkLost)]));
+        Assert.Equal(AlarmSeverity.Warning, AlarmBannerPresenter.IndicatorSeverity(
+            [Alarm(AlarmId.FlowmeterOffline, severity: AlarmSeverity.Warning), Alarm(AlarmId.LinkLost, acknowledged: true)]));
+    }
+
+    [Fact]
     public void Acknowledging_the_only_alarm_hides_the_banner_on_a_normal_page()
     {
         var before = new[] { Alarm(AlarmId.LinkLost) };

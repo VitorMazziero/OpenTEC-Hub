@@ -826,6 +826,17 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// <summary>Whether there is anything left to acknowledge, anywhere.</summary>
     public bool HasUnacknowledgedAlarms => _alarms.AnnunciatingCount > 0;
 
+    /// <summary>The dot on the Eventos icon (D-068): shown while any alarm still waits to be acknowledged.</summary>
+    public bool HasAlarmIndicator => AlarmBannerPresenter.IndicatorSeverity(_alarms.Snapshot()) is not null;
+
+    /// <summary>
+    /// The dot's colour: red while any unacknowledged alarm is a live critical fault, amber when every one of them
+    /// is only a warning or has already returned to normal.
+    /// </summary>
+    public VariableState AlarmIndicatorState
+        => AlarmBannerPresenter.IndicatorSeverity(_alarms.Snapshot()) == AlarmSeverity.Critical
+            ? VariableState.Alarm : VariableState.Warning;
+
     /// <summary>Whether the headline alarm can still be acknowledged.</summary>
     public bool CanAcknowledgeHeadline => AlarmHeadline?.IsAnnunciating ?? false;
 
@@ -894,6 +905,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasAlarms));
         OnPropertyChanged(nameof(IsAlarmAudible));
         OnPropertyChanged(nameof(HasUnacknowledgedAlarms));
+        OnPropertyChanged(nameof(HasAlarmIndicator));
+        OnPropertyChanged(nameof(AlarmIndicatorState));
     }
 
     /// <summary>The banner's page-dependent properties: raised on alarm changes and on navigation.</summary>

@@ -1,0 +1,117 @@
+﻿<UserControl x:Class="OpenTECHub.Views.AlarmBanner"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:OpenTECHub.Converters"
+             xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
+             xmlns:ctl="clr-namespace:OpenTECHub.Controls">
+    <!-- The alarm bar, hosted at the top of the Eventos page only (D-068). Acknowledging, silencing and the
+         expandable list work as before; its DataContext is the shell view-model of the page template. -->
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:StateToBrushConverter x:Key="StateToBrush" />
+    </UserControl.Resources>
+    <Border Visibility="{Binding IsAlarmBannerVisible, Converter={StaticResource BoolToVis}}"
+        Margin="16,16,16,0"
+        Background="{DynamicResource SurfaceCardBrush}"
+        BorderBrush="{Binding AlarmState, Converter={StaticResource StateToBrush}}"
+        BorderThickness="1,1,1,3" CornerRadius="{DynamicResource RadiusMedium}"
+        Padding="16,8">
+        <StackPanel>
+            <!-- Headline row. Two columns, not one cell with two overlapping children.
+                 Overlapped, the detail ran underneath the buttons: a horizontal
+                 StackPanel hands its child infinite width, so the TextTrimming on it
+                 could never fire and the end of the sentence was simply hidden. Bounded
+                 by a star column the detail wraps instead, and the banner grows a line
+                 rather than losing the text. -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid Grid.Column="0" Margin="0,0,16,0" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ctl:StateDot Grid.Column="0" State="{Binding AlarmState}" Margin="0,0,10,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding AlarmHeadlineText}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Foreground="{Binding AlarmState, Converter={StaticResource StateToBrush}, ConverterParameter=Text}" />
+                    <!-- Latch state, so a recovered-but-unacknowledged alarm reads as
+                         "Normalizado" rather than as a live fault. -->
+                    <TextBlock Grid.Column="2" Text="{Binding AlarmHeadlineStateText}" Margin="10,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Grid.Column="3" Text="{Binding AlarmMoreText}" Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Grid.Column="4" Text="{Binding AlarmHeadlineDetail}" Margin="16,0,0,0"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Style="{StaticResource CaptionTextStyle}" />
+                </Grid>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!-- Global, and it stays put: only disabled once nothing is audible. -->
+                    <Button Content="Silenciar áudio (10 min)" Padding="10,4" Margin="0,0,8,0"
+                            IsEnabled="{Binding IsAlarmAudible}"
+                            Command="{Binding SilenceAlarmsCommand}" />
+                    <!-- Acknowledges just this headline alarm. -->
+                    <Button Content="Reconhecer"
+                            Padding="10,4"
+                            IsEnabled="{Binding CanAcknowledgeHeadline}"
+                            Command="{Binding AcknowledgeHeadlineCommand}" />
+                    <!-- Dropdown: reveals every other latched alarm as its own row. -->
+                    <Button Margin="8,0,0,0" Padding="10,4"
+                            Content="{Binding AlarmExpandLabel}"
+                            Visibility="{Binding HasMultipleAlarms, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding ToggleAlarmListCommand}"
+                            ToolTip="Mostrar ou ocultar os demais alarmes ativos" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Expanded: the other currently latched alarms, one row each with its own
+                 Reconhecer. -->
+            <ItemsControl ItemsSource="{Binding OtherAlarms}"
+                          Margin="26,8,0,2"
+                          Visibility="{Binding IsAlarmListExpanded, Converter={StaticResource BoolToVis}}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:AlarmListItem}">
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ctl:StateDot Grid.Column="0" State="{Binding State}" Margin="0,0,10,0"
+                                          VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding Title}"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{Binding State, Converter={StaticResource StateToBrush}, ConverterParameter=Text}" />
+                            <TextBlock Grid.Column="2" Text="{Binding StateText}" Margin="10,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                            <TextBlock Grid.Column="3" Text="{Binding Detail}" Margin="16,0,12,0"
+                                       VerticalAlignment="Center" TextWrapping="Wrap"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                            <Button Grid.Column="4" Content="Reconhecer" Padding="8,3"
+                                    VerticalAlignment="Center"
+                                    IsEnabled="{Binding CanAcknowledge}"
+                                    Command="{Binding DataContext.AcknowledgeAlarmCommand,
+                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

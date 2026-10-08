@@ -61,5 +61,22 @@ public static class AlarmBannerPresenter
         return others > 0 ? $"+{others}" : "";
     }
 
+    /// <summary>
+    /// The dot on the Eventos icon (D-068): null while nothing waits to be acknowledged; otherwise
+    /// <see cref="AlarmSeverity.Critical"/> (red) while any unacknowledged alarm is a live critical fault,
+    /// else <see cref="AlarmSeverity.Warning"/> (amber: warnings, or faults that already returned to normal).
+    /// </summary>
+    public static AlarmSeverity? IndicatorSeverity(IReadOnlyList<AlarmSnapshot> latched)
+    {
+        var pending = latched.Where(a => a.IsAnnunciating).ToArray();
+        if (pending.Length == 0)
+        {
+            return null;
+        }
+
+        return pending.Any(a => a.ConditionActive && a.Severity != AlarmSeverity.Warning)
+            ? AlarmSeverity.Critical : AlarmSeverity.Warning;
+    }
+
     public static bool IsEventsPage(string? pageId) => string.Equals(pageId, EventsPageId, StringComparison.Ordinal);
 }

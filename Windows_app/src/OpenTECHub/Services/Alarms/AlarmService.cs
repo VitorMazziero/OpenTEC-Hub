@@ -198,6 +198,9 @@ public sealed class AlarmService : IAlarmService
     /// <summary>Audio silence window, matching the §5.4.1 toolbar action.</summary>
     public static readonly TimeSpan SilenceWindow = TimeSpan.FromMinutes(10);
 
+    /// <summary>How long the flowmeter must stay silent with its gas path open before the critical flag latches.</summary>
+    public static readonly TimeSpan UnsupervisedGasFlowOnDelay = TimeSpan.FromSeconds(15);
+
     private static readonly AlarmDefinition[] Definitions =
     [
         new(AlarmId.LinkLost, "Link perdido", AlarmSeverity.Critical,
@@ -206,11 +209,12 @@ public sealed class AlarmService : IAlarmService
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
         new(AlarmId.FlowmeterOffline, "Fluxômetro offline", AlarmSeverity.Warning,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
-        // Same debounce as the offline alarm it rides on, and deliberately no longer: the
-        // whole point is to tell the operator that gas is still going in while nothing can
-        // stop it, and every second of on-delay is a second of that going unannounced.
+        // On-delay of 15 s (was 2 s, D-068). The flowmeter drops off the Hub and is back within a few
+        // seconds almost every time, so the critical flag waits out that blink; "Fluxômetro offline"
+        // above still warns after 2 s. The gas is not lost for the operator meanwhile: the node keeps
+        // its valves and setpoint (fail-in-place), so waiting does not change what the gas is doing.
         new(AlarmId.UnsupervisedGasFlow, "Gás aberto sem supervisão", AlarmSeverity.Critical,
-            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+            UnsupervisedGasFlowOnDelay, TimeSpan.FromSeconds(2)),
         new(AlarmId.FrozenData, "Dados congelados", AlarmSeverity.Critical,
             TimeSpan.Zero, TimeSpan.Zero),
         new(AlarmId.SensorAbsent, "Sensor ausente", AlarmSeverity.Warning,
@@ -451,7 +455,10 @@ public sealed class AlarmService : IAlarmService
         Recompute();
     }
 
-    public void Poll()
+    public void Poll() => PollCore();
+
+    /// <summary>Evaluates every condition; returns true when it raised <see cref="Changed"/>.</summary>
+    private bool PollCore()
     {
         var now = _time.GetUtcNow();
         var connected = _state == ConnectionState.Connected;
@@ -489,12 +496,17 @@ public sealed class AlarmService : IAlarmService
             _silencedUntil = DateTimeOffset.MinValue;
         }
 
-        UpdateAudible();
+        // The silence window expiring flips the audible state with no alarm transition: observers
+        // (the Silenciar button) must hear about it, or it stays disabled although the sound is back.
+        var audibleChanged = UpdateAudible();
 
-        if (changed)
+        if (changed || audibleChanged)
         {
             Changed?.Invoke();
+            return true;
         }
+
+        return false;
     }
 
     private void Recompute()
@@ -503,14 +515,17 @@ public sealed class AlarmService : IAlarmService
         Changed?.Invoke();
     }
 
-    private void UpdateAudible()
+    private bool UpdateAudible()
     {
         var audible = IsAudible;
-        if (audible != _wasAudible)
+        if (audible == _wasAudible)
         {
-            _wasAudible = audible;
-            _annunciator.SetSounding(audible);
+            return false;
         }
+
+        _wasAudible = audible;
+        _annunciator.SetSounding(audible);
+        return true;
     }
 
     private bool IsStale(DateTimeOffset now)
@@ -833,13 +848,13 @@ public sealed class AlarmService : IAlarmService
             _lastBiomassSampleAt = null;
         }
 
-        Poll();
+        var raised = PollCore();
 
         // Resolve clears the latch behind the state machine's back, so Poll finds nothing
         // to report and would not raise Changed. Without this the banner keeps showing an
         // alarm that no longer exists — and Reconhecer cannot dismiss it either, because
         // there is no longer anything latched for it to acknowledge.
-        if (resolved)
+        if (resolved && !raised)
         {
             Changed?.Invoke();
         }

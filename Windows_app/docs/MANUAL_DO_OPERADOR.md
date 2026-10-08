@@ -374,7 +374,9 @@ No módulo **Receitas**, o usuário pode desenhar bateladas automatizadas conect
 ### Monitor de Alarmes
 - O sistema classifica os desvios em: **Informativo** (azul), **Alerta** (amarelo) e **Crítico** (vermelho).
 - Alarmes críticos emitem aviso sonoro contínuo no computador da sala de controle. Em **Silenciar áudio (10 min)** o som pausa por 10 minutos enquanto você corrige a causa física; ao fim da pausa o som volta e o botão fica disponível de novo.
-- A barra de alarmes (Reconhecer, Silenciar e a lista) fica no topo da página **Eventos**. Em qualquer página, um **ponto no canto do ícone de Eventos** avisa que há alarme a reconhecer: vermelho para falha crítica ativa, âmbar para aviso ou falha que já voltou ao normal.
+- A barra de alarmes (Silenciar áudio e a lista) fica no topo da página **Eventos**; não há botão de reconhecer: o alarme sai da lista sozinho quando a condição normaliza. Em qualquer página, um **ponto no canto do ícone de Eventos** fica aceso enquanto houver alarme: vermelho para falha crítica ativa, âmbar para aviso ou falha que já voltou ao normal. Silenciar áudio não apaga o ponto.
+- O botão de **alto-falante**, ao lado direito de Buscar, liga e desliga todos os sons do aplicativo: desligado, nenhum alarme soa, por tempo indeterminado (fica salvo ao fechar o programa). Ele vale acima do silêncio de 10 min.
+- "Fluxômetro offline" e "Gás aberto sem supervisão" só aparecem depois de 15 s sem o fluxômetro.
 - "Gás aberto sem supervisão" só é acionado depois de 15 s com o fluxômetro fora do Hub; "Fluxômetro offline" avisa em 2 s.
 
 ### Exportação de Dados e Históricos

@@ -1750,6 +1750,20 @@ grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, 
 Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
 preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
 
+### D-069 · Alarmes sem "Reconhecer", ponto fixo em Eventos, botão de som e fluxômetro em 15 s
+
+**Status:** Accepted and implemented · 2026-10-08 · ajusta o item 4 e o item 5 de D-068
+
+1. **Sem botão "Reconhecer"** na barra de alarmes (nem na lista expandida). Um alarme sai da lista sozinho quando
+   a condição normaliza (já era assim, com a histerese de cada alarme); o histórico fica no diário de eventos.
+   O rótulo de estado passa a ser "Ativo" / "Normalizado" (não há mais "não reconhecido").
+2. **O ponto no ícone de Eventos** fica aceso enquanto houver alarme na lista de Eventos (vermelho se algum está
+   ativo e é crítico; âmbar para avisos ou falhas já normalizadas). **Silenciar áudio não o apaga.**
+3. **Botão de alto-falante** ao lado direito de "Buscar": ativo = sons habilitados; desativado = o aplicativo não
+   emite nenhum som, por tempo indeterminado (preferência salva, `Ui.SoundMuted`). É uma camada acima do silêncio de
+   10 min: não o inicia nem o encerra; ao reativar, o som volta se ainda houver alarme sonoro.
+4. **"Fluxômetro offline"** passa a esperar 15 s, como "Gás aberto sem supervisão" (a saída continua em 2 s).
+
 ### D-068 · Receitas sem painel de preparação, padrões do Controle de O₂, barra de alarmes só em Eventos
 
 **Status:** Accepted and implemented · 2026-10-08 · substitui os itens 1 e 3 de D-062

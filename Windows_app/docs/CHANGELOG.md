@@ -6,6 +6,14 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.27.3] - 2026-10-08
+
+- Alarmes: removido o botão Reconhecer; o ponto do ícone de Eventos permanece enquanto houver alarmes e não some ao silenciar o áudio (D-069);
+- novo botão de alto-falante ao lado de Buscar: desativa todos os sons do aplicativo por tempo indeterminado;
+- "Fluxômetro offline" agora espera 15 s, igual a "Gás aberto sem supervisão".
+
+---
+
 ## [0.27.2] - 2026-10-08
 
 - Receitas: removido o painel "Preparar kLa"; o nome da receita identifica os ensaios e dá nome à pasta (`<receita>_<data>_…`); o editor ganha a altura toda (D-068);

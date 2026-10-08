@@ -9,8 +9,11 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampFrameDestinationTests
 {
-    [Fact]
-    public async Task DirectReturnRestoresCapturedSettingsAndConfirmsPreviousReferences()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task DirectReturnRestoresCapturedSettingsAndConfirmsPreviousReferences(bool paused, bool revoke)
     {
         var time = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
         var device = new RecordingDeviceService();
@@ -32,12 +35,22 @@ public sealed class RecipeRampFrameDestinationTests
         Assert.True(await destination.TryApplyAsync(Targets, default));
         var restoring = await arbiter.ReserveAsync(CommandOwner.Recipe, engine.ExecutionId, "ramp", resources, TimeSpan.FromSeconds(5));
         await arbiter.DrainReservedCommandsAsync(restoring);
+        if (paused) engine.Pause();
         var before = device.Sent.Count;
         Assert.True(await destination.TryRestoreDirectAsync(start, restoring, default));
         Assert.Equal(before + 1, device.Sent.Count);
         var restoredCommand = OpenTECCommand.Parse(device.Sent.Last());
         Assert.Equal("0.3", restoredCommand.GetRawValue(CommandKeys.FlowKp));
         var frame = RecipeRampRestoreCommands.Build(start, restoring);
+        if (revoke)
+        {
+            await arbiter.DrainReservedCommandsAsync(restoring);
+            arbiter.ReleaseReservation(restoring);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => destination.TryConfirmFinalAsync(frame.References, default));
+            Assert.Empty(destination.FinalConfirmations);
+            await engine.StopAsync("revoked restoration rejected");
+            return;
+        }
         var confirming = destination.TryConfirmFinalAsync(frame.References, default);
         Assert.False(confirming.IsCompleted);
         device.PushTelemetry(Feedback(25, 200) with { TempSetpoint = 25, FlowRate = 1, FlowSetpoint = 1 });

@@ -7,6 +7,22 @@ namespace OpenTECHub.Tests;
 
 public sealed class CascadeStateRestorationTests
 {
+    [Fact]
+    public void PreparingReturnDoesNotChangeControllerUntilDeviceFrameIsAccepted()
+    {
+        var previous = CascadeController.CreateDefault(30);
+        previous.Preload(40); previous.Update(25, 3);
+        var snapshot = previous.CaptureStateJson();
+        var active = CascadeController.CreateDefault(50);
+        active.Update(15, 3);
+        var before = active.CaptureStateJson();
+        var commit = active.PrepareStateRestoration(snapshot);
+        Assert.Equal(before, active.CaptureStateJson());
+        commit();
+        Assert.Equal(snapshot, active.CaptureStateJson());
+        Assert.Equal(previous.Update(23, 3), active.Update(23, 3));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -44,6 +60,8 @@ public sealed class CascadeStateRestorationTests
         if (defect == "allocation") corrupt["Allocation"]!["Windows"]![0]!["Min"] = -1;
         if (defect == "pid") corrupt["Pid"]!["Integral"] = 1e9;
         if (defect == "missing") corrupt["Pid"]!.AsObject().Remove("MeasurementHistory");
+        Assert.ThrowsAny<Exception>(() => controller.PrepareStateRestoration(corrupt.ToJsonString()));
+        Assert.Equal(before, controller.CaptureStateJson());
         Assert.ThrowsAny<Exception>(() => controller.RestoreStateJson(corrupt.ToJsonString()));
         Assert.Equal(before, controller.CaptureStateJson());
     }

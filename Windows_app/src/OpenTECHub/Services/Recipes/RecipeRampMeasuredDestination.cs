@@ -37,6 +37,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
     private SensorSnapshot? _latest;
     private long _sequence, _receivedSequence, _receivedAt, _afterApplication, _applicationRevision;
     private RecipeRampMeasuredRoute? _route;
+    private Communication.CommandAuthorityLease? _recoveryAuthority;
     private bool _disposed;
     private long _confirmedSequence;
     private LinearRampSample? _lastApplied;
@@ -62,7 +63,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            _confirmations = []; _lastApplied = null; _applicationRevision++;
+            _confirmations = []; _lastApplied = null; _recoveryAuthority = null; _applicationRevision++;
             _signal.TrySetResult(); _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
             if (!_engine.TryApplyRampMeasuredFrame([target], null, PhInactiveBand, _executionId, out _route, ExpectedTemperatureRoute)) return Task.FromResult(false);
             _lastApplied = target;
@@ -79,12 +80,14 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
         cancellation.ThrowIfCancellationRequested();
         long observed, applicationRevision;
         RecipeRampMeasuredRoute route;
+        Communication.CommandAuthorityLease? recoveryAuthority;
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _confirmations = [];
             if (_lastApplied != target) return false;
             observed = _afterApplication; route = _route!; applicationRevision = _applicationRevision;
+            recoveryAuthority = _recoveryAuthority;
         }
         using var deadline = new CancellationTokenSource(Policy.Timeout, _time);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, deadline.Token);
@@ -104,7 +107,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
                     snapshot = _latest; sequence = _sequence; received = _receivedAt; signal = _signal.Task;
                 }
                 // Capture the wait handle before checking state: a pause after this point wakes it.
-                var availability = _engine.RampMeasuredAvailability(_executionId, Variable, route);
+                var availability = _engine.RampMeasuredAvailability(_executionId, Variable, route, recoveryAuthority);
                 if (availability == RecipeRampDestinationAvailability.Suspended) return false;
                 if (availability == RecipeRampDestinationAvailability.Unavailable)
                     throw new InvalidOperationException("Rampa perdeu execução, rota ou posse do destino.");
@@ -126,7 +129,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
                     ObjectDisposedException.ThrowIf(_disposed, this);
                     if (_sequence != sequence) continue;
                     if (_applicationRevision != applicationRevision || _lastApplied != target || _afterApplication >= sequence ||
-                        _engine.RampMeasuredAvailability(_executionId, Variable, route) != RecipeRampDestinationAvailability.Available) return false;
+                        _engine.RampMeasuredAvailability(_executionId, Variable, route, recoveryAuthority) != RecipeRampDestinationAvailability.Available) return false;
                     _confirmations = [new(Variable, null, target.Reference,
                         proof!.Evidence, _time.GetUtcNow(), proof.ObservedValue, proof.Tolerance)];
                     _confirmedSequence = sequence;
@@ -156,12 +159,14 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
     internal void ValidateFrameTarget(LinearRampSample target) => Target([target]);
 
     // Called only by the frame destination after one complete engine dispatch has been accepted.
-    internal void ObserveAcceptedFrame(LinearRampSample target, RecipeRampMeasuredRoute route)
+    internal void ObserveAcceptedFrame(LinearRampSample target, RecipeRampMeasuredRoute route,
+        Communication.CommandAuthorityLease? recoveryAuthority = null)
     {
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _confirmations = []; _lastApplied = target; _route = route; _applicationRevision++;
+            _recoveryAuthority = recoveryAuthority;
             _afterApplication = Volatile.Read(ref _receivedSequence);
             _signal.TrySetResult(); _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
@@ -172,7 +177,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
         lock (_gate)
             return !_disposed && !_confirmations.IsEmpty && ReferenceEquals(frame, _latest) && _confirmedSequence == _sequence &&
                 _time.GetElapsedTime(_receivedAt) <= Policy.MaximumSampleGap && _route is not null &&
-                _engine.RampMeasuredAvailability(_executionId, Variable, _route) == RecipeRampDestinationAvailability.Available;
+                _engine.RampMeasuredAvailability(_executionId, Variable, _route, _recoveryAuthority) == RecipeRampDestinationAvailability.Available;
     }
 
     private void OnTelemetry(SensorSnapshot snapshot)

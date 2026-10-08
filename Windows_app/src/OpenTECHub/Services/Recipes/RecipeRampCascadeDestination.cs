@@ -15,6 +15,8 @@ public sealed class RecipeRampCascadeDestination : IRecipeRampDestination, IReci
     private readonly Guid _executionId;
     private readonly object _gate = new();
     private LinearRampSample? _lastApplied;
+    private ControllerReturnSnapshot? _restoredController;
+    private Communication.CommandAuthorityLease? _recoveryAuthority;
     private ImmutableArray<RecipeRampFinalConfirmation> _confirmations = [];
 
     public RecipeRampCascadeDestination(RecipeEngine engine, string cascadeNodeId)
@@ -36,7 +38,7 @@ public sealed class RecipeRampCascadeDestination : IRecipeRampDestination, IReci
         var reference = Reference(references);
         lock (_gate)
         {
-            _confirmations = []; _lastApplied = null;
+            _confirmations = []; _lastApplied = null; _restoredController = null; _recoveryAuthority = null;
             if (!_engine.TryApplyRampFrame(references, _cascadeNodeId, 0, _executionId))
                 return Task.FromResult(false);
             _lastApplied = reference;
@@ -53,7 +55,7 @@ public sealed class RecipeRampCascadeDestination : IRecipeRampDestination, IReci
         {
             _confirmations = [];
             if (_lastApplied != reference) return Task.FromResult(false);
-            var confirmation = _engine.TryConfirmRampCascadeReference(_cascadeNodeId, reference, _executionId);
+            var confirmation = CurrentConfirmation(reference);
             if (confirmation is null) return Task.FromResult(false);
             cancellation.ThrowIfCancellationRequested();
             _confirmations = [confirmation];
@@ -71,14 +73,30 @@ public sealed class RecipeRampCascadeDestination : IRecipeRampDestination, IReci
 
     internal void ObserveAcceptedFrame(LinearRampSample target)
     {
-        lock (_gate) { _confirmations = []; _lastApplied = target; }
+        lock (_gate) { _confirmations = []; _lastApplied = target; _restoredController = null; _recoveryAuthority = null; }
     }
+
+    internal void ObserveRestoredFrame(LinearRampSample target, ControllerReturnSnapshot snapshot,
+        Communication.CommandAuthorityLease authority)
+    {
+        ValidateFrameTarget(target);
+        if (snapshot.ControllerId != _cascadeNodeId) throw new ArgumentException("Controle restaurado diverge do destino.");
+        lock (_gate)
+        {
+            _confirmations = []; _lastApplied = target; _restoredController = snapshot; _recoveryAuthority = authority;
+        }
+    }
+
+    private RecipeRampFinalConfirmation? CurrentConfirmation(LinearRampSample target)
+        => _restoredController is { } snapshot && _recoveryAuthority is { } authority
+            ? _engine.TryConfirmRampCascadeRestoration(snapshot, target, _executionId, authority)
+            : _engine.TryConfirmRampCascadeReference(_cascadeNodeId, target, _executionId);
 
     internal bool HasCurrentFrameConfirmation()
     {
         lock (_gate)
             return !_confirmations.IsEmpty && _lastApplied is not null &&
-                _engine.TryConfirmRampCascadeReference(_cascadeNodeId, _lastApplied, _executionId) is not null;
+                CurrentConfirmation(_lastApplied) is not null;
     }
 
     private static LinearRampSample Reference(ImmutableArray<LinearRampSample> references)

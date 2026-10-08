@@ -31,10 +31,15 @@ public sealed partial class RecipeEngine
     }
 
     internal RecipeRampDestinationAvailability RampMeasuredAvailability(Guid executionId, SetpointVariable variable,
-        RecipeRampMeasuredRoute route)
+        RecipeRampMeasuredRoute route, CommandAuthorityLease? recoveryAuthority = null)
     {
         lock (_lock)
         {
+            if (recoveryAuthority is { } recovery &&
+                (recovery.ExecutionId != executionId || recovery.Owner != CommandOwner.Recipe ||
+                 !recovery.Resources.Contains(CommandActuators.ForKey(RecipeRampInitialState.KeyFor(variable))!.Value) ||
+                 _arbiter is not ICommandAuthorityArbiter reserved || !reserved.IsCurrent(recovery)))
+                return RecipeRampDestinationAvailability.Unavailable;
             if (ExecutionId != executionId ||
                 _liveCascades.Count != 0 && variable is SetpointVariable.Agitation or SetpointVariable.Flow or SetpointVariable.Oxygen ||
                 variable == SetpointVariable.Agitation && _routeCoordinator.IsUartFallback != route.MotorViaUart ||
@@ -43,7 +48,7 @@ public sealed partial class RecipeEngine
                 _arbiter.OwnerOf(CommandActuators.ForKey(RecipeRampInitialState.KeyFor(variable))!.Value) != CommandOwner.Recipe)
                 return RecipeRampDestinationAvailability.Unavailable;
             return State switch { RecipeRunState.Running => RecipeRampDestinationAvailability.Available,
-                RecipeRunState.Paused => RecipeRampDestinationAvailability.Suspended,
+                RecipeRunState.Paused => recoveryAuthority is not null ? RecipeRampDestinationAvailability.Available : RecipeRampDestinationAvailability.Suspended,
                 _ => RecipeRampDestinationAvailability.Unavailable };
         }
     }

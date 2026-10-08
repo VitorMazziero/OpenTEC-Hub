@@ -36,3 +36,5 @@ Controlador de R5.2: [restauração completa](receitas-r52/RESTAURACAO_CONTROLAD
 Destinos de R5.2: [restauração direta](receitas-r52/RESTAURACAO_DIRETA.md), com comando reservado das configurações anteriores, referências quantizadas, exclusão de ações pontuais e confirmação pelo feedback; 2438 testes na regressão completa. Recuperação conjunta com a cascata e ligação ao cancelamento do bloco permanecem pendentes.
 
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.
+
+Autoridade de R5.2: [confirmação durante recuperação](receitas-r52/AUTORIDADE_RECUPERACAO.md) conecta restauração do estado completo da cascata aos destinos e exige reserva vigente para confirmar retorno durante pausa; 2441 testes na regressão completa. O cenário misto integrado, coordenação da recuperação e ciclo completo do bloco permanecem pendentes.

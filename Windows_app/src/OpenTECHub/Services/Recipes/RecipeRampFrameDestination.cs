@@ -102,13 +102,17 @@ public sealed class RecipeRampFrameDestination : IRecipeRampReservedDestination,
             ObjectDisposedException.ThrowIf(_disposed, this);
             _confirmations = []; _applied = []; _revision++;
             Validate(frame.References);
+            if (start.InitialState.Controller is { } captured && captured.ControllerId != _cascadeNodeId)
+                throw new InvalidOperationException("Controle capturado diverge do destino da rampa.");
             if (frame.References.Any(target => target.Variable == SetpointVariable.Ph) &&
                 RecipeAssayReturnState.Number(OpenTECCommand.Parse(frame.CommandJson), CommandKeys.PHError) != _phInactiveBand)
                 throw new InvalidOperationException("Confirmação do retorno exige a banda de pH capturada.");
-            if (!_engine.TryDispatchRampRestoration(frame, _executionId, authority, _temperatureRoute, out var route))
+            if (!_engine.TryDispatchRampRestoration(frame, _executionId, authority, _temperatureRoute, out var route, start.InitialState.Controller))
                 return Task.FromResult(false);
             foreach (var target in frame.References)
-                ((RecipeRampMeasuredDestination)_destinations[target.Variable]).ObserveAcceptedFrame(target, route);
+                if (_destinations[target.Variable] is RecipeRampMeasuredDestination measured)
+                    measured.ObserveAcceptedFrame(target, route, authority);
+                else ((RecipeRampCascadeDestination)_destinations[target.Variable]).ObserveRestoredFrame(target, start.InitialState.Controller!, authority);
             _applied = frame.References;
             return Task.FromResult(true);
         }

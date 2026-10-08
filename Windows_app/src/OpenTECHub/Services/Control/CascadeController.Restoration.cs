@@ -7,6 +7,11 @@ public sealed partial class CascadeController
 {
     /// <summary>Restore a complete captured controller while its update/actuation gate is closed.</summary>
     public void RestoreStateJson(string json)
+        => PrepareStateRestoration(json)();
+
+    /// <summary>Validate without mutation so a coordinated return can accept its device frame first.
+    /// Invoke the returned operation while the controller computation gate remains closed.</summary>
+    internal Action PrepareStateRestoration(string json)
     {
         using var document = JsonDocument.Parse(json);
         var options = new JsonSerializerOptions { RespectRequiredConstructorParameters = true };
@@ -14,9 +19,14 @@ public sealed partial class CascadeController
             ?? throw new ArgumentException("Snapshot sem PID.");
         var configuration = document.RootElement.GetProperty("Allocation");
         var allocation = ParseAllocation(configuration, options);
-        // PID validation precedes all mutation. The allocation is already constructed and validated.
-        _pid.RestoreState(pid);
-        _allocation = allocation;
+        var validated = new CascadeTwoLoopPidController(pid.Tuning, pid.Setpoint);
+        validated.RestoreState(pid);
+        var frozen = validated.CaptureState();
+        return () =>
+        {
+            _pid.RestoreState(frozen);
+            _allocation = allocation;
+        };
     }
 
     private static CascadeAllocation ParseAllocation(JsonElement configuration, JsonSerializerOptions options)

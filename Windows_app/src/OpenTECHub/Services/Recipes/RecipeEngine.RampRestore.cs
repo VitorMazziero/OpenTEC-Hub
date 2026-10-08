@@ -1,5 +1,6 @@
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using OpenTECHub.Services.Control;
 
 namespace OpenTECHub.Services.Recipes;
 
@@ -8,7 +9,8 @@ public sealed partial class RecipeEngine
     /// <summary>Dispatch captured direct state under an already quiescent recovery reservation.
     /// Transport acceptance is not a recovery confirmation.</summary>
     internal bool TryDispatchRampRestoration(RecipeRampRestoreFrame frame, Guid executionId,
-        CommandAuthorityLease authority, RampTemperatureRoute? temperatureRoute, out RecipeRampMeasuredRoute route)
+        CommandAuthorityLease authority, RampTemperatureRoute? temperatureRoute, out RecipeRampMeasuredRoute route,
+        ControllerReturnSnapshot? controllerSnapshot = null)
     {
         var command = OpenTECCommand.Parse(frame.CommandJson);
         lock (_lock)
@@ -19,8 +21,24 @@ public sealed partial class RecipeEngine
                 _arbiter is not ICommandAuthorityArbiter arbiter || !arbiter.IsCurrent(authority) ||
                 temperatureRoute is { } expected && expected != RampTemperatureRoute)
                 return false;
-            if (frame.References.Any(target => target.Variable == SetpointVariable.Oxygen))
-                throw new InvalidOperationException("Estado da cascata deve ser recuperado pela operação coordenada.");
+            var oxygen = frame.References.SingleOrDefault(target => target.Variable == SetpointVariable.Oxygen);
+            Action? restoreController = null;
+            if (oxygen is not null)
+            {
+                if (controllerSnapshot is null || !controllerSnapshot.WasActive ||
+                    controllerSnapshot.StateVersion != "recipe-cascade-v1" ||
+                    oxygen.OxygenTarget != RampOxygenTarget.ActiveCascadeReference || !oxygen.AtFinalTarget ||
+                    !_cascadeGates.TryGetValue(controllerSnapshot.ControllerId, out var gate) || !gate.IsQuiescentPaused ||
+                    !_liveCascades.TryGetValue(controllerSnapshot.ControllerId, out var controller) ||
+                    new[] { ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen }
+                        .Any(resource => !authority.Resources.Contains(resource))) return false;
+                var validation = CascadeController.CreateDefault(oxygen.Reference);
+                validation.RestoreStateJson(controllerSnapshot.StateJson);
+                if (validation.OxygenSetpoint != oxygen.Reference) return false;
+                restoreController = controller.PrepareStateRestoration(controllerSnapshot.StateJson);
+            }
+            else if (controllerSnapshot is not null)
+                throw new InvalidOperationException("Estado da cascata sem referência de O₂ no retorno.");
             if (_liveCascades.Count != 0 && frame.References.Any(target => target.Variable is SetpointVariable.Agitation or SetpointVariable.Flow))
                 return false;
             if (command.Keys.Any(key => CommandActuators.ForKey(key) is not { } actuator || !authority.Resources.Contains(actuator)))
@@ -30,7 +48,10 @@ public sealed partial class RecipeEngine
                 command.Contains(CommandKeys.TempControlMode) &&
                 RecipeAssayReturnState.Flag(command, CommandKeys.TempControlMode) != _hubRoutesTemperatureToBath)
                 return false;
-            return !command.IsEmpty && arbiter.DispatchReserved(authority, command).Accepted;
+            if (command.IsEmpty && restoreController is null ||
+                !command.IsEmpty && !arbiter.DispatchReserved(authority, command).Accepted) return false;
+            restoreController?.Invoke();
+            return true;
         }
     }
 }

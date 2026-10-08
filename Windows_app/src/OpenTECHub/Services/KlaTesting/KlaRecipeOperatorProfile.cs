@@ -78,7 +78,7 @@ public static class KlaRecipeOperatorProfile
                 Settings = settings with { AutoAcceptRuns = false }, ProtocolSettings = protocol,
                 Conditions = [new(Guid.NewGuid(), 0, 300, 1, 1)]
             },
-            Quality = new() { ProfileId = Id, Version = Version },
+            Quality = new() { ProfileId = Id, Version = Version, AcceptAnyConditional = true },
             MaximumRetry = configuration.Retry with
             {
                 RecoverableReasons = [KlaRetryReason.InsufficientWindow, KlaRetryReason.ExcessiveNoise, KlaRetryReason.UnstableCondition]

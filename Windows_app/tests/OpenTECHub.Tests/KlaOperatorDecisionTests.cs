@@ -56,6 +56,7 @@ public sealed class KlaOperatorDecisionTests
 
         Assert.Equal(KlaRecipeOperatorProfile.Id, profile.Capabilities.ProfileId);
         Assert.True(profile.Capabilities.IsIsolatedSimulation);
+        Assert.True(profile.Quality.AcceptAnyConditional); // Q7: a conditional kLa counts as a replicate (D-066)
         Assert.Equal(700, profile.Template.ProtocolSettings.OxygenRemovalAgitationRpm);
         Assert.Equal(20, profile.Template.ProtocolSettings.RemovalTargetDoPercent);
         Assert.Equal(600, profile.MaximumRecoverySeconds);

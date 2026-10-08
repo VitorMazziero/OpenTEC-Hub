@@ -19,6 +19,8 @@ public sealed record KlaAutomaticQualityPolicy
     public KlaDeterministicConfig Analysis { get; init; } = new();
     public bool RequireValidOur { get; init; }
     public ImmutableArray<string> AllowedConditionalReasonCodes { get; init; } = [];
+    /// <summary>Counts any conditional kLa as a replicate (operator decision Q7, D-066); invalid estimates never count.</summary>
+    public bool AcceptAnyConditional { get; init; }
     public void Validate(KlaAssayProtocol protocol)
     {
         ContractGuard.Text(ProfileId); ContractGuard.Text(Version);

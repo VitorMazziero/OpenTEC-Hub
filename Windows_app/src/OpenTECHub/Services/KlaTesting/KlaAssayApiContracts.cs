@@ -102,7 +102,8 @@ public static class KlaRecipeQualityEvaluator
         if (policy?.RequireValidOur == true && result.Outcome.OurQuality != KlaScientificQuality.Valid) return false;
         return result.Outcome.KlaQuality == KlaScientificQuality.Valid ||
             policy is not null && result.Outcome.KlaQuality == KlaScientificQuality.Conditional &&
-            !result.ReasonCodes.IsDefaultOrEmpty && result.ReasonCodes.All(policy.AllowedConditionalReasonCodes.Contains);
+            (policy.AcceptAnyConditional ||
+             !result.ReasonCodes.IsDefaultOrEmpty && result.ReasonCodes.All(policy.AllowedConditionalReasonCodes.Contains));
     }
 }
 

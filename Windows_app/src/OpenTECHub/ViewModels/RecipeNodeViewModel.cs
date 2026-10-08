@@ -164,8 +164,15 @@ public sealed partial class RecipeParameterFieldViewModel : ObservableObject
             return true;
         }
 
-        var current = _bag[parts[0]] is JsonValue v && v.TryGetValue(out string? s) ? s : null;
+        var current = GuardValue(_bag, parts[0]);
         return current == parts[1];
+    }
+
+    internal static string? GuardValue(JsonObject bag, string key)
+    {
+        if (bag[key] is not JsonValue value) return null;
+        if (value.TryGetValue<string>(out var text)) return text;
+        return value.TryGetValue<bool>(out var boolean) ? boolean ? "true" : "false" : null;
     }
 
     internal static double ReadNumber(JsonObject bag, string key, RecipeParameter parameter)
@@ -1082,7 +1089,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         }
 
         var parts = guard.Split('=', 2);
-        return parts.Length != 2 || node.Text(parts[0]) == parts[1];
+        return parts.Length != 2 || (RecipeParameterFieldViewModel.GuardValue(node.Parameters, parts[0]) ?? node.Text(parts[0])) == parts[1];
     }
 
     private static string FormatCascade(RecipeNode node)

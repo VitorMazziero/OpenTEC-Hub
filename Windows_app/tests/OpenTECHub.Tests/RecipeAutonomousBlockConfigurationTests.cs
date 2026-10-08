@@ -9,6 +9,36 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeAutonomousBlockConfigurationTests
 {
+    [Fact]
+    public void RetryFieldsFollowTheProfileToggleInTheGeneratedEditor()
+    {
+        var vm = new RecipeNodeViewModel(ConfiguredKla());
+        var selected = vm.Fields.Where(f => f.Key is "retryInsufficientWindow" or "retryExcessiveNoise" or "retryUnstableCondition").ToArray();
+        Assert.Equal(3, selected.Length);
+        Assert.All(selected, field => Assert.False(field.IsVisible));
+        vm.Fields.Single(f => f.Key == "useProfileRetryReasons").BoolValue = false;
+        Assert.All(selected, field => Assert.True(field.IsVisible));
+        vm.Fields.Single(f => f.Key == "useProfileRetryReasons").BoolValue = true;
+        Assert.All(selected, field => Assert.False(field.IsVisible));
+    }
+
+    [Theory]
+    [InlineData("retryInsufficientWindow", KlaRetryReason.InsufficientWindow)]
+    [InlineData("retryExcessiveNoise", KlaRetryReason.ExcessiveNoise)]
+    [InlineData("retryUnstableCondition", KlaRetryReason.UnstableCondition)]
+    public void RetryReasonsMustBeExplicitAndBoolean(string key, KlaRetryReason reason)
+    {
+        var node = ConfiguredKla();
+        node.Set("maximumAttemptsPerReplicate", 2);
+        node.Set("maximumAttemptsPerCultivation", 2);
+        node.Set("useProfileRetryReasons", false);
+        Assert.Empty(RecipeAutonomousBlockConfiguration.ReadKla(node).Retry.RecoverableReasons);
+        node.Set(key, true);
+        Assert.Equal(reason, Assert.Single(RecipeAutonomousBlockConfiguration.ReadKla(node).Retry.RecoverableReasons));
+        node.Set(key, "true");
+        Assert.Throws<ArgumentException>(() => RecipeAutonomousBlockConfiguration.ReadKla(node));
+    }
+
     [Theory]
     [InlineData("missing", false)]
     [InlineData("timer", false)]

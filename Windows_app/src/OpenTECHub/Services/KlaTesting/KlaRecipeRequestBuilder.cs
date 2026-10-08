@@ -43,7 +43,7 @@ public static class KlaRecipeRequestBuilder
                     row.AgitationRpm, row.AirflowLpm, row.Replicates)).ToImmutableArray()
             },
             Quality = profile.Quality with { RequireValidOur = profile.Quality.RequireValidOur || configuration.RequireValidOur },
-            Retry = configuration.Retry with { RecoverableReasons = configuration.Retry.RecoverableReasons.IsEmpty
+            Retry = configuration.Retry with { RecoverableReasons = configuration.UseProfileRetryReasons && configuration.Retry.RecoverableReasons.IsEmpty
                 ? profile.MaximumRetry.RecoverableReasons : configuration.Retry.RecoverableReasons },
             Restoration = new() { BeforeAssay = snapshot, MaximumRecoverySeconds = profile.MaximumRecoverySeconds,
                 StabilitySeconds = profile.RecoveryStabilitySeconds, AgitationToleranceRpm = profile.AgitationToleranceRpm,

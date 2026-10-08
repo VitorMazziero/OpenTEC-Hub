@@ -7,7 +7,7 @@ namespace OpenTECHub.Services.Recipes;
 public sealed record RecipeKlaCondition(double AgitationRpm, double AirflowLpm, int Replicates);
 public sealed record RecipeKlaBlockConfiguration(KlaAssayProtocol Protocol, RecipeKlaConditionMode ConditionsMode,
     ImmutableArray<RecipeKlaCondition> Conditions, string ProfileId, string ProfileVersion, bool RequireValidOur,
-    KlaAutomaticRetryPolicy Retry, KlaRecipeFailurePolicy FailurePolicy);
+    KlaAutomaticRetryPolicy Retry, KlaRecipeFailurePolicy FailurePolicy, bool UseProfileRetryReasons = true);
 public sealed record RecipePeriodicBlockConfiguration(PeriodicBlockSchedule Schedule, string? CoordinatedCascadeId);
 
 /// <summary>Strict draft parsing. Valid configuration does not establish operational qualification.</summary>
@@ -34,6 +34,7 @@ public static class RecipeAutonomousBlockConfiguration
         var profile = node.Text("profileId"); var version = node.Text("profileVersion");
         ContractGuard.Text(profile); ContractGuard.Text(version);
         var requireOur = protocol == KlaAssayProtocol.Biotic && Boolean(node.Parameters, "requireValidOur");
+        var useProfileRetryReasons = !node.Parameters.ContainsKey("useProfileRetryReasons") || Boolean(node.Parameters, "useProfileRetryReasons");
         var retry = new KlaAutomaticRetryPolicy
         {
             MaximumAttemptsPerReplicate = Integer(Number(node.Parameters, "maximumAttemptsPerReplicate")),
@@ -41,11 +42,17 @@ public static class RecipeAutonomousBlockConfiguration
             MinimumInterAssaySeconds = Number(node.Parameters, "minimumIntervalSeconds"), MaximumBlockSeconds = Number(node.Parameters, "maximumBlockSeconds"),
             MaximumGasOffSecondsPerAttempt = Number(node.Parameters, "maximumGasOffSeconds"),
             MaximumCumulativeGasOffSecondsPerCultivation = Number(node.Parameters, "maximumCultivationGasOffSeconds"),
-            RecoverableReasons = []
+            RecoverableReasons = new[] {
+                (Key: "retryInsufficientWindow", Reason: KlaRetryReason.InsufficientWindow),
+                (Key: "retryExcessiveNoise", Reason: KlaRetryReason.ExcessiveNoise),
+                (Key: "retryUnstableCondition", Reason: KlaRetryReason.UnstableCondition)
+            }.Where(option => node.Parameters.ContainsKey(option.Key) && Boolean(node.Parameters, option.Key))
+                .Select(option => option.Reason).ToImmutableArray()
         };
+        if (useProfileRetryReasons) retry = retry with { RecoverableReasons = [] };
         retry.Validate();
         return new(protocol, mode, conditions.ToImmutable(), profile, version, requireOur, retry,
-            Choice<KlaRecipeFailurePolicy>(node, "failurePolicy"));
+            Choice<KlaRecipeFailurePolicy>(node, "failurePolicy"), useProfileRetryReasons);
     }
 
     public static RecipePeriodicBlockConfiguration ReadPeriodic(RecipeNode node)

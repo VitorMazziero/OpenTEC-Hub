@@ -7,6 +7,30 @@ namespace OpenTECHub.Tests;
 
 public sealed class KlaRecipeRequestBuilderTests
 {
+    [Fact]
+    public async Task RetrySelectionPreservesLegacyInheritanceAndAllowsExplicitNoScientificRetries()
+    {
+        using var fixture = new RecipeAssayRestorationTests.Fixture(); await fixture.Initialize();
+        var context = RecipeExecutionContractTests.Request().Context with { RecipeRunId = fixture.Lease.Authority.ExecutionId,
+            NodeId = fixture.Lease.Authority.BlockId };
+        var profile = KlaRecipeOperationalProfileTests.Profile(fixture.Clock);
+        var node = RecipeAutonomousBlockConfigurationTests.ConfiguredKla();
+        node.Set("minimumIntervalSeconds", 30);
+        node.Set("maximumAttemptsPerReplicate", 2); node.Set("maximumAttemptsPerCultivation", 2);
+        KlaRecipeRequest Build() => KlaRecipeRequestBuilder.Build(context, RecipeAutonomousBlockConfiguration.ReadKla(node),
+            profile, fixture.Snapshot, fixture.Clock.GetUtcNow());
+        var inherited = Build();
+        foreach (var key in new[] { "useProfileRetryReasons", "retryInsufficientWindow", "retryExcessiveNoise", "retryUnstableCondition" })
+            node.Parameters.Remove(key);
+        Assert.Equal(RecipeContractSerializer.Serialize(inherited), RecipeContractSerializer.Serialize(Build()));
+        node.Set("useProfileRetryReasons", false);
+        Assert.Empty(Build().Retry.RecoverableReasons);
+        node.Set("retryInsufficientWindow", true);
+        Assert.Equal(KlaRetryReason.InsufficientWindow, Assert.Single(Build().Retry.RecoverableReasons));
+        node.Set("retryExcessiveNoise", true);
+        Assert.Throws<InvalidOperationException>(() => Build());
+    }
+
     [Theory]
     [InlineData(KlaAssayProtocol.Abiotic, RecipeKlaConditionMode.SingleAtCurrentCondition)]
     [InlineData(KlaAssayProtocol.Biotic, RecipeKlaConditionMode.SingleAtCurrentCondition)]

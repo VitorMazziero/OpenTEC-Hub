@@ -6,6 +6,39 @@ namespace OpenTECHub.Tests;
 
 public sealed class KlaRecipeAttemptDeciderTests
 {
+    [Fact]
+    public void OperationalPauseRequiresExplicitBoundedAndRestoredEvidence()
+    {
+        var invocation = RecipeExecutionContractTests.Request();
+        invocation = invocation with { Retry = invocation.Retry with { MaximumAttemptsPerReplicate = 2 } };
+        var observation = Observation(invocation) with { State = KlaAssayApiState.Cancelled };
+        observation = observation with { Result = observation.Result! with
+        { KlaPerHour = null, Outcome = observation.Result.Outcome with { KlaQuality = KlaScientificQuality.Inconclusive },
+            ReasonCodes = ["acquisition_cancelled"] } };
+        var pause = new KlaRecipePauseReceipt(Guid.NewGuid(), invocation.Context.InvocationId,
+            observation.Request.RequestId, observation.StartedUtc!.Value);
+        var now = observation.CompletedUtc!.Value;
+        Assert.Equal(KlaAutomaticDecision.Aborted, Decide(observation).Decision);
+        var decision = KlaRecipeAttemptDecider.Decide(observation, [], 1, 0, now, pause);
+        Assert.Equal(KlaAutomaticDecision.Retry, decision.Decision);
+        Assert.Contains("recipe_pause", decision.ReasonCodes);
+        Assert.Equal(KlaScientificQuality.Inconclusive, decision.KlaQuality);
+        Assert.Equal(KlaAutomaticDecision.NotSelected,
+            KlaRecipeAttemptDecider.Decide(observation, [], 0, 0, now, pause).Decision);
+        Assert.Equal(KlaAutomaticDecision.NotSelected,
+            KlaRecipeAttemptDecider.Decide(observation, [], 1, invocation.Retry.MaximumBlockSeconds, now, pause).Decision);
+        Assert.Equal(KlaAutomaticDecision.Aborted, KlaRecipeAttemptDecider.Decide(observation with
+        { Result = observation.Result with { PersistenceReceiptId = null } }, [], 1, 0, now, pause).Decision);
+        Assert.Throws<ArgumentException>(() => KlaRecipeAttemptDecider.Decide(observation, [], 1, 0, now,
+            pause with { RequestId = Guid.NewGuid() }));
+        Assert.Throws<ArgumentException>(() => KlaRecipeAttemptDecider.Decide(observation, [], 1, 0, now,
+            pause with { RequestedUtc = now.AddSeconds(1) }));
+        var checkpoint = new KlaRecipeSelectionCheckpoint { Observation = observation, Decision = decision,
+            RemainingCultivationAttempts = 1, ElapsedBlockSeconds = 0, Pause = pause };
+        checkpoint.Validate();
+        Assert.Throws<ArgumentException>(() => (checkpoint with { Pause = null }).Validate());
+    }
+
     [Theory]
     [InlineData(KlaAssayProtocol.Abiotic, KlaCaptureMode.Single)]
     [InlineData(KlaAssayProtocol.Abiotic, KlaCaptureMode.Multiple)]

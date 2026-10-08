@@ -7,7 +7,7 @@ public static class KlaRecipeAttemptDecider
 {
     public static KlaRecipeAttemptResult Decide(KlaAssayApiObservation observation,
         IReadOnlyCollection<KlaRecipeAttemptResult> history, int remainingCultivationAttempts,
-        double elapsedBlockSeconds, DateTimeOffset now)
+        double elapsedBlockSeconds, DateTimeOffset now, KlaRecipePauseReceipt? pause = null)
     {
         observation.Request.Validate();
         var binding = observation.Request.RecipePulse ?? throw new ArgumentException("Pulso sem receita.");
@@ -18,6 +18,7 @@ public static class KlaRecipeAttemptDecider
             observation.CompletedUtc is not { } completed || now < completed)
             throw new InvalidOperationException("A tentativa ainda não possui término observado.");
         var result = observation.Result ?? throw new InvalidOperationException("Tentativa sem resultado persistível.");
+        pause?.ValidateAgainst(observation);
         if (string.IsNullOrWhiteSpace(result.RunFolder) || result.ReasonCodes.IsDefault ||
             result.ReasonCodes.Any(string.IsNullOrWhiteSpace))
             throw new InvalidOperationException("Resultado sem pasta ou motivos estruturados.");
@@ -45,6 +46,14 @@ public static class KlaRecipeAttemptDecider
         var returned = result.Outcome.Restoration == KlaRestorationState.Confirmed &&
             result.ReturnSnapshotId == invocation.Restoration.BeforeAssay.SnapshotId;
         var decision = KlaAutomaticDecision.Aborted;
+        if (pause is not null && returned && persisted)
+        {
+            // A pause consumes the interrupted attempt. It cannot reset any matrix or cultivation limit.
+            decision = binding.AttemptNumber < invocation.Retry.MaximumAttemptsPerReplicate &&
+                remainingCultivationAttempts > 0 && now < invocation.AcquisitionDeadlineUtc &&
+                elapsedBlockSeconds + invocation.Retry.MinimumInterAssaySeconds < invocation.Retry.MaximumBlockSeconds
+                ? KlaAutomaticDecision.Retry : KlaAutomaticDecision.NotSelected;
+        }
         if (returned && persisted && observation.State is KlaAssayApiState.Completed or KlaAssayApiState.Inconclusive)
         {
             if (observation.State == KlaAssayApiState.Completed && KlaRecipeQualityEvaluator.Accepts(observation.Request, result))
@@ -68,7 +77,8 @@ public static class KlaRecipeAttemptDecider
             KlaPerHour = result.KlaPerHour, Restoration = result.Outcome.Restoration,
             ReturnSnapshotId = invocation.Restoration.BeforeAssay.SnapshotId, PersistenceConfirmed = persisted,
             DecisionAuthor = RecipeDecisionAuthor.AutomaticPolicy, Decision = decision,
-            PolicyVersion = invocation.Quality.Version, DecidedUtc = now, ReasonCodes = result.ReasonCodes
+            PolicyVersion = invocation.Quality.Version, DecidedUtc = now,
+            ReasonCodes = pause is null ? result.ReasonCodes : result.ReasonCodes.Add("recipe_pause")
         };
         // A mismatched snapshot is an invalid result, not evidence of the requested return.
         if (result.ReturnSnapshotId != attempt.ReturnSnapshotId)

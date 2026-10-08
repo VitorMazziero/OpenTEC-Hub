@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OpenTECHub.Services.KlaTesting;
 
@@ -12,12 +13,14 @@ public sealed record KlaRecipeSelectionCheckpoint
     public ImmutableArray<KlaRecipeAttemptResult> History { get; init; } = [];
     public required int RemainingCultivationAttempts { get; init; }
     public required double ElapsedBlockSeconds { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public KlaRecipePauseReceipt? Pause { get; init; }
 
     public void Validate()
     {
         if (History.IsDefault) throw new ArgumentException("Histórico ausente.");
         var expected = KlaRecipeAttemptDecider.Decide(Observation, History, RemainingCultivationAttempts,
-            ElapsedBlockSeconds, Decision.DecidedUtc);
+            ElapsedBlockSeconds, Decision.DecidedUtc, Pause);
         if (JsonSerializer.Serialize(expected) != JsonSerializer.Serialize(Decision))
             throw new ArgumentException("Decisão diverge da política automática executada.");
         KlaAttemptPersistenceCheckpoint.Folder(Observation.Result!.TestFolder!);

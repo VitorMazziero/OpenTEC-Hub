@@ -12,7 +12,7 @@ namespace OpenTECHub.Tests;
 public sealed class KlaRecipeSelectionPersistenceTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "recipe-selection-" + Guid.NewGuid().ToString("N"));
-    private async Task<(KlaTestStore Store, KlaRecipeSelectionCheckpoint Selection)> Prepare(BackgroundFileWriter writer)
+    private async Task<(KlaTestStore Store, KlaRecipeSelectionCheckpoint Selection)> Prepare(BackgroundFileWriter writer, bool paused = false)
     {
         var invocation = RecipeExecutionContractTests.Request();
         invocation = invocation with { Definition = invocation.Definition with { Settings = invocation.Definition.Settings with
@@ -24,7 +24,7 @@ public sealed class KlaRecipeSelectionPersistenceTests : IDisposable
         var run = new KlaTestRun { ConditionId = request.RecipePulse!.ConditionId, ReplicateNumber = 1,
             AgitationRpm = 300, AirflowLpm = 2, StartedUtc = invocation.Restoration.BeforeAssay.CapturedUtc };
         store.InitializeRunFolder(doc.FolderName, run);
-        var outcome = new KlaRunOutcome { KlaQuality = KlaScientificQuality.Valid, OurQuality = KlaScientificQuality.NotApplicable,
+        var outcome = new KlaRunOutcome { KlaQuality = paused ? KlaScientificQuality.Inconclusive : KlaScientificQuality.Valid, OurQuality = KlaScientificQuality.NotApplicable,
             Restoration = KlaRestorationState.Confirmed };
         doc.Runs.Add(new() { RunId = run.RunId, ConditionId = run.ConditionId, ReplicateNumber = 1, AttemptNumber = 1,
             FolderName = run.FolderName, KlaPerHour = 40, Outcome = outcome, Phase = RunPhase.Reviewing });
@@ -36,14 +36,42 @@ public sealed class KlaRecipeSelectionPersistenceTests : IDisposable
                 0, invocation.Restoration.BeforeAssay.Actuators.Select(a => a.Actuator).ToImmutableArray()) };
         await store.PersistRecipeAttemptAsync(prepared);
         var result = new KlaAssayApiResult(outcome, 40, doc.FolderName, run.FolderName)
-            { ReturnSnapshotId = invocation.Restoration.BeforeAssay.SnapshotId };
+            { ReturnSnapshotId = invocation.Restoration.BeforeAssay.SnapshotId,
+                ReasonCodes = paused ? ["acquisition_cancelled"] : [] };
         var receipt = await store.PersistRecipeAttemptAsync(prepared with { Phase = KlaAttemptPersistencePhase.Terminal,
             Authority = prepared.Authority with { Owner = CommandOwner.KlaAssay, Generation = 1 }, Result = result,
             DecisionJson = "{\"State\":\"AwaitingSelection\"}" });
-        var observation = new KlaAssayApiObservation(request, KlaAssayApiState.Completed, run.StartedUtc,
+        var observation = new KlaAssayApiObservation(request, paused ? KlaAssayApiState.Cancelled : KlaAssayApiState.Completed, run.StartedUtc,
             run.StartedUtc.AddSeconds(2), result with { PersistenceReceiptId = receipt.ReceiptId });
-        var selected = KlaRecipeAttemptDecider.Decide(observation, [], 9, 2, run.StartedUtc.AddSeconds(2));
-        return (store, new() { Observation = observation, Decision = selected, RemainingCultivationAttempts = 9, ElapsedBlockSeconds = 2 });
+        var pause = paused ? new KlaRecipePauseReceipt(Guid.NewGuid(), invocation.Context.InvocationId,
+            request.RequestId, run.StartedUtc.AddSeconds(1)) : null;
+        var selected = KlaRecipeAttemptDecider.Decide(observation, [], 9, 2, run.StartedUtc.AddSeconds(2), pause);
+        return (store, new() { Observation = observation, Decision = selected, RemainingCultivationAttempts = 9,
+            ElapsedBlockSeconds = 2, Pause = pause });
+    }
+
+    [Fact]
+    public async Task PauseEvidenceIsDurableAndCannotBeRemovedFromSelection()
+    {
+        using var writer = new BackgroundFileWriter(synchronous: true);
+        var (store, selection) = await Prepare(writer, paused: true);
+        await store.PersistRecipeSelectionAsync(selection);
+        var result = selection.Observation.Result!;
+        var reopened = new KlaTestStore(_root).ReadRecipeSelection(result.TestFolder!, result.RunFolder!, selection.Decision.AttemptId)!;
+        Assert.Equal(selection.Pause, reopened.Pause);
+        Assert.Contains("recipe_pause", reopened.Decision.ReasonCodes);
+        Assert.NotEqual(KlaAutomaticDecision.Selected, reopened.Decision.Decision);
+        Assert.Throws<ArgumentException>(() => (reopened with { Pause = null }).Validate());
+    }
+
+    [Fact]
+    public async Task LegacySelectionSerializationKeepsItsOriginalHashInput()
+    {
+        using var writer = new BackgroundFileWriter(synchronous: true);
+        var (_, selection) = await Prepare(writer);
+        var legacy = JsonSerializer.SerializeToUtf8Bytes(new { selection.Observation, selection.Decision,
+            selection.History, selection.RemainingCultivationAttempts, selection.ElapsedBlockSeconds });
+        Assert.Equal(legacy, JsonSerializer.SerializeToUtf8Bytes(selection));
     }
 
     [Fact]

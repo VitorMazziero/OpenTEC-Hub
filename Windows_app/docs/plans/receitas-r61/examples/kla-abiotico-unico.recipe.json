@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "name": "Exemplo kLa abiotico - unico",
+  "description": "Exemplo de software. Rever valores e selecionar perfil operacional qualificado antes de executar. Não é evidência de bancada.",
+  "author": "OpenTEC-Hub",
+  "createdUtc": "2026-10-08T00:00:00+00:00",
+  "modifiedUtc": "2026-10-08T00:00:00+00:00",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "Start",
+      "x": 40,
+      "y": 60,
+      "parameters": {},
+      "notes": ""
+    },
+    {
+      "id": "kla",
+      "type": "KlaAssay",
+      "x": 300,
+      "y": 60,
+      "parameters": {
+        "protocol": "Abiotic",
+        "profileId": "selecionar-perfil-qualificado",
+        "airflowLpm": 2,
+        "maximumAttemptsPerReplicate": 1,
+        "useProfileRetryReasons": true,
+        "conditionsMode": "SingleExplicit",
+        "maximumBlockSeconds": 3600,
+        "requireValidOur": false,
+        "agitationRpm": 300,
+        "maximumGasOffSeconds": 60,
+        "minimumIntervalSeconds": 120,
+        "profileVersion": "1",
+        "maximumAttemptsPerCultivation": 1,
+        "maximumCultivationGasOffSeconds": 60,
+        "failurePolicy": "StopAfterRestoration"
+      },
+      "notes": "Selecione um perfil real no seletor. O identificador deste exemplo é um marcador, sem qualificação."
+    },
+    {
+      "id": "end",
+      "type": "End",
+      "x": 580,
+      "y": 60,
+      "parameters": {},
+      "notes": ""
+    }
+  ],
+  "connections": [
+    {
+      "source": "start",
+      "sourcePort": "Saida",
+      "target": "kla",
+      "targetPort": "Entrada"
+    },
+    {
+      "source": "kla",
+      "sourcePort": "Saida",
+      "target": "end",
+      "targetPort": "Entrada"
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "name": "Exemplo rampas com tempos distintos",
+  "description": "Exemplo de software. Rever valores e selecionar perfil operacional qualificado antes de executar. Não é evidência de bancada.",
+  "author": "OpenTEC-Hub",
+  "createdUtc": "2026-10-08T00:00:00+00:00",
+  "modifiedUtc": "2026-10-08T00:00:00+00:00",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "Start",
+      "x": 40,
+      "y": 60,
+      "parameters": {},
+      "notes": ""
+    },
+    {
+      "id": "ramp",
+      "type": "LinearSetpointRamp",
+      "x": 300,
+      "y": 60,
+      "parameters": {
+        "confirmationStabilitySeconds": 10,
+        "confirmationTimeoutSeconds": 300,
+        "agitationTolerance": 2,
+        "maximumTelemetryGapSeconds": 5,
+        "lines": [
+          {
+            "startSource": "Explicit",
+            "initialSetpoint": 25,
+            "endAfterSeconds": 1800,
+            "finalSetpoint": 30,
+            "variable": "Temperature"
+          },
+          {
+            "startSource": "Explicit",
+            "initialSetpoint": 300,
+            "endAfterSeconds": 900,
+            "finalSetpoint": 400,
+            "variable": "Agitation"
+          },
+          {
+            "startSource": "Explicit",
+            "initialSetpoint": 2,
+            "endAfterSeconds": 600,
+            "finalSetpoint": 3,
+            "variable": "Flow"
+          }
+        ],
+        "cancellationPolicy": "RestoreSnapshot",
+        "temperatureTolerance": 0.5,
+        "flowTolerance": 0.1,
+        "phTolerance": 0.05,
+        "pressureTolerance": 0.5
+      },
+      "notes": "Vazão: 10 min; agitação: 15 min; temperatura: 30 min. Configure as malhas e o estado anterior antes de iniciar."
+    },
+    {
+      "id": "end",
+      "type": "End",
+      "x": 580,
+      "y": 60,
+      "parameters": {},
+      "notes": ""
+    }
+  ],
+  "connections": [
+    {
+      "source": "start",
+      "sourcePort": "Saida",
+      "target": "ramp",
+      "targetPort": "Entrada"
+    },
+    {
+      "source": "ramp",
+      "sourcePort": "Saida",
+      "target": "end",
+      "targetPort": "Entrada"
+    }
+  ]
+}

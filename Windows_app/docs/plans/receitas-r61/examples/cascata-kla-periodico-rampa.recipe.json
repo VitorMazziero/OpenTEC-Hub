@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "name": "Exemplo cascata e kLa periódico 2 h / 4 h",
+  "description": "Exemplo de software. Rever valores e selecionar perfil operacional qualificado antes de executar. Não é evidência de bancada.",
+  "author": "OpenTEC-Hub",
+  "createdUtc": "2026-10-08T00:00:00+00:00",
+  "modifiedUtc": "2026-10-08T00:00:00+00:00",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "Start",
+      "x": 40,
+      "y": 180,
+      "parameters": {},
+      "notes": ""
+    },
+    {
+      "id": "casc",
+      "type": "CascadeControl",
+      "x": 300,
+      "y": 50,
+      "parameters": {
+        "spO2": 30,
+        "nMinRpm": 300,
+        "qMinVvm": 0.5,
+        "qMaxVvm": 1.5,
+        "nMaxRpm": 500
+      },
+      "notes": "A cascata regula O₂ e cede os atuadores durante kLa."
+    },
+    {
+      "id": "exit",
+      "type": "Timer",
+      "x": 580,
+      "y": 50,
+      "parameters": {
+        "duracao": 24,
+        "unidade": "Hours"
+      },
+      "notes": "Condição de saída: encerrar o controle após 24 h."
+    },
+    {
+      "id": "end",
+      "type": "End",
+      "x": 860,
+      "y": 50,
+      "parameters": {},
+      "notes": ""
+    },
+    {
+      "id": "periodic",
+      "type": "Periodic",
+      "x": 300,
+      "y": 220,
+      "parameters": {
+        "coordinatedCascadeId": "casc",
+        "period": 4,
+        "periodUnit": "Hours",
+        "initialDelayUnit": "Hours",
+        "initialDelay": 2
+      },
+      "notes": "Disparos previstos em 2, 6, 10, 14, 18 e 22 h; slots perdidos não são acumulados."
+    },
+    {
+      "id": "kla",
+      "type": "KlaAssay",
+      "x": 580,
+      "y": 220,
+      "parameters": {
+        "protocol": "Abiotic",
+        "profileId": "selecionar-perfil-qualificado",
+        "maximumAttemptsPerReplicate": 1,
+        "useProfileRetryReasons": true,
+        "conditionsMode": "SingleAtCurrentCondition",
+        "maximumBlockSeconds": 3600,
+        "requireValidOur": false,
+        "maximumGasOffSeconds": 60,
+        "minimumIntervalSeconds": 120,
+        "profileVersion": "1",
+        "maximumAttemptsPerCultivation": 12,
+        "maximumCultivationGasOffSeconds": 720,
+        "failurePolicy": "StopAfterRestoration"
+      },
+      "notes": "Selecione um perfil qualificado. O ensaio retorna à agenda após restauração e gravação."
+    },
+    {
+      "id": "delay",
+      "type": "Timer",
+      "x": 300,
+      "y": 400,
+      "parameters": {
+        "duracao": 60,
+        "unidade": "Seconds"
+      },
+      "notes": "Aguardar início do controle antes da rampa."
+    },
+    {
+      "id": "ramp",
+      "type": "LinearSetpointRamp",
+      "x": 580,
+      "y": 400,
+      "parameters": {
+        "confirmationStabilitySeconds": 10,
+        "confirmationTimeoutSeconds": 300,
+        "agitationTolerance": 2,
+        "cascadeNodeId": "casc",
+        "maximumTelemetryGapSeconds": 5,
+        "lines": [
+          {
+            "startSource": "CurrentConfirmed",
+            "finalSetpoint": 40,
+            "endAfterSeconds": 43200,
+            "oxygenTarget": "ActiveCascadeReference",
+            "variable": "Oxygen"
+          }
+        ],
+        "cancellationPolicy": "RestoreSnapshot",
+        "temperatureTolerance": 0.5,
+        "flowTolerance": 0.1,
+        "phTolerance": 0.05,
+        "pressureTolerance": 0.5
+      },
+      "notes": "O destinatário é selecionado nas propriedades: Controle de O₂ casc. A rampa congela seu tempo durante kLa."
+    }
+  ],
+  "connections": [
+    {
+      "source": "start",
+      "sourcePort": "Saida",
+      "target": "casc",
+      "targetPort": "Entrada"
+    },
+    {
+      "source": "casc",
+      "sourcePort": "Saida Loop",
+      "target": "exit",
+      "targetPort": "Entrada"
+    },
+    {
+      "source": "exit",
+      "sourcePort": "Saida",
+      "target": "casc",
+      "targetPort": "Entrada Loop"
+    },
+    {
+      "source": "casc",
+      "sourcePort": "Saida",
+      "target": "end",
+      "targetPort": "Entrada"
+    },
+    {
+      "source": "start",
+      "sourcePort": "Saida",
+      "target": "periodic",
+      "targetPort": "Entrada"
+    },
+    {
+      "source": "periodic",
+      "sourcePort": "Saida",
+      "target": "kla",
+      "targetPort": "Entrada"
+    },
+    {
+      "source": "start",
+      "sourcePort": "Saida",
+      "target": "delay",
+      "targetPort": "Entrada"
+    },
+    {
+      "source": "delay",
+      "sourcePort": "Saida",
+      "target": "ramp",
+      "targetPort": "Entrada"
+    }
+  ]
+}

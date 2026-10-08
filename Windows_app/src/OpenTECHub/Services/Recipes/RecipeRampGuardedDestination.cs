@@ -58,9 +58,9 @@ public sealed class RecipeRampGuardedDestination : IRecipeRampDestination
         {
             // Keep the lease until the destination has actually exited; an abandoned task could
             // otherwise race the next assay. Destination confirmation must observe cancellation.
-            await _destination.ConfirmFinalAsync(references, linked.Token).ConfigureAwait(false);
+            var confirmed = await _destination.TryConfirmFinalAsync(references, linked.Token).ConfigureAwait(false);
             linked.Token.ThrowIfCancellationRequested();
-            return true;
+            return confirmed;
         }
         catch (OperationCanceledException error) when (deadline.IsCancellationRequested &&
             !cancellation.IsCancellationRequested && !_producer.StopToken.IsCancellationRequested)

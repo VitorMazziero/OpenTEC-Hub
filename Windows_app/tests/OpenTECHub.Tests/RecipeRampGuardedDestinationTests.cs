@@ -8,6 +8,27 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampGuardedDestinationTests
 {
+    private sealed class PendingConfirmation : IRecipeRampDestination
+    {
+        public Task<bool> TryApplyAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation)
+            => Task.FromResult(true);
+        public Task<bool> TryConfirmFinalAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation)
+            => Task.FromResult(false);
+        public Task ConfirmFinalAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation)
+            => throw new InvalidOperationException("Use a confirmação que pode continuar pendente.");
+    }
+
+    [Fact]
+    public async Task PendingDestinationConfirmationDoesNotCompleteTheGuardedRamp()
+    {
+        var time = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
+        var clock = new RecipeRampActiveClock(time);
+        using var producer = new RecipeRampResourceProducer("ramp", [ActuatorId.Aeration], clock);
+        var guarded = new RecipeRampGuardedDestination(producer, clock, new PendingConfirmation(), time, TimeSpan.FromSeconds(5));
+        Assert.False(await guarded.TryConfirmFinalAsync(Trajectory().Sample(10), default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => guarded.ConfirmFinalAsync(Trajectory().Sample(10), default));
+    }
+
     private sealed class Destination : IRecipeRampDestination
     {
         public ImmutableArray<LinearRampSample> Applied;

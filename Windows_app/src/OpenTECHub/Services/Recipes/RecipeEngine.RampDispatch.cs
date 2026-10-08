@@ -7,13 +7,13 @@ public sealed partial class RecipeEngine
 {
     /// <summary>Applies a complete ramp frame using current routes. The caller holds the ramp producer lease.</summary>
     public bool TryApplyRampFrame(ImmutableArray<LinearRampSample> references, string? cascadeNodeId,
-        double phInactiveBand)
+        double phInactiveBand, Guid? expectedExecutionId = null)
     {
         if (references.IsDefaultOrEmpty || references.Select(sample => sample.Variable).Distinct().Count() != references.Length)
             throw new ArgumentException("Quadro de rampa vazio ou com parâmetros repetidos.", nameof(references));
         lock (_lock)
         {
-            if (State != RecipeRunState.Running) return false;
+            if (State != RecipeRunState.Running || expectedExecutionId is { } execution && execution != ExecutionId) return false;
             var commands = new RecipeRampDirectCommands(MaxFlow, _routeCoordinator.IsUartFallback,
                 _settings.Current.GasRig.ToConfiguration(), phInactiveBand);
             var combined = OpenTECCommand.Create();

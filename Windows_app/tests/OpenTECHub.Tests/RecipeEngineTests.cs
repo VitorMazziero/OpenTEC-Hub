@@ -18,6 +18,64 @@ namespace OpenTECHub.Tests;
 public sealed class RecipeEngineTests
 {
     [Fact]
+    public async Task RampCascadeConfirmationRequiresMatchingLiveReferenceCurrentOwnershipAndOpenBarrier()
+    {
+        var (engine, device, arbiter, clock) = Build();
+        await using var run = engine;
+        var target = new LinearRampSample(SetpointVariable.Oxygen, RampOxygenTarget.ActiveCascadeReference, 42, true);
+        Assert.Null(engine.TryConfirmRampCascadeReference("casc", target));
+        Assert.Throws<ArgumentException>(() => engine.TryConfirmRampCascadeReference("casc", target with { AtFinalTarget = false }));
+        Assert.Throws<ArgumentException>(() => engine.TryConfirmRampCascadeReference("casc", target with { OxygenTarget = RampOxygenTarget.MonitorReference }));
+        await engine.StartAsync(CascadeWithGateRecipe(out _));
+        PushFrame(device, clock, oxygen: 25);
+        await WaitForCascadeStartedAsync(engine);
+        var initialBarrier = await engine.Resources!.ReserveForAssayAsync(
+            RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId },
+            [ActuatorId.Agitation, ActuatorId.Aeration], TimeSpan.FromSeconds(5));
+        initialBarrier.AbortBeforeAssay();
+        Assert.True(engine.TrySetCascadeOxygenReference("casc", 42));
+        Assert.Null(engine.TryConfirmRampCascadeReference("missing", target));
+        Assert.Null(engine.TryConfirmRampCascadeReference("casc", target with { Reference = 43 }));
+        var commandCount = device.Sent.Count;
+        var confirmation = engine.TryConfirmRampCascadeReference("casc", target);
+        Assert.NotNull(confirmation);
+        Assert.Equal(42, confirmation.Reference);
+        Assert.Equal(RecipeRampConfirmationEvidence.ControllerReference, confirmation.Evidence);
+        Assert.Equal(commandCount, device.Sent.Count);
+        Assert.Null(engine.TryConfirmRampCascadeReference("casc", target, Guid.NewGuid()));
+        Assert.False(engine.TryApplyRampFrame([target with { Reference = 43 }], "casc", 0, Guid.NewGuid()));
+        Assert.NotNull(engine.TryConfirmRampCascadeReference("casc", target));
+        var destination = new RecipeRampCascadeDestination(engine, "casc");
+        Assert.False(await destination.TryConfirmFinalAsync([target], default));
+        Assert.True(await destination.TryApplyAsync([target], default));
+        Assert.True(await destination.TryConfirmFinalAsync([target], default));
+        Assert.Equal(42, Assert.Single(destination.FinalConfirmations).Reference);
+        var lease = await engine.Resources!.ReserveForAssayAsync(
+            RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId },
+            [ActuatorId.Agitation, ActuatorId.Aeration], TimeSpan.FromSeconds(5));
+        Assert.Null(engine.TryConfirmRampCascadeReference("casc", target));
+        Assert.False(await destination.TryConfirmFinalAsync([target], default));
+        Assert.Empty(destination.FinalConfirmations);
+        lease.AbortBeforeAssay();
+        Assert.NotNull(engine.TryConfirmRampCascadeReference("casc", target));
+        engine.Pause();
+        Assert.Null(engine.TryConfirmRampCascadeReference("casc", target));
+        engine.Resume();
+        Assert.NotNull(engine.TryConfirmRampCascadeReference("casc", target));
+        Assert.True(engine.TrySetCascadeOxygenReference("casc", 43));
+        Assert.False(await destination.TryConfirmFinalAsync([target], default));
+        Assert.Empty(destination.FinalConfirmations);
+        Assert.True(await destination.TryApplyAsync([target], default));
+        Assert.True(await destination.TryConfirmFinalAsync([target], default));
+        arbiter.Claim(CommandOwner.Manual, [ActuatorId.Oxygen], "manual-reference-takeover");
+        Assert.Null(engine.TryConfirmRampCascadeReference("casc", target));
+        Assert.False(await destination.TryApplyAsync([target], default));
+        Assert.Empty(destination.FinalConfirmations);
+        await engine.StopAsync("ramp confirmation verified");
+        Assert.Null(engine.TryConfirmRampCascadeReference("casc", target));
+    }
+
+    [Fact]
     public async Task RampCaptureUsesQuiescentAssociatedControllerInsteadOfOxygenMonitorOrMeasuredOxygen()
     {
         var (engine, device, arbiter, clock) = Build();

@@ -8,10 +8,48 @@ namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampRecoveryCoordinatorTests
 {
+    [Fact]
+    public async Task HoldingLastReferencesClosesProducerAndPersistsWithoutSendingAnotherReference()
+    {
+        var device = new RecordingDeviceService();
+        using var writer = new BackgroundFileWriter();
+        using var arbiter = new CommandArbiter(device, TimeProvider.System);
+        arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Temperature], "start");
+        arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 25));
+        var configuration = new RecipeRampBlockConfiguration(new() { CancellationPolicy = RampCancellationPolicy.HoldLastReferences,
+            Lines = [new() { Variable = SetpointVariable.Temperature, FinalSetpoint = 30, EndAfterSeconds = 60 }] }, null,
+            RampTemperatureRoute.NativeModule);
+        var authority = await arbiter.ReserveAsync(CommandOwner.Recipe, Guid.NewGuid(), "ramp", [ActuatorId.Temperature], TimeSpan.FromSeconds(2));
+        await arbiter.DrainReservedCommandsAsync(authority);
+        var start = new RecipeRampStartCheckpoint(1, Guid.NewGuid(), configuration,
+            RecipeRampInitialState.Capture(configuration, arbiter, authority, TimeProvider.System));
+        arbiter.ReleaseReservation(authority);
+        var store = new RecipeRampCheckpointStore(System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+            "ramp-hold-" + Guid.NewGuid().ToString("N")), writer);
+        await store.PersistStartAsync(start);
+        var coordinator = new RecipeResourceCoordinator(arbiter, TimeProvider.System);
+        using var producer = new RecipeRampResourceProducer("ramp", [ActuatorId.Temperature], new RecipeRampActiveClock(TimeProvider.System));
+        coordinator.Register(producer);
+        arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 28));
+        var count = device.Sent.Count;
+        var terminal = await coordinator.HoldInterruptedRampAsync(start, producer, store,
+            RecipeRampTerminalStatus.Cancelled, "cancelled", TimeSpan.FromSeconds(5));
+        Assert.Equal(count, device.Sent.Count);
+        Assert.Equal(RecipeRampReturnOutcome.HeldLastReferences, terminal.ReturnOutcome);
+        Assert.Null(terminal.Recovery);
+        Assert.False(terminal.HasVerifiedRecovery);
+        Assert.Equal(RecipeRampReturnOutcome.HeldLastReferences,
+            store.ReadTerminal(start.InitialState.ExecutionId, start.InvocationId)!.ReturnOutcome);
+        Assert.True(producer.StopToken.IsCancellationRequested);
+        Assert.True(arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 29)).Accepted);
+    }
+
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RecoveryRetainsReservationUntilValidatedDurableReceipt(bool incompleteProof)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public async Task RecoveryRetainsReservationUntilValidatedDurableReceipt(bool incompleteProof, bool emergency, bool storageFailure)
     {
         using var writer = new BackgroundFileWriter();
         using var arbiter = new CommandArbiter(new RecordingDeviceService(), TimeProvider.System);
@@ -56,8 +94,25 @@ public sealed class RecipeRampRecoveryCoordinatorTests
         Assert.True(arbiter.IsCurrent(recoveryAuthority));
         Assert.False(arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 30)).Accepted);
         Assert.Null(store.ReadTerminal(start.InitialState.ExecutionId, start.InvocationId));
+        if (emergency) arbiter.DispatchSafety(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 0), "emergency during return");
+        if (storageFailure) writer.Run(System.IO.Path.Combine(root, start.InitialState.ExecutionId.ToString("N"),
+            start.InvocationId.ToString("N"), "controlled-error"), () => throw new System.IO.IOException("terminal storage failure"));
         finish.SetResult();
-        if (incompleteProof)
+        if (emergency)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => recovering);
+            Assert.False(arbiter.IsCurrent(recoveryAuthority));
+            Assert.Null(store.ReadTerminal(start.InitialState.ExecutionId, start.InvocationId));
+            Assert.Equal(CommandOwner.Manual, arbiter.OwnerOf(ActuatorId.Temperature));
+        }
+        else if (storageFailure)
+        {
+            var failure = await Assert.ThrowsAsync<AggregateException>(() => recovering);
+            Assert.Contains(failure.Flatten().InnerExceptions, error => error is System.IO.IOException);
+            Assert.True(arbiter.IsCurrent(recoveryAuthority));
+            Assert.Null(store.ReadTerminal(start.InitialState.ExecutionId, start.InvocationId));
+        }
+        else if (incompleteProof)
         {
             await Assert.ThrowsAsync<System.IO.InvalidDataException>(() => recovering);
             Assert.True(arbiter.IsCurrent(recoveryAuthority));

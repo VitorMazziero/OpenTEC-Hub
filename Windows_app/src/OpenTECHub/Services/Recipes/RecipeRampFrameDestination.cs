@@ -62,6 +62,29 @@ public sealed class RecipeRampFrameDestination : IRecipeRampReservedDestination,
 
     public ImmutableArray<RecipeRampFinalConfirmation> FinalConfirmations { get { lock (_gate) return _confirmations; } }
 
+    public async Task<RecipeRampTerminalCheckpoint> RestoreAndConfirmAsync(RecipeRampStartCheckpoint start,
+        Communication.CommandAuthorityLease authority, RecipeRampTerminalStatus status, double activeSeconds,
+        string? reason, CancellationToken cancellation)
+    {
+        if (status is not (RecipeRampTerminalStatus.Cancelled or RecipeRampTerminalStatus.Faulted) ||
+            !double.IsFinite(activeSeconds) || activeSeconds < 0)
+            throw new ArgumentException("Retorno exige encerramento por cancelamento/falha e tempo ativo válido.");
+        if (!await TryRestoreDirectAsync(start, authority, cancellation).ConfigureAwait(false))
+            throw new InvalidOperationException("Quadro de retorno não aceito pelos destinos.");
+        var references = RecipeRampRestoreCommands.Build(start, authority).References;
+        if (!await TryConfirmFinalAsync(references, cancellation).ConfigureAwait(false))
+            throw new InvalidOperationException("Referências anteriores ainda não confirmadas.");
+        lock (_gate)
+        {
+            if (!_applied.SequenceEqual(references) || _confirmations.Length != references.Length)
+                throw new InvalidOperationException("Quadro de retorno mudou após confirmação.");
+            return new(2, start.InitialState.ExecutionId, start.InvocationId, start.InitialState.SnapshotId,
+                start.InitialState.NodeId, status, RecipeRampReturnOutcome.RestoredSnapshot, activeSeconds,
+                _engine.RampTimeProvider.GetUtcNow(), reason, [])
+                { Recovery = new(start.InitialState.SnapshotId, _confirmations, start.InitialState.Controller) };
+        }
+    }
+
     public Task<bool> TryApplyAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation)
         => TryApplyFrameAsync(references, null, cancellation);
 

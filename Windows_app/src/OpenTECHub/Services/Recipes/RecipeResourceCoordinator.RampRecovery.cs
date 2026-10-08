@@ -5,12 +5,46 @@ namespace OpenTECHub.Services.Recipes;
 
 public sealed partial class RecipeResourceCoordinator
 {
+    public Task<RecipeRampTerminalCheckpoint> RecoverRampAsync(RecipeRampStartCheckpoint start,
+        RecipeRampResourceProducer producer, RecipeRampCheckpointStore store, RecipeRampFrameDestination destination,
+        RecipeRampTerminalStatus status, string? reason, TimeSpan timeout, CancellationToken cancellation = default)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(producer);
+        return RecoverRampAsync(start, producer, store,
+            (authority, ct) => destination.RestoreAndConfirmAsync(start, authority, status,
+                producer.ActiveClock.ActiveSeconds, reason, ct), timeout, cancellation);
+    }
+
     /// <summary>Keep producers quiescent until a confirmed return has a durable terminal receipt.
     /// Cancellation here is a recovery deadline, independent of the cancelled ramp execution.</summary>
-    public async Task<RecipeRampTerminalCheckpoint> RecoverRampAsync(RecipeRampStartCheckpoint start,
+    public Task<RecipeRampTerminalCheckpoint> HoldInterruptedRampAsync(RecipeRampStartCheckpoint start,
+        RecipeRampResourceProducer producer, RecipeRampCheckpointStore store,
+        RecipeRampTerminalStatus status, string? reason, TimeSpan timeout, CancellationToken cancellation = default)
+    {
+        ArgumentNullException.ThrowIfNull(start); ArgumentNullException.ThrowIfNull(producer);
+        if (status is not (RecipeRampTerminalStatus.Cancelled or RecipeRampTerminalStatus.Faulted))
+            throw new ArgumentException("Manutenção das referências exige cancelamento ou falha.");
+        return CloseInterruptedRampAsync(start, producer, store, (_, ct) =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(new RecipeRampTerminalCheckpoint(1, start.InitialState.ExecutionId,
+                start.InvocationId, start.InitialState.SnapshotId, start.InitialState.NodeId, status,
+                RecipeRampReturnOutcome.HeldLastReferences, producer.ActiveClock.ActiveSeconds,
+                time.GetUtcNow(), reason, []));
+        }, RampCancellationPolicy.HoldLastReferences, timeout, cancellation);
+    }
+
+    public Task<RecipeRampTerminalCheckpoint> RecoverRampAsync(RecipeRampStartCheckpoint start,
         RecipeRampResourceProducer producer, RecipeRampCheckpointStore store,
         Func<CommandAuthorityLease, CancellationToken, Task<RecipeRampTerminalCheckpoint>> restore,
         TimeSpan timeout, CancellationToken cancellation = default)
+        => CloseInterruptedRampAsync(start, producer, store, restore, RampCancellationPolicy.RestoreSnapshot, timeout, cancellation);
+
+    private async Task<RecipeRampTerminalCheckpoint> CloseInterruptedRampAsync(RecipeRampStartCheckpoint start,
+        RecipeRampResourceProducer producer, RecipeRampCheckpointStore store,
+        Func<CommandAuthorityLease, CancellationToken, Task<RecipeRampTerminalCheckpoint>> restore,
+        RampCancellationPolicy policy, TimeSpan timeout, CancellationToken cancellation)
     {
         ArgumentNullException.ThrowIfNull(start); ArgumentNullException.ThrowIfNull(producer);
         ArgumentNullException.ThrowIfNull(store); ArgumentNullException.ThrowIfNull(restore);
@@ -22,7 +56,7 @@ public sealed partial class RecipeResourceCoordinator
         var resources = RecipeRampInitialState.ResourcesFor(start.Configuration.Definition);
         if (start.InitialState.NodeId != producer.NodeId ||
             !resources.Order().SequenceEqual(producer.Resources.Order()) ||
-            start.Configuration.Definition.CancellationPolicy != RampCancellationPolicy.RestoreSnapshot ||
+            start.Configuration.Definition.CancellationPolicy != policy ||
             timeout <= TimeSpan.Zero || timeout.TotalMilliseconds > uint.MaxValue - 1)
             throw new ArgumentException("Recuperação exige produtor correspondente, política de retorno e prazo finito.");
         using var deadline = new CancellationTokenSource(timeout, time);
@@ -52,9 +86,15 @@ public sealed partial class RecipeResourceCoordinator
                 producer.NodeId, resources, timeout, linked.Token).ConfigureAwait(false);
             await arbiter.DrainReservedCommandsAsync(authority, linked.Token).ConfigureAwait(false);
             var terminal = await restore(authority, linked.Token).ConfigureAwait(false);
+            linked.Token.ThrowIfCancellationRequested();
+            if (!arbiter.IsCurrent(authority) || cascadePause is { CanResume: false } ||
+                resources.Any(resource => arbiter.OwnerOf(resource) != CommandOwner.Recipe))
+                throw new InvalidOperationException("Autoridade ou cascata mudou antes da gravação do retorno.");
             if (terminal.ExecutionId != start.InitialState.ExecutionId || terminal.InvocationId != start.InvocationId ||
                 terminal.SnapshotId != start.InitialState.SnapshotId || terminal.NodeId != producer.NodeId ||
-                terminal.Status is not (RecipeRampTerminalStatus.Cancelled or RecipeRampTerminalStatus.Faulted) || !terminal.HasVerifiedRecovery)
+                terminal.Status is not (RecipeRampTerminalStatus.Cancelled or RecipeRampTerminalStatus.Faulted) ||
+                (policy == RampCancellationPolicy.RestoreSnapshot ? !terminal.HasVerifiedRecovery :
+                    terminal.ReturnOutcome != RecipeRampReturnOutcome.HeldLastReferences || terminal.Recovery is not null))
                 throw new InvalidOperationException("Retorno sem evidência terminal correspondente.");
             var durable = await store.PersistTerminalAsync(terminal, linked.Token).ConfigureAwait(false);
             linked.Token.ThrowIfCancellationRequested();

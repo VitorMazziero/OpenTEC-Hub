@@ -41,21 +41,38 @@ public sealed class RecipeEngineTests
             new(.1, TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(15)));
         Assert.True(await destination.TryApplyAsync([new(SetpointVariable.Temperature, null, 30, true),
             new(SetpointVariable.Oxygen, RampOxygenTarget.ActiveCascadeReference, 50, true)], default));
-        var recovery = await engine.Resources.ReserveForAssayAsync(context, resources, TimeSpan.FromSeconds(5));
-        Assert.True(await destination.TryRestoreDirectAsync(start, recovery.Authority, default));
-        var references = RecipeRampRestoreCommands.Build(start, recovery.Authority).References;
-        Assert.Null(engine.TryConfirmRampCascadeReference("casc", references.Single(target => target.Variable == SetpointVariable.Oxygen)));
-        var confirming = destination.TryConfirmFinalAsync(references, default);
-        Assert.False(confirming.IsCompleted);
+        using var writer = new BackgroundFileWriter();
+        var store = new RecipeRampCheckpointStore(System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+            "mixed-ramp-return-" + Guid.NewGuid().ToString("N")), writer);
+        await store.PersistStartAsync(start);
+        var activeClock = new RecipeRampActiveClock(clock);
+        using var producer = new RecipeRampResourceProducer("ramp", resources, activeClock);
+        engine.Resources.Register(producer);
+        var restoredFrameSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        device.CommandSent += json =>
+        {
+            var command = OpenTECCommand.Parse(json);
+            if (command.Contains(CommandKeys.TempSetpoint) && RecipeAssayReturnState.Number(command, CommandKeys.TempSetpoint) == 25)
+                restoredFrameSent.TrySetResult();
+        };
+        var returning = engine.Resources.RecoverRampAsync(start, producer, store, destination,
+            RecipeRampTerminalStatus.Cancelled, "cancelled", TimeSpan.FromSeconds(5));
+        await restoredFrameSent.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var oxygenReference = new LinearRampSample(SetpointVariable.Oxygen, RampOxygenTarget.ActiveCascadeReference,
+            start.InitialState.ConfirmedStarts[SetpointVariable.Oxygen], true);
+        Assert.Null(engine.TryConfirmRampCascadeReference("casc", oxygenReference));
+        Assert.Null(store.ReadTerminal(engine.ExecutionId, start.InvocationId));
+        Assert.False(returning.IsCompleted);
         device.PushTelemetry(new() { TempControlViaBath = false, TempSetpoint = 25, TempSetpointCommanded = true,
             Temperature = 25, TemperatureUpdated = true, TemperatureValid = true, TemperatureAgeMs = 0, SensorCommOk = true });
-        Assert.True(await confirming.WaitAsync(TimeSpan.FromSeconds(2)));
+        var terminal = await returning.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(terminal.HasVerifiedRecovery);
+        Assert.Equal(start.InitialState.Controller, terminal.Recovery!.Controller);
+        Assert.Equal(0, terminal.ActiveSeconds);
         Assert.Equal(2, destination.FinalConfirmations.Length);
-        Assert.NotNull(engine.TryConfirmRampCascadeRestoration(start.InitialState.Controller!,
-            references.Single(target => target.Variable == SetpointVariable.Oxygen), engine.ExecutionId, recovery.Authority));
-        recovery.AbortBeforeAssay();
-        Assert.Null(engine.TryConfirmRampCascadeRestoration(start.InitialState.Controller!,
-            references.Single(target => target.Variable == SetpointVariable.Oxygen), engine.ExecutionId, recovery.Authority));
+        Assert.True(store.ReadTerminal(engine.ExecutionId, start.InvocationId)!.HasVerifiedRecovery);
+        Assert.True(producer.StopToken.IsCancellationRequested);
+        Assert.NotNull(engine.TryConfirmRampCascadeReference("casc", oxygenReference));
         await engine.StopAsync("mixed restoration verified");
     }
 

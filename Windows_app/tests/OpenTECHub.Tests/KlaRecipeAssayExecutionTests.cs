@@ -93,6 +93,11 @@ public sealed class KlaRecipeAssayExecutionTests
                     MaximumOxygenSlopePercentPerSecond = protocol == KlaAssayProtocol.Biotic ? .05 : null
                 }, capabilities);
             var api = activeApi = new KlaAssayApi(Path.Combine(directory, "api.json"), executor, fixture.Clock);
+            var recoveryCommands = 0;
+            fixture.Device.CommandSent += _ =>
+            {
+                if (executor.Phase == RunPhase.RestoringCultivation) Interlocked.Increment(ref recoveryCommands);
+            };
             activeRequest = request.RequestId;
             api.Create(request); await api.StartAsync(request.RequestId);
             for (var index = 0; index < 100 && fixture.Device.Sent.Count == 0; index++)
@@ -106,7 +111,7 @@ public sealed class KlaRecipeAssayExecutionTests
                 $"receita-{request.RequestId:N}-BeforeActuation.json", SearchOption.AllDirectories));
             var running = await api.StartAsync(request.RequestId);
             Assert.Equal(KlaAssayApiState.Running, running.State);
-            fixture.Device.Sent.Clear();
+            if (!(completeNormally && protocol == KlaAssayProtocol.Biotic)) fixture.Device.Sent.Clear();
             Task<KlaAssayApiObservation> cancelling;
             if (completeNormally)
             {
@@ -138,8 +143,6 @@ public sealed class KlaRecipeAssayExecutionTests
                     }
                     Push(70, 2, GasRoute.Reactor, 3);
                     await Task.Delay(1);
-                    // Clear before equilibrium: the last stable samples may already start recovery.
-                    fixture.Device.Sent.Clear();
                     for (var index = 0; index < 4; index++)
                     {
                         Push(70, 2, GasRoute.Reactor, 3);
@@ -159,6 +162,13 @@ public sealed class KlaRecipeAssayExecutionTests
                 cancelling = api.WaitForCompletionAsync(request.RequestId);
             }
             else cancelling = api.CancelWithRecoveryAsync(request.RequestId);
+            // Abort/watchdog can also emit acquisition commands. They cannot satisfy the recovery
+            // handshake: an early echo would become the recovery's baseline instead of a fresh ack.
+            using (var recoveryDispatchTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+            {
+                while (Volatile.Read(ref recoveryCommands) < 3)
+                    await Task.Delay(1, recoveryDispatchTimeout.Token);
+            }
             await fixture.DriveRoute(command: 20);
             if (failPersistence) writer.Run(Path.Combine(directory, document.FolderName, "controlled-error"),
                 () => throw new IOException("terminal persistence failure"));

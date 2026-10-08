@@ -1,12 +1,57 @@
 using System.IO;
 using OpenTECHub.Services.Persistence;
 using OpenTECHub.Services.Recipes;
+using OpenTECHub.Protocol;
+using OpenTECHub.Services.Communication;
 using Xunit;
 
 namespace OpenTECHub.Tests;
 
 public sealed class RecipeRampTerminalPersistenceTests
 {
+    [Fact]
+    public async Task RestoredCancellationRequiresProofOfTheCapturedReferenceRatherThanTheRampTarget()
+    {
+        using var writer = new BackgroundFileWriter();
+        using var arbiter = new CommandArbiter(new RecordingDeviceService(), TimeProvider.System);
+        arbiter.Claim(CommandOwner.Recipe, [ActuatorId.Temperature], "start");
+        arbiter.Dispatch(CommandOwner.Recipe, OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 25));
+        var configuration = new RecipeRampBlockConfiguration(new() { CancellationPolicy = RampCancellationPolicy.RestoreSnapshot,
+            Lines = [new() { Variable = SetpointVariable.Temperature, FinalSetpoint = 30, EndAfterSeconds = 60 }] }, null,
+            RampTemperatureRoute.NativeModule);
+        var authority = await arbiter.ReserveAsync(CommandOwner.Recipe, Guid.NewGuid(), "ramp", [ActuatorId.Temperature], TimeSpan.FromSeconds(2));
+        await arbiter.DrainReservedCommandsAsync(authority);
+        var initial = RecipeRampInitialState.Capture(configuration, arbiter, authority, TimeProvider.System);
+        arbiter.ReleaseReservation(authority);
+        var start = new RecipeRampStartCheckpoint(1, Guid.NewGuid(), configuration, initial);
+        var root = Path.Combine(Path.GetTempPath(), "ramp-return-proof-" + Guid.NewGuid().ToString("N"));
+        var store = new RecipeRampCheckpointStore(root, writer);
+        await store.PersistStartAsync(start);
+        var proof = new RecipeRampFinalConfirmation(SetpointVariable.Temperature, null, 25,
+            RecipeRampConfirmationEvidence.ProcessFeedback, DateTimeOffset.UtcNow, 25, .5);
+        var terminal = new RecipeRampTerminalCheckpoint(2, initial.ExecutionId, start.InvocationId, initial.SnapshotId,
+            initial.NodeId, RecipeRampTerminalStatus.Cancelled, RecipeRampReturnOutcome.RestoredSnapshot, 10,
+            DateTimeOffset.UtcNow, "cancelled", []) { Recovery = new(initial.SnapshotId, [proof], null) };
+        foreach (var invalid in new[] { terminal with { Recovery = null }, terminal with { SchemaVersion = 1 },
+            terminal with { Recovery = terminal.Recovery with { SnapshotId = Guid.NewGuid() } },
+            terminal with { Recovery = terminal.Recovery with { References = [] } },
+            terminal with { Recovery = terminal.Recovery with { References = [proof with { Reference = 30, ObservedValue = 30 }] } },
+            terminal with { Recovery = terminal.Recovery with { References = [proof with { Evidence = RecipeRampConfirmationEvidence.TransportAccepted }] } },
+            terminal with { Recovery = terminal.Recovery with { References = [proof with { ObservedValue = 26 }] } },
+            terminal with { Recovery = terminal.Recovery with { References = [proof with { RecordedUtc = initial.CapturedUtc.AddSeconds(-1) }] } } })
+            await Assert.ThrowsAsync<InvalidDataException>(() => store.PersistTerminalAsync(invalid));
+        Assert.Null(store.ReadTerminal(initial.ExecutionId, start.InvocationId));
+        var saved = await store.PersistTerminalAsync(terminal);
+        Assert.True(saved.HasVerifiedRecovery);
+        Assert.Equal(25, Assert.Single(store.ReadTerminal(initial.ExecutionId, start.InvocationId)!.Recovery!.References).Reference);
+        var legacyStart = start with { InvocationId = Guid.NewGuid() };
+        await store.PersistStartAsync(legacyStart);
+        var legacy = terminal with { SchemaVersion = 1, InvocationId = legacyStart.InvocationId, Recovery = null };
+        File.WriteAllText(Path.Combine(root, initial.ExecutionId.ToString("N"), legacyStart.InvocationId.ToString("N"), "terminal.json"),
+            System.Text.Json.JsonSerializer.Serialize(legacy));
+        Assert.False(store.ReadTerminal(initial.ExecutionId, legacyStart.InvocationId)!.HasVerifiedRecovery);
+    }
+
     [Fact]
     public async Task UnrepresentablePositivePhCannotObtainADurableStartReceipt()
     {

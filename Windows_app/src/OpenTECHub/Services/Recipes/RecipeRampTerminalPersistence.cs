@@ -16,7 +16,16 @@ public sealed record RecipeRampFinalConfirmation(SetpointVariable Variable, Ramp
 public sealed record RecipeRampTerminalCheckpoint(int SchemaVersion, Guid ExecutionId, Guid InvocationId,
     Guid SnapshotId, string NodeId, RecipeRampTerminalStatus Status, RecipeRampReturnOutcome ReturnOutcome,
     double ActiveSeconds, DateTimeOffset EndedUtc, string? Reason,
-    ImmutableArray<RecipeRampFinalConfirmation> FinalConfirmations);
+    ImmutableArray<RecipeRampFinalConfirmation> FinalConfirmations)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public RecipeRampRecoveryEvidence? Recovery { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasVerifiedRecovery => SchemaVersion == 2 && ReturnOutcome == RecipeRampReturnOutcome.RestoredSnapshot && Recovery is not null;
+}
+
+public sealed record RecipeRampRecoveryEvidence(Guid SnapshotId,
+    ImmutableArray<RecipeRampFinalConfirmation> References, ControllerReturnSnapshot? Controller);
 
 public sealed partial class RecipeRampCheckpointStore
 {
@@ -37,6 +46,8 @@ public sealed partial class RecipeRampCheckpointStore
                 FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
             await writer.FlushDurableAsync(directory).ConfigureAwait(false);
             ValidateTerminal(frozen, initial);
+            if (frozen.ReturnOutcome == RecipeRampReturnOutcome.RestoredSnapshot && !frozen.HasVerifiedRecovery)
+                throw new InvalidDataException("Novos retornos restaurados exigem evidência de recuperação na versão 2.");
             var path = Path.Combine(directory, "terminal.json");
             if (File.Exists(path))
             {
@@ -64,7 +75,7 @@ public sealed partial class RecipeRampCheckpointStore
 
     private static void ValidateTerminal(RecipeRampTerminalCheckpoint result, RecipeRampStartCheckpoint start)
     {
-        if (result.SchemaVersion != 1 || result.ExecutionId != start.InitialState.ExecutionId ||
+        if (result.SchemaVersion is not (1 or 2) || result.ExecutionId != start.InitialState.ExecutionId ||
             result.InvocationId != start.InvocationId || result.SnapshotId != start.InitialState.SnapshotId ||
             result.NodeId != start.InitialState.NodeId || !Enum.IsDefined(result.Status) || !Enum.IsDefined(result.ReturnOutcome) ||
             !double.IsFinite(result.ActiveSeconds) || result.ActiveSeconds < 0 || result.EndedUtc == default || result.FinalConfirmations.IsDefault)
@@ -108,6 +119,41 @@ public sealed partial class RecipeRampCheckpointStore
                 (start.Configuration.Definition.CancellationPolicy == RampCancellationPolicy.RestoreSnapshot
                     ? RecipeRampReturnOutcome.RestoredSnapshot : RecipeRampReturnOutcome.HeldLastReferences))
                 throw new InvalidDataException("Retorno da rampa incompatível com a política de cancelamento.");
+        }
+        ValidateRecovery(result, start);
+    }
+
+    private static void ValidateRecovery(RecipeRampTerminalCheckpoint result, RecipeRampStartCheckpoint start)
+    {
+        if (result.Recovery is null)
+        {
+            if (result.SchemaVersion == 2 && result.ReturnOutcome == RecipeRampReturnOutcome.RestoredSnapshot)
+                throw new InvalidDataException("Retorno restaurado sem evidência dos destinos.");
+            return;
+        }
+        var recovery = result.Recovery;
+        if (result.SchemaVersion != 2 || result.ReturnOutcome != RecipeRampReturnOutcome.RestoredSnapshot ||
+            recovery.SnapshotId != start.InitialState.SnapshotId || recovery.References.IsDefault ||
+            recovery.References.Length != start.Configuration.Definition.Lines.Length ||
+            recovery.References.Select(item => item.Variable).Distinct().Count() != recovery.References.Length ||
+            recovery.Controller != start.InitialState.Controller)
+            throw new InvalidDataException("Evidência de retorno incompatível com o estado inicial.");
+        foreach (var proof in recovery.References)
+        {
+            var before = start.InitialState.References.SingleOrDefault(item => item.Variable == proof.Variable);
+            var controller = before?.OxygenTarget == RampOxygenTarget.ActiveCascadeReference;
+            if (before is null || proof.OxygenTarget != before.OxygenTarget || !Enum.IsDefined(proof.Evidence) ||
+                proof.Reference != RecipeRampReferenceQuantization.Quantize(before.Variable, before.Reference, start.Configuration.TemperatureRoute) ||
+                proof.RecordedUtc < start.InitialState.CapturedUtc || proof.RecordedUtc > result.EndedUtc ||
+                controller && proof.Evidence != RecipeRampConfirmationEvidence.ControllerReference ||
+                !controller && proof.Evidence != RecipeRampConfirmationEvidence.ProcessFeedback &&
+                    !(proof.Reference == 0 && proof.Evidence == RecipeRampConfirmationEvidence.DeviceReferenceReadback))
+                throw new InvalidDataException("Referência anterior não confirmada pelo destino correto.");
+            if (proof.Evidence == RecipeRampConfirmationEvidence.ProcessFeedback &&
+                (proof.ObservedValue is not { } observed || !double.IsFinite(observed) ||
+                 proof.Tolerance is not { } tolerance || !double.IsFinite(tolerance) || tolerance < 0 ||
+                 Math.Abs(observed - proof.Reference) > tolerance))
+                throw new InvalidDataException("Retorno exige leitura e tolerância coerentes.");
         }
     }
 }

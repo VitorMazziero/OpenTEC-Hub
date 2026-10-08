@@ -29,4 +29,6 @@ Novo incremento de R5.2: [reserva por quadro](receitas-r52/RESERVA_POR_QUADRO.md
 
 Preparação de R5.2: [preparação coordenada](receitas-r52/PREPARACAO_COORDENADA.md) serializa captura e gravação com os ensaios, registra o produtor após o recibo inicial e preserva a cascata associada; 2427 testes na regressão completa. Ligação ao executor do bloco e recuperação após cancelamento permanecem pendentes.
 
+Retorno de R5.2: [evidência de recuperação](receitas-r52/EVIDENCIA_RECUPERACAO.md) exige confirmação das referências anteriores e estado da cascata nos novos resultados restaurados; históricos sem prova permanecem legíveis, sem retorno verificado. 2428 testes na regressão completa. Execução da recuperação e ciclo do bloco no engine permanecem pendentes.
+
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.

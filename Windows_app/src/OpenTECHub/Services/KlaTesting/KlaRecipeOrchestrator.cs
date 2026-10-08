@@ -10,10 +10,27 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
 {
     private int _started;
     private IKlaRecipePreparedPulse? _active;
+    private readonly object _progressGate = new();
+    private KlaRecipeProgressStage _progressStage = KlaRecipeProgressStage.Preparing;
+    private int _finishedAttempts, _selectedAttempts;
+    private KlaQueueItem? _currentItem;
+    private bool _isWaiting;
     public RunPhase? CurrentPhase => Volatile.Read(ref _active)?.Phase;
     public KlaReturnSnapshot? CurrentReturnSnapshot => Volatile.Read(ref _active)?.Request.RecipePulse?.Invocation.Restoration.BeforeAssay;
-    public KlaQueueItem? CurrentItem { get; private set; }
-    public bool IsWaiting { get; private set; }
+    public KlaQueueItem? CurrentItem
+    { get { lock (_progressGate) return _currentItem; } private set { lock (_progressGate) _currentItem = value; } }
+    public bool IsWaiting
+    { get { lock (_progressGate) return _isWaiting; } private set { lock (_progressGate) _isWaiting = value; } }
+    private void SetProgress(KlaRecipeProgressStage stage) { lock (_progressGate) _progressStage = stage; }
+    public KlaRecipeOrchestratorProgress ReadProgress()
+    {
+        lock (_progressGate)
+        {
+            var phase = CurrentPhase;
+            var stage = phase == RunPhase.RestoringCultivation ? KlaRecipeProgressStage.Recovering : _progressStage;
+            return new(stage, phase, _currentItem, _finishedAttempts, _selectedAttempts);
+        }
+    }
 
     public async Task<KlaRecipeResult> ExecuteAsync(KlaRecipeRequest template, KlaTestDocument preparedDocument,
         CancellationToken cancellation = default)
@@ -46,6 +63,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
 
         async Task<KlaRecipeResult> Finish(KlaRecipeTerminalStatus status, string? reason = null)
         {
+            SetProgress(KlaRecipeProgressStage.RecordingResult);
             preparer.ReleasePendingPreparation();
             CurrentItem = null; IsWaiting = false;
             var result = new KlaRecipeResult { Context = template.Context, PeriodicInvocation = template.PeriodicInvocation,
@@ -82,6 +100,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
                 if (Elapsed() + wait >= template.Retry.MaximumBlockSeconds || time.GetUtcNow().AddSeconds(wait) >= template.AcquisitionDeadlineUtc)
                     return await Finish(KlaRecipeTerminalStatus.Inconclusive, "Intervalo mínimo excede o tempo restante.").ConfigureAwait(false);
                 IsWaiting = true;
+                SetProgress(KlaRecipeProgressStage.WaitingBetweenAttempts);
                 try { await Task.Delay(TimeSpan.FromSeconds(wait), time, acquisition.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { }
                 finally { IsWaiting = false; }
@@ -92,12 +111,14 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
             IKlaRecipePreparedPulse scope;
             try
             {
+                SetProgress(KlaRecipeProgressStage.ReservingResources);
                 var current = store.LoadTest(document.FolderName) ?? throw new InvalidOperationException("Sessão comum ausente.");
                 scope = await preparer.PrepareAsync(template, item, current, pulseDeadline, acquisition.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) { continue; }
             catch (Exception error) { return await Finish(KlaRecipeTerminalStatus.OperationalFailure, error.Message).ConfigureAwait(false); }
             Volatile.Write(ref _active, scope);
+            SetProgress(KlaRecipeProgressStage.Acquiring);
             KlaAssayApiObservation? observation = null;
             Exception? executionError = null;
             bool created = false;
@@ -126,6 +147,7 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
                 Volatile.Write(ref _active, null);
             }
             lastEnd = time.GetTimestamp();
+            SetProgress(KlaRecipeProgressStage.RecordingDecision);
             var result = observation?.Result;
             if (result is not { RunFolder: not null, TestFolder: not null } ||
                 observation.State is KlaAssayApiState.PersistenceFailed or KlaAssayApiState.RestorationFailed)
@@ -148,6 +170,11 @@ public sealed class KlaRecipeOrchestrator(IKlaAssayApi api, KlaRecipeExecutionRo
                     History = attempts.ToImmutableArray(), RemainingCultivationAttempts = remaining, ElapsedBlockSeconds = elapsed };
                 await store.PersistRecipeSelectionAsync(selection).ConfigureAwait(false);
                 attempts.Add(selection.Decision);
+                lock (_progressGate)
+                {
+                    _finishedAttempts = attempts.Count;
+                    _selectedAttempts = attempts.Count(a => a.Decision == KlaAutomaticDecision.Selected);
+                }
             }
             catch (Exception error) { persisted = false; return await Finish(KlaRecipeTerminalStatus.PersistenceFailure, error.Message).ConfigureAwait(false); }
         }

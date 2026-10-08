@@ -17,8 +17,47 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
 {
     private readonly object _gate = new();
     private readonly Dictionary<Guid, KlaRecipeActiveInvocation> _active = [];
+    private sealed record PendingProgress(RecipeInvocationContext Context, RecipeKlaBlockConfiguration Configuration,
+        PeriodicBlockInvocation? Slot, long Began, KlaRecipeProgressStage Stage, KlaAssayBudgetQuery? BudgetQuery = null);
+    private readonly Dictionary<Guid, PendingProgress> _progress = [];
     public IReadOnlyList<KlaRecipeActiveInvocation> ActiveInvocations
     { get { lock (_gate) return _active.Values.ToArray(); } }
+
+    public IReadOnlyList<KlaRecipeProgress> ReadProgress()
+    {
+        PendingProgress[] pending;
+        Dictionary<Guid, KlaRecipeActiveInvocation> active;
+        lock (_gate) { pending = _progress.Values.ToArray(); active = new(_active); }
+        return pending.Select(entry =>
+        {
+            active.TryGetValue(entry.Context.InvocationId, out var invocation);
+            var observed = invocation?.Orchestrator.ReadProgress();
+            var elapsed = time.GetElapsedTime(entry.Began).TotalSeconds;
+            var remaining = Math.Max(0, entry.Configuration.Retry.MaximumBlockSeconds - elapsed);
+            if (invocation is not null)
+                remaining = Math.Min(remaining, Math.Max(0, (invocation.Request.AcquisitionDeadlineUtc - time.GetUtcNow()).TotalSeconds));
+            KlaCultivationAssayBudget? budget = null;
+            DateTimeOffset? budgetUtc = null;
+            string? error = null;
+            if (entry.BudgetQuery is { } query)
+            {
+                try { budget = api.ReadCultivationBudget(query); budgetUtc = time.GetUtcNow(); }
+                catch (Exception failure) when (failure is ArgumentException or InvalidOperationException or System.IO.IOException)
+                { error = failure.Message; }
+            }
+            return new KlaRecipeProgress(entry.Context, entry.Configuration.Protocol, entry.Slot,
+                entry.Configuration.ProfileId, entry.Configuration.ProfileVersion, invocation?.SessionFolder,
+                observed?.Stage ?? entry.Stage, observed?.Phase, observed?.Item,
+                invocation?.Request.Definition.Conditions.SingleOrDefault(c => c.ConditionId == observed?.Item?.ConditionId),
+                observed?.FinishedAttempts ?? 0, observed?.SelectedAttempts ?? 0, elapsed, remaining, budget, budgetUtc, error);
+        }).ToArray();
+    }
+
+    private void ReportProgress(RecipeInvocationContext context, RecipeKlaBlockConfiguration configuration,
+        PeriodicBlockInvocation? slot, long began, KlaRecipeProgressStage stage, KlaAssayBudgetQuery? query = null)
+    {
+        lock (_gate) _progress[context.InvocationId] = new(context, configuration, slot, began, stage, query);
+    }
 
     public bool CanExecute(RecipeDocument recipe, out string? reason)
     {
@@ -81,6 +120,7 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
         RecipeInvocationContext context, PeriodicBlockInvocation? slot, RecipeResourceCoordinator resources, CancellationToken ct)
     {
         var began = time.GetTimestamp();
+        ReportProgress(context, configuration, slot, began, KlaRecipeProgressStage.Preparing);
         RecipeAssayResourceLease? initial = null;
         KlaRecipePulsePreparer? preparer = null;
         try
@@ -97,11 +137,14 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
                     profile.RemovalSeconds + 2 * profile.Template.ProtocolSettings.CommandConfirmationTimeoutSeconds,
                     profile.Template.ProtocolSettings.AerationReturn.MinimumInterAssaySeconds ?? 0);
                 var budget = api.ReadCultivationBudget(query);
+                ReportProgress(context, configuration, slot, began, KlaRecipeProgressStage.Preparing, query);
                 if (budget.WaitSeconds > 0 && budget.BlockedReason is null && budget.WaitSeconds < remaining)
                 {
+                    ReportProgress(context, configuration, slot, began, KlaRecipeProgressStage.WaitingCultivationInterval, query);
                     await Task.Delay(TimeSpan.FromSeconds(budget.WaitSeconds), time, ct).ConfigureAwait(false);
                     continue;
                 }
+                ReportProgress(context, configuration, slot, began, KlaRecipeProgressStage.ReservingResources, query);
                 initial = await resources.ReserveForAssayAsync(context, [ActuatorId.Agitation, ActuatorId.Aeration, ActuatorId.Oxygen],
                     TimeSpan.FromSeconds(Math.Min(profile.ReservationTimeoutSeconds, remaining)), ct).ConfigureAwait(false);
                 budget = api.ReadCultivationBudget(query);
@@ -126,7 +169,7 @@ public sealed class KlaRecipeAutonomousWorkSource(KlaRecipeOperationalProfileReg
         }
         finally
         {
-            lock (_gate) _active.Remove(context.InvocationId);
+            lock (_gate) { _active.Remove(context.InvocationId); _progress.Remove(context.InvocationId); }
             preparer?.Dispose();
             initial?.AbortBeforeAssay();
         }

@@ -21,6 +21,7 @@ public sealed class KlaRecipeApplicationHost : IRecipeAutonomousWorkSource, IDis
     public KlaRecipeOperationalProfileStore ProfileStore { get; }
     public string? AvailabilityError { get; private set; }
     public IReadOnlyList<KlaRecipeActiveInvocation> ActiveInvocations => _source?.ActiveInvocations ?? [];
+    public IReadOnlyList<KlaRecipeProgress> ReadProgress() => _source?.ReadProgress() ?? [];
 
     public KlaRecipeApplicationHost(string root, bool isIsolatedEnvironment, KlaRecipeAssayExecutionFactory factory,
         IKlaTestStore store, ISettingsService settings, TimeProvider time, BackgroundFileWriter writer)

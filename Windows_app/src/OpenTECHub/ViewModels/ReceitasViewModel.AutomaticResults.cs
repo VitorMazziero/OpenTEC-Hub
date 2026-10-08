@@ -29,11 +29,22 @@ public sealed record RecipeAutomaticSessionViewModel(KlaRecipeResult Result)
 public sealed partial class ReceitasViewModel
 {
     public ObservableCollection<RecipeAutomaticSessionViewModel> AutomaticSessions { get; } = [];
+    public ObservableCollection<RecipeLiveAssayViewModel> LiveAssays { get; } = [];
     public bool HasAutomaticSessions => AutomaticSessions.Count > 0;
+    public bool HasKlaObservations => HasAutomaticSessions || LiveAssays.Count > 0;
     public event Action<string>? OpenAutomaticSessionRequested;
 
     internal void RefreshAutomaticSessions()
     {
+        var progress = _klaHost?.ReadProgress() ?? [];
+        var liveIds = progress.Select(p => p.Context.InvocationId).ToHashSet();
+        foreach (var stale in LiveAssays.Where(p => !liveIds.Contains(p.Progress.Context.InvocationId)).ToArray()) LiveAssays.Remove(stale);
+        foreach (var observed in progress)
+        {
+            var previous = LiveAssays.FirstOrDefault(p => p.Progress.Context.InvocationId == observed.Context.InvocationId);
+            if (previous is null) LiveAssays.Add(new(observed));
+            else LiveAssays[LiveAssays.IndexOf(previous)] = new(observed);
+        }
         var results = _engine.AutonomousResults;
         var ids = results.Select(r => r.Context.InvocationId).ToHashSet();
         foreach (var stale in AutomaticSessions.Where(s => !ids.Contains(s.Result.Context.InvocationId)).ToArray())
@@ -45,6 +56,7 @@ public sealed partial class ReceitasViewModel
             AutomaticSessions.Add(new(result));
         }
         OnPropertyChanged(nameof(HasAutomaticSessions));
+        OnPropertyChanged(nameof(HasKlaObservations));
     }
 
     [RelayCommand]

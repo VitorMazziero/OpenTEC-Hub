@@ -93,6 +93,14 @@ public sealed class KlaRecipeAutonomousWorkSourceTests
             while (source.ActiveInvocations.Count == 0 && !execution.IsCompleted) await Task.Delay(1, timeout.Token);
             if (execution.IsCompleted) await execution;
             var active = source.ActiveInvocations.Single();
+            var progress = Assert.Single(source.ReadProgress());
+            Assert.Equal(active.Request.Context, progress.Context);
+            Assert.Equal(protocol, progress.Protocol);
+            Assert.Equal(active.SessionFolder, progress.SessionFolder);
+            Assert.NotNull(progress.CultivationBudget);
+            Assert.NotNull(progress.BudgetObservedUtc);
+            Assert.Null(progress.BudgetObservationError);
+            Assert.InRange(progress.RemainingBlockSeconds, 0, node.Number("maximumBlockSeconds"));
             Assert.Equal(0, producer.Resumes); Assert.True(producer.Suspended);
             await KlaRecipeOrchestratorTests.Drive(execution, active.Orchestrator, fixture, active.Request,
                 () => producer.Suspended, KlaRecipeOrchestratorTests.Scenario.Normal, cancellation);
@@ -104,6 +112,7 @@ public sealed class KlaRecipeAutonomousWorkSourceTests
                 result.Pulses.Select(p => p.RecipePulse!.Invocation.Restoration.BeforeAssay.AgitationSetpointRpm));
             Assert.Equal(result.Attempts.Length, producer.Resumes); Assert.False(producer.Suspended);
             Assert.Empty(source.ActiveInvocations);
+            Assert.Empty(source.ReadProgress());
             var reopened = store.LoadTest(result.SessionFolder);
             Assert.NotNull(reopened);
             Assert.Equal(result.Context, reopened.RecipeRequest!.Context);

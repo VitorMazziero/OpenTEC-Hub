@@ -146,6 +146,10 @@ public sealed class KlaRecipeOrchestratorTests : IDisposable
         {
             await Drive(execution, orchestrator, fixture, request, () => producer.Suspended, scenario, cancellation, InjectFailure);
             var result = await execution.WaitAsync(TimeSpan.FromSeconds(10));
+            var progress = orchestrator.ReadProgress();
+            Assert.Equal(KlaRecipeProgressStage.RecordingResult, progress.Stage);
+            Assert.Equal(result.Attempts.Length, progress.FinishedAttempts);
+            Assert.Equal(result.Attempts.Count(a => a.Decision == KlaAutomaticDecision.Selected), progress.SelectedAttempts);
             var succeeds = scenario is Scenario.Normal or Scenario.Retry or Scenario.DuplicateConditions;
             var writeFailure = scenario is Scenario.SelectionWriteFailure or Scenario.ResultWriteFailure;
             var expectedStatus = scenario is Scenario.CancelDuringWait or Scenario.CancelDuringAssay

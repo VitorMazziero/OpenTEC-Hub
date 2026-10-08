@@ -1,0 +1,13 @@
+# R4.2 — Observação ao vivo da invocação
+
+O provedor publica observações desde a preparação, inclusive espera pelo intervalo do cultivo e reserva dos recursos, até a confirmação do resultado terminal. O orçamento mostrado é consultado no diário compartilhado da API, com instante da observação; falha de leitura é apresentada como orçamento indisponível. Tempo restante considera o tempo monotônico desde a entrada do bloco e o deadline do request congelado. Observar não emite comandos, cria requests ou recalcula dados científicos.
+
+O orquestrador expõe fase, condição, réplica/tentativa e contagens de decisões confirmadas. As contagens só avançam depois da barreira de gravação da seleção. Recuperação permanece “retorno em verificação”; confirmação do retorno e gravação continuam dimensões do resultado terminal. A observação é removida ao encerrar a invocação e dá lugar à sessão terminal, inclusive falhas. O visualizador comum só abre as sessões terminais; não reabre um manifesto vivo como se fosse histórico interrompido.
+
+“Ensaios e resultados kLa” mostra protocolo, condições N/Q, fase, réplica/tentativa, decisões gravadas, tempo, orçamento do cultivo e perfil. OUR não aplicável é explícito no abiótico; no biótico, a qualidade só é apresentada no resultado efetivamente avaliado. O painel tem rolagem e preserva a altura das abas. A imagem `evidence/live-progress-125dpi.png` foi inspecionada; usa uma observação de apresentação simulada, sem constituir ensaio físico.
+
+57 testes focados aprovados, zero falhas (`evidence/recipes-r42-live-progress-focused.trx`). Os quatro modos do provedor concreto verificam contexto, sessão, orçamento observado, tempo limitado e remoção da observação ao concluir. Os cenários do orquestrador verificam contagens terminais contra as decisões persistidas. O teste WPF confere renderização e altura das abas; os testes de apresentação verificam orçamento ausente e recuperação ainda não confirmada.
+
+Pausa independente continua pendente. Ela deve manter a mesma matriz, deadline e histórico, cancelar aquisição e aguardar recuperação antes de permitir nova reserva. Reiniciar outra matriz ao retomar zeraria os limites por réplica/bloco e não atende ao plano. A próxima alteração deve conectar pausa ao orquestrador, registrar seu motivo de forma verificável nas decisões e tratar pausa antes da criação/início do pulso sem reutilizar IDs com payload diferente. Não alterar limiares científicos para permitir a retomada. R4.2 permanece em implementação; rampas e qualificação seguem depois.
+
+Validação final: 2323 testes aprovados, zero falhas (vidence/recipes-r42-live-progress-synchronized-full.trx). Compilação Release concluída em 11 s, zero erros e 1269 avisos de análise/compilação.

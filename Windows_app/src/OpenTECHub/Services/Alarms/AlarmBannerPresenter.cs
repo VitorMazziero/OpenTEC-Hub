@@ -62,13 +62,14 @@ public static class AlarmBannerPresenter
     }
 
     /// <summary>
-    /// The dot on the Eventos icon (D-068): null while nothing waits to be acknowledged; otherwise
-    /// <see cref="AlarmSeverity.Critical"/> (red) while any unacknowledged alarm is a live critical fault,
+    /// The dot on the Eventos icon (D-069): null while no alarm is latched; otherwise
+    /// <see cref="AlarmSeverity.Critical"/> (red) while any latched alarm is a live critical fault,
     /// else <see cref="AlarmSeverity.Warning"/> (amber: warnings, or faults that already returned to normal).
+    /// It stays for as long as the alarm does; silencing the sound does not touch it.
     /// </summary>
     public static AlarmSeverity? IndicatorSeverity(IReadOnlyList<AlarmSnapshot> latched)
     {
-        var pending = latched.Where(a => a.IsAnnunciating).ToArray();
+        var pending = latched.Where(a => a.Latched).ToArray();
         if (pending.Length == 0)
         {
             return null;

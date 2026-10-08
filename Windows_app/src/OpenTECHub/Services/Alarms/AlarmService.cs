@@ -207,12 +207,12 @@ public sealed class AlarmService : IAlarmService
             TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)),
         new(AlarmId.ModuleOffline, "Módulo sem resposta", AlarmSeverity.Critical,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
+        // On-delay of 15 s (was 2 s, D-068/D-069). The flowmeter drops off the Hub and is back within a few
+        // seconds almost every time, so both flowmeter alarms wait out that blink. The gas is not lost for
+        // the operator meanwhile: the node keeps its valves and setpoint (fail-in-place), so waiting does
+        // not change what the gas is doing.
         new(AlarmId.FlowmeterOffline, "Fluxômetro offline", AlarmSeverity.Warning,
-            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)),
-        // On-delay of 15 s (was 2 s, D-068). The flowmeter drops off the Hub and is back within a few
-        // seconds almost every time, so the critical flag waits out that blink; "Fluxômetro offline"
-        // above still warns after 2 s. The gas is not lost for the operator meanwhile: the node keeps
-        // its valves and setpoint (fail-in-place), so waiting does not change what the gas is doing.
+            UnsupervisedGasFlowOnDelay, TimeSpan.FromSeconds(2)),
         new(AlarmId.UnsupervisedGasFlow, "Gás aberto sem supervisão", AlarmSeverity.Critical,
             UnsupervisedGasFlowOnDelay, TimeSpan.FromSeconds(2)),
         new(AlarmId.FrozenData, "Dados congelados", AlarmSeverity.Critical,

@@ -826,19 +826,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// <summary>Whether there is anything left to acknowledge, anywhere.</summary>
     public bool HasUnacknowledgedAlarms => _alarms.AnnunciatingCount > 0;
 
-    /// <summary>The dot on the Eventos icon (D-068): shown while any alarm still waits to be acknowledged.</summary>
+    /// <summary>The dot on the Eventos icon (D-069): shown for as long as any alarm is latched.</summary>
     public bool HasAlarmIndicator => AlarmBannerPresenter.IndicatorSeverity(_alarms.Snapshot()) is not null;
 
     /// <summary>
-    /// The dot's colour: red while any unacknowledged alarm is a live critical fault, amber when every one of them
+    /// The dot's colour: red while any latched alarm is a live critical fault, amber when every one of them
     /// is only a warning or has already returned to normal.
     /// </summary>
     public VariableState AlarmIndicatorState
         => AlarmBannerPresenter.IndicatorSeverity(_alarms.Snapshot()) == AlarmSeverity.Critical
             ? VariableState.Alarm : VariableState.Warning;
-
-    /// <summary>Whether the headline alarm can still be acknowledged.</summary>
-    public bool CanAcknowledgeHeadline => AlarmHeadline?.IsAnnunciating ?? false;
 
     /// <summary>
     /// Maps one alarm occurrence to its banner/list presentation.
@@ -864,26 +861,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         return new AlarmListItem(
             alarm.Id, alarm.Title, detail, alarm.StateLabel, state, alarm.IsAnnunciating);
-    }
-
-    /// <summary>Acknowledges only the headline alarm (the first banner row).</summary>
-    [RelayCommand]
-    private void AcknowledgeHeadline()
-    {
-        if (AlarmHeadline is { } headline)
-        {
-            _alarms.Acknowledge(headline.Id);
-        }
-    }
-
-    /// <summary>Acknowledges one specific alarm row from the expanded list.</summary>
-    [RelayCommand]
-    private void AcknowledgeAlarm(AlarmListItem? item)
-    {
-        if (item is not null)
-        {
-            _alarms.Acknowledge(item.Id);
-        }
     }
 
     [RelayCommand]
@@ -922,7 +899,6 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(OtherAlarms));
         OnPropertyChanged(nameof(AlarmMoreText));
         OnPropertyChanged(nameof(HasMultipleAlarms));
-        OnPropertyChanged(nameof(CanAcknowledgeHeadline));
         if (!HasMultipleAlarms && IsAlarmListExpanded)
         {
             IsAlarmListExpanded = false;
@@ -1306,6 +1282,19 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>The speaker button (D-069): off means the application plays no sound, indefinitely.</summary>
+    public bool IsSoundOn => !_settings.Current.Ui.SoundMuted;
+
+    public string SoundIconKey => IsSoundOn ? "SoundOn" : "SoundOff";
+
+    public string SoundToolTip => IsSoundOn
+        ? "Som ativado — clique para desativar todos os sons do aplicativo"
+        : "Som desativado — clique para reativar os sons do aplicativo";
+
+    [RelayCommand]
+    private void ToggleSound()
+        => _settings.Update(s => s with { Ui = s.Ui with { SoundMuted = !s.Ui.SoundMuted } });
+
     [RelayCommand]
     private void ToggleTheme()
     {
@@ -1574,6 +1563,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     private void OnSettingsChanged(AppSettings settings)
     {
+        OnPropertyChanged(nameof(IsSoundOn));
+        OnPropertyChanged(nameof(SoundIconKey));
+        OnPropertyChanged(nameof(SoundToolTip));
         if (settings.Units == _appliedUnits)
         {
             return;

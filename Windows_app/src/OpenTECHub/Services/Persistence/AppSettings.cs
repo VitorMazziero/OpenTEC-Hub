@@ -1102,6 +1102,12 @@ public sealed record UiSettings
     /// </summary>
     public bool ShowVariableRail { get; init; }
 
+    /// <summary>
+    /// The speaker button in the title bar (D-069): when true the application plays no sound at all,
+    /// indefinitely. It sits above the timed silence of the alarm bar, which it neither starts nor ends.
+    /// </summary>
+    public bool SoundMuted { get; init; }
+
     /// <summary>Last valid rail destination, stored by stable id rather than index.</summary>
     public string LastPage { get; init; } = "dashboard";
 

@@ -34,7 +34,8 @@ public sealed class AlarmBarPlacementTests
         Assert.Contains("IsAlarmBannerVisible", banner, StringComparison.Ordinal);
         Assert.Contains("SilenceAlarmsCommand", banner, StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{Binding IsAlarmAudible}\"", banner, StringComparison.Ordinal);
-        Assert.Contains("AcknowledgeHeadlineCommand", banner, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reconhecer", banner, StringComparison.Ordinal);
+        Assert.DoesNotContain("Acknowledge", banner, StringComparison.Ordinal);
     }
 
     [Fact]

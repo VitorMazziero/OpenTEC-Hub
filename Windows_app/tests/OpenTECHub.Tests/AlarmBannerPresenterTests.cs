@@ -22,20 +22,20 @@ public sealed class AlarmBannerPresenterTests
         => latched.OrderByDescending(a => a.IsAnnunciating).ThenByDescending(a => a.Severity).FirstOrDefault();
 
     [Fact]
-    public void The_icon_dot_follows_the_most_urgent_alarm_still_to_be_acknowledged()
+    public void The_icon_dot_stays_for_as_long_as_an_alarm_is_latched_acknowledged_or_not()
     {
         Assert.Null(AlarmBannerPresenter.IndicatorSeverity([]));
-        Assert.Null(AlarmBannerPresenter.IndicatorSeverity([Alarm(AlarmId.LinkLost, acknowledged: true)]));
+        Assert.Equal(AlarmSeverity.Critical, AlarmBannerPresenter.IndicatorSeverity([Alarm(AlarmId.LinkLost, acknowledged: true)]));
 
         Assert.Equal(AlarmSeverity.Critical, AlarmBannerPresenter.IndicatorSeverity([Alarm(AlarmId.LinkLost)]));
         Assert.Equal(AlarmSeverity.Warning, AlarmBannerPresenter.IndicatorSeverity(
             [Alarm(AlarmId.FlowmeterOffline, severity: AlarmSeverity.Warning)]));
-        // A critical fault that already returned to normal only waits for acknowledgement: amber, not red.
+        // A critical fault that already returned to normal is about to clear itself: amber, not red.
         Assert.Equal(AlarmSeverity.Warning, AlarmBannerPresenter.IndicatorSeverity([Alarm(AlarmId.LinkLost, conditionActive: false)]));
-        // Red wins over amber; an acknowledged red does not keep the dot red.
+        // Red wins over amber; an acknowledged red is still red.
         Assert.Equal(AlarmSeverity.Critical, AlarmBannerPresenter.IndicatorSeverity(
             [Alarm(AlarmId.FlowmeterOffline, severity: AlarmSeverity.Warning), Alarm(AlarmId.LinkLost)]));
-        Assert.Equal(AlarmSeverity.Warning, AlarmBannerPresenter.IndicatorSeverity(
+        Assert.Equal(AlarmSeverity.Critical, AlarmBannerPresenter.IndicatorSeverity(
             [Alarm(AlarmId.FlowmeterOffline, severity: AlarmSeverity.Warning), Alarm(AlarmId.LinkLost, acknowledged: true)]));
     }
 

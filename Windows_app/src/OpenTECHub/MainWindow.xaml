@@ -301,6 +301,13 @@
                             shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Click="OpenCommandPalette_Click" />
 
+                    <Button Margin="8,0,0,0" Padding="10,4" ToolTip="{Binding SoundToolTip}"
+                            AutomationProperties.Name="Ativar ou desativar os sons do aplicativo"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True" Command="{Binding ToggleSoundCommand}">
+                        <ctl:Icon Key="{Binding SoundIconKey}" Size="20"
+                                  Stroke="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                    </Button>
+
                     <Button Margin="8,0,0,0" Padding="10,4" ToolTip="Alternar entre tema claro e escuro" shell:WindowChrome.IsHitTestVisibleInChrome="True" Command="{Binding ToggleThemeCommand}"><ctl:Icon Key="Theme" Size="20" Stroke="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /></Button>
                 </StackPanel>
             </Grid>

@@ -179,8 +179,10 @@ public sealed record AlarmSnapshot(
     /// <summary>The three operator-facing states from §5.4.1.</summary>
     public string StateLabel => (Latched, Acknowledged, ConditionActive) switch
     {
-        (true, false, false) => "Normalizado, não reconhecido",
-        (true, false, true) => "Não reconhecido",
+        // The operator no longer acknowledges (D-069): a latched alarm is either live or back to normal and
+        // about to clear itself.
+        (true, false, false) => "Normalizado",
+        (true, false, true) => "Ativo",
         (true, true, _) => "Reconhecido",
         _ => "Normal",
     };

@@ -313,7 +313,7 @@ public sealed class AlarmServiceTests
         h.AdvanceAndPoll(TimeSpan.FromSeconds(0.5)); // still inside the 1 s off-deadband
         var alarm = Assert.Single(h.Service.Snapshot());
         Assert.True(alarm.IsReturnedUnacknowledged);
-        Assert.Equal("Normalizado, não reconhecido", alarm.StateLabel);
+        Assert.Equal("Normalizado", alarm.StateLabel);
 
         // ...then it clears on its own once the deadband passes — no acknowledgement needed,
         // and the occurrence stays in the journal.
@@ -413,7 +413,10 @@ public sealed class AlarmServiceTests
             FlowControlEnabled = false,
             FlowmeterOnline = false,
         });
-        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        // D-069: the usual blink of the node (a few seconds) does not raise the warning.
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(14));
+        Assert.False(h.Latched(AlarmId.FlowmeterOffline));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1.2));
 
         Assert.True(h.Latched(AlarmId.FlowmeterOffline));
     }
@@ -438,14 +441,15 @@ public sealed class AlarmServiceTests
         // The node drops. The hub stops publishing flow values, so the frame carries none -
         // the node is fail-in-place, so the gas it was passing is still passing.
         h.Device.PushTelemetry(HealthyFrame() with { FlowmeterOnline = false });
-        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(14));
 
-        // D-068: the flowmeter's usual blink does not raise the critical flag; only a longer absence does.
+        // D-068/D-069: the flowmeter's usual blink raises neither the warning nor the critical flag;
+        // only a longer absence does.
+        Assert.False(h.Latched(AlarmId.FlowmeterOffline));
+        Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(1.2));
+
         Assert.True(h.Latched(AlarmId.FlowmeterOffline));
-        Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));
-        h.AdvanceAndPoll(TimeSpan.FromSeconds(8));
-        Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));
-        h.AdvanceAndPoll(TimeSpan.FromSeconds(6));
 
         Assert.True(h.Latched(AlarmId.UnsupervisedGasFlow));
         Assert.Equal(AlarmSeverity.Critical, h.Get(AlarmId.UnsupervisedGasFlow)!.Severity);
@@ -470,7 +474,7 @@ public sealed class AlarmServiceTests
         h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
 
         h.Device.PushTelemetry(HealthyFrame() with { FlowmeterOnline = false });
-        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(15.1));
 
         Assert.True(h.Latched(AlarmId.FlowmeterOffline));
         Assert.False(h.Latched(AlarmId.UnsupervisedGasFlow));

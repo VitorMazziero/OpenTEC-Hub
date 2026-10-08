@@ -4,8 +4,8 @@
              xmlns:conv="clr-namespace:OpenTECHub.Converters"
              xmlns:vm="clr-namespace:OpenTECHub.ViewModels"
              xmlns:ctl="clr-namespace:OpenTECHub.Controls">
-    <!-- The alarm bar, hosted at the top of the Eventos page only (D-068). Acknowledging, silencing and the
-         expandable list work as before; its DataContext is the shell view-model of the page template. -->
+    <!-- The alarm bar, hosted at the top of the Eventos page only (D-068). Silencing and the expandable list
+         work as before; there is no acknowledge button (D-069), alarms clear themselves; its DataContext is the shell view-model of the page template. -->
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:StateToBrushConverter x:Key="StateToBrush" />
@@ -62,11 +62,6 @@
                     <Button Content="Silenciar áudio (10 min)" Padding="10,4" Margin="0,0,8,0"
                             IsEnabled="{Binding IsAlarmAudible}"
                             Command="{Binding SilenceAlarmsCommand}" />
-                    <!-- Acknowledges just this headline alarm. -->
-                    <Button Content="Reconhecer"
-                            Padding="10,4"
-                            IsEnabled="{Binding CanAcknowledgeHeadline}"
-                            Command="{Binding AcknowledgeHeadlineCommand}" />
                     <!-- Dropdown: reveals every other latched alarm as its own row. -->
                     <Button Margin="8,0,0,0" Padding="10,4"
                             Content="{Binding AlarmExpandLabel}"
@@ -76,8 +71,7 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Expanded: the other currently latched alarms, one row each with its own
-                 Reconhecer. -->
+            <!-- Expanded: the other currently latched alarms, one row each. -->
             <ItemsControl ItemsSource="{Binding OtherAlarms}"
                           Margin="26,8,0,2"
                           Visibility="{Binding IsAlarmListExpanded, Converter={StaticResource BoolToVis}}">
@@ -89,7 +83,6 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <ctl:StateDot Grid.Column="0" State="{Binding State}" Margin="0,0,10,0"
                                           VerticalAlignment="Center" />
@@ -102,12 +95,6 @@
                             <TextBlock Grid.Column="3" Text="{Binding Detail}" Margin="16,0,12,0"
                                        VerticalAlignment="Center" TextWrapping="Wrap"
                                        Style="{StaticResource CaptionTextStyle}" />
-                            <Button Grid.Column="4" Content="Reconhecer" Padding="8,3"
-                                    VerticalAlignment="Center"
-                                    IsEnabled="{Binding CanAcknowledge}"
-                                    Command="{Binding DataContext.AcknowledgeAlarmCommand,
-                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}" />
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

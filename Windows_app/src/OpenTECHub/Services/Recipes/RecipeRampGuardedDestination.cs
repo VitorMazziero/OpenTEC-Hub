@@ -60,7 +60,7 @@ public sealed class RecipeRampGuardedDestination : IRecipeRampDestination
             // otherwise race the next assay. Destination confirmation must observe cancellation.
             var confirmed = await _destination.TryConfirmFinalAsync(references, linked.Token).ConfigureAwait(false);
             linked.Token.ThrowIfCancellationRequested();
-            return confirmed;
+            return confirmed && !_clock.IsSuspended;
         }
         catch (OperationCanceledException error) when (deadline.IsCancellationRequested &&
             !cancellation.IsCancellationRequested && !_producer.StopToken.IsCancellationRequested)

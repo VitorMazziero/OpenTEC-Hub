@@ -50,6 +50,24 @@ public sealed class RecipeRampGuardedDestinationTests
     }] }, new Dictionary<SetpointVariable, double>(), (_, value) => value);
 
     [Fact]
+    public async Task SuspensionRequestedDuringConfirmationDoesNotPromoteCompletion()
+    {
+        var time = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);
+        var clock = new RecipeRampActiveClock(time);
+        using var producer = new RecipeRampResourceProducer("ramp", [ActuatorId.Aeration], clock);
+        var target = new Destination { Confirmation = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var guarded = new RecipeRampGuardedDestination(producer, clock, target, time, TimeSpan.FromSeconds(5));
+        var confirming = guarded.TryConfirmFinalAsync(Trajectory().Sample(10), default);
+        var suspending = producer.SuspendAsync(default);
+        Assert.False(suspending.IsCompleted);
+        target.Confirmation.TrySetResult();
+        Assert.False(await confirming.WaitAsync(TimeSpan.FromSeconds(2)));
+        var pause = await suspending.WaitAsync(TimeSpan.FromSeconds(2));
+        pause.Resume();
+        Assert.True(await guarded.TryConfirmFinalAsync(Trajectory().Sample(10), default));
+    }
+
+    [Fact]
     public async Task SamplesInsideLeaseAndCannotCompleteDuringAssayOrRecipePause()
     {
         var time = new TestClock(DateTimeOffset.UnixEpoch, virtualTimers: true);

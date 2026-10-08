@@ -16,7 +16,7 @@ public sealed class RecipeRampTerminalPersistenceTests
     private static RecipeRampTerminalCheckpoint Completed(RecipeRampStartCheckpoint start) => new(1,
         start.InitialState.ExecutionId, start.InvocationId, start.InitialState.SnapshotId, start.InitialState.NodeId,
         RecipeRampTerminalStatus.Completed, RecipeRampReturnOutcome.NotRequired, 60, DateTimeOffset.UtcNow, null,
-        [new(SetpointVariable.Temperature, null, 30, RecipeRampConfirmationEvidence.ProcessFeedback, DateTimeOffset.UtcNow)]);
+        [new(SetpointVariable.Temperature, null, 30, RecipeRampConfirmationEvidence.ProcessFeedback, DateTimeOffset.UtcNow, 30, 0)]);
 
     [Fact]
     public async Task CompletionRequiresDurableStartActiveDurationAndEveryDestinationConfirmation()
@@ -30,6 +30,8 @@ public sealed class RecipeRampTerminalPersistenceTests
         foreach (var invalid in new[] { result with { ActiveSeconds = 59 }, result with { FinalConfirmations = [] },
             result with { SnapshotId = Guid.NewGuid() }, result with { ReturnOutcome = RecipeRampReturnOutcome.RestoredSnapshot },
             result with { FinalConfirmations = [result.FinalConfirmations[0] with { Reference = 29 }] },
+            result with { FinalConfirmations = [result.FinalConfirmations[0] with { ObservedValue = null }] },
+            result with { FinalConfirmations = [result.FinalConfirmations[0] with { ObservedValue = 31 }] },
             result with { FinalConfirmations = [result.FinalConfirmations[0] with { Evidence = RecipeRampConfirmationEvidence.TransportAccepted }] },
             result with { FinalConfirmations = [result.FinalConfirmations[0] with { Evidence = RecipeRampConfirmationEvidence.ControllerReference }] } })
             await Assert.ThrowsAsync<InvalidDataException>(() => store.PersistTerminalAsync(invalid));

@@ -10,7 +10,8 @@ public enum RecipeRampConfirmationEvidence { TransportAccepted, DeviceReferenceR
 
 /// <summary>Reference actually confirmed by a destination. Transport acceptance alone cannot complete a ramp.</summary>
 public sealed record RecipeRampFinalConfirmation(SetpointVariable Variable, RampOxygenTarget? OxygenTarget,
-    double Reference, RecipeRampConfirmationEvidence Evidence, DateTimeOffset RecordedUtc);
+    double Reference, RecipeRampConfirmationEvidence Evidence, DateTimeOffset RecordedUtc,
+    double? ObservedValue = null, double? Tolerance = null);
 
 public sealed record RecipeRampTerminalCheckpoint(int SchemaVersion, Guid ExecutionId, Guid InvocationId,
     Guid SnapshotId, string NodeId, RecipeRampTerminalStatus Status, RecipeRampReturnOutcome ReturnOutcome,
@@ -81,6 +82,11 @@ public sealed partial class RecipeRampCheckpointStore
                 controller && confirmation.Evidence != RecipeRampConfirmationEvidence.ControllerReference ||
                 !controller && confirmation.Evidence == RecipeRampConfirmationEvidence.ControllerReference)
                 throw new InvalidDataException("Confirmação final incompatível com o destino ou alvo da rampa.");
+            if (confirmation.Evidence == RecipeRampConfirmationEvidence.ProcessFeedback &&
+                (confirmation.ObservedValue is not { } observed || !double.IsFinite(observed) ||
+                 confirmation.Tolerance is not { } tolerance || !double.IsFinite(tolerance) || tolerance < 0 ||
+                 Math.Abs(observed - confirmation.Reference) > tolerance))
+                throw new InvalidDataException("Confirmação física exige leitura e tolerância coerentes.");
         }
         if (result.Status == RecipeRampTerminalStatus.Completed)
         {

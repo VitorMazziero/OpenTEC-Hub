@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="5873773a-4d89-42a1-a0c9-5a39d69c4239" name="vitor@DESKTOP-J4OP7IO 2026-10-08 14:19:39" runUser="DESKTOP-J4OP7IO\vitor" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-08T14:19:39.6440703-03:00" queuing="2026-10-08T14:19:39.6440706-03:00" start="2026-10-08T14:19:36.2282985-03:00" finish="2026-10-08T14:19:42.1748222-03:00" />
+  <TestSettings name="default" id="7235367d-e667-4457-9001-dffdbfd0e056">
+    <Deployment runDeploymentRoot="vitor_DESKTOP-J4OP7IO_2026-10-08_14_19_39" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="cdabbc35-3b48-4ddd-b269-cf54ff2f1953" testId="bdfd1d63-9306-3abb-33f2-f43ccefba187" testName="OpenTECHub.Tests.KlaDeterminationViewModelTests.AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly(protocol: Biotic, dark: True)" computerName="DESKTOP-J4OP7IO" duration="00:00:01.0956805" startTime="2026-10-08T14:19:40.1516466-03:00" endTime="2026-10-08T14:19:40.1516468-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cdabbc35-3b48-4ddd-b269-cf54ff2f1953" />
+    <UnitTestResult executionId="39861a69-d142-4055-9939-f5bc37f95aa4" testId="b3413d6a-22a4-f22d-686a-de5a144e86de" testName="OpenTECHub.Tests.KlaDeterminationViewModelTests.AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly(protocol: Abiotic, dark: True)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.9601063" startTime="2026-10-08T14:19:41.1118195-03:00" endTime="2026-10-08T14:19:41.1118199-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="39861a69-d142-4055-9939-f5bc37f95aa4" />
+    <UnitTestResult executionId="6005ec2e-8dff-4b77-8e83-e34cdeac0d10" testId="1783fd33-7e94-e286-8973-2556b1568cce" testName="OpenTECHub.Tests.KlaDeterminationViewModelTests.AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly(protocol: Abiotic, dark: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:01.9916141" startTime="2026-10-08T14:19:39.0563982-03:00" endTime="2026-10-08T14:19:39.0564324-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6005ec2e-8dff-4b77-8e83-e34cdeac0d10" />
+    <UnitTestResult executionId="e13b45dd-a1fb-4450-a5c6-82b4e361717f" testId="9fc87b36-bad1-2e01-603d-58b2e1d537d7" testName="OpenTECHub.Tests.KlaDeterminationViewModelTests.AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly(protocol: Biotic, dark: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.9058165" startTime="2026-10-08T14:19:42.0177596-03:00" endTime="2026-10-08T14:19:42.0177600-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e13b45dd-a1fb-4450-a5c6-82b4e361717f" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="OpenTECHub.Tests.KlaDeterminationViewModelTests.AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly(protocol: Biotic, dark: True)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="bdfd1d63-9306-3abb-33f2-f43ccefba187">
+      <Execution id="cdabbc35-3b48-4ddd-b269-cf54ff2f1953" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaDeterminationViewModelTests" name="AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaDeterminationViewModelTests.AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly(protocol: Biotic, dark: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="9fc87b36-bad1-2e01-603d-58b2e1d537d7">
+      <Execution id="e13b45dd-a1fb-4450-a5c6-82b4e361717f" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaDeterminationViewModelTests" name="AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaDeterminationViewModelTests.AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly(protocol: Abiotic, dark: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="1783fd33-7e94-e286-8973-2556b1568cce">
+      <Execution id="6005ec2e-8dff-4b77-8e83-e34cdeac0d10" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaDeterminationViewModelTests" name="AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.KlaDeterminationViewModelTests.AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly(protocol: Abiotic, dark: True)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="b3413d6a-22a4-f22d-686a-de5a144e86de">
+      <Execution id="39861a69-d142-4055-9939-f5bc37f95aa4" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.KlaDeterminationViewModelTests" name="AutomaticHistoryRendersAllAttemptsAndKeepsProtocolReadOnly" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="bdfd1d63-9306-3abb-33f2-f43ccefba187" executionId="cdabbc35-3b48-4ddd-b269-cf54ff2f1953" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b3413d6a-22a4-f22d-686a-de5a144e86de" executionId="39861a69-d142-4055-9939-f5bc37f95aa4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1783fd33-7e94-e286-8973-2556b1568cce" executionId="6005ec2e-8dff-4b77-8e83-e34cdeac0d10" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9fc87b36-bad1-2e01-603d-58b2e1d537d7" executionId="e13b45dd-a1fb-4450-a5c6-82b4e361717f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados que não estão em uma lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos os resultados carregados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="4" executed="4" passed="4" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 10.0.12)&#xD;
+[xUnit.net 00:00:00.11]   Discovering: OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.36]   Discovered:  OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.37]   Starting:    OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:05.36]   Finished:    OpenTECHub.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

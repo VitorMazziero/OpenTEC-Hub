@@ -65,6 +65,16 @@ public sealed partial class KlaDeterminationViewModelTests
                 Assert.Equal(77, _vm.CurrentAnalysis!.KlaPerHour);
                 Assert.Null(_vm.RecordedAutomaticAttempts[0].Run.AutomaticDecision!.KlaPerHour);
                 var review = WpfRenderingHost.RenderElement(view, 1280, 800, 120);
+                var chart = Assert.IsType<ScottPlot.WPF.WpfPlot>(((Border)view.FindName("ChartDoHost")).Child);
+                var series = Assert.Single(chart.Plot.GetPlottables<ScottPlot.Plottables.DataLogger>().Where(series => series.IsVisible));
+                var limits = series.GetAxisLimits();
+                Assert.Equal(0, limits.Left);
+                Assert.Equal(39, limits.Right);
+                Assert.Equal(20, limits.Bottom, 6);
+                Assert.Equal(_vm.LivePoints[^1].DOFiltered, limits.Top, 6);
+                var curvePath = Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
+                    "evidence", "ui-results", $"curve-{protocol}-{dark}.png");
+                chart.Plot.SavePng(curvePath, 1000, 650);
                 WpfRenderingHost.SavePng(review, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
                     "evidence", "ui-results", $"review-{protocol}-{dark}.png"));
             }

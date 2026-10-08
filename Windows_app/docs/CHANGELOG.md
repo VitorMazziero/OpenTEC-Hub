@@ -6,6 +6,26 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [Unreleased]
+
+### kLa — abiótico e biótico, único e múltiplos (plano de 06/10/2026, E0–E7)
+
+- página Determinar kLa com abas Abiótico/Biótico e captura Única/Múltiplos sobre um único runner e núcleo científico determinístico (`OpenTecDeterministicKlaV1`: Ceq, janela qualificada, OLS final e OUR respiratório independente);
+- aquisição qualificada por nova amostra de OD, retomada confirmada do cultivo antes da revisão, separação entre qualidade científica, decisão do operador e estado físico;
+- esquema de sessão 3, com leitura de sessões antigas; API interna idempotente para ensaios (E6). Biótico físico permanece bloqueado até a bancada de E7.
+
+### Receitas — kLa autônomo, periodicidade e rampas lineares (plano de 07/10/2026, R0–R6.1)
+
+- blocos **Determinar kLa**, **Periodicidade** e **Rampa linear de referências**, com reservas por bloco, suspensão da cascata, restauração do snapshot e recibos duráveis antes de avançar;
+- decisão automática com autoria própria e repetição limitada por motivos estruturados; resultados, progresso ao vivo e navegação para a sessão comum;
+- execução autônoma de kLa restrita ao ambiente isolado de simulação com perfil qualificado importado; sete receitas de exemplo em `docs/plans/receitas-r61/examples`.
+
+### Auditoria final (08/10/2026)
+
+- correção de falha intermitente nos testes de captura WPF, de avisos CS8602/CS9124 e teste de rampa com mudança do relógio civil; pendências e decisões em `docs/plans/PLANO_FINALIZACAO.md`.
+
+---
+
 ## [0.26.4] - 2026-09-18
 
 ### Potência — tara, estabilidade e recálculo

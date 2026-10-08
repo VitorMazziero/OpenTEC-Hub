@@ -34,6 +34,13 @@ reset de falha com motivo; referência do reator só na linha de temperatura; si
 no Hub e confirmada pelo eco; receitas na via externa aguardam `Tempval` na banda ±0,5 °C por
 30 s. Suíte 1755/1755. Validação física segue pendente (H08 P01–P13).
 
+**08/10/2026 — kLa abiótico/biótico (E0–E7) e receitas autônomas (R0–R6.1) auditados em software.**
+Regressão completa em Release: 2508 aprovados após correção de uma falha intermitente de captura WPF.
+A execução autônoma de kLa permanece restrita ao ambiente isolado de simulação; o biótico físico segue
+bloqueado. Decisões abertas (rampas no ambiente físico, política de falha biótica, 2120 avisos de estilo
+IDE0011 contra o gate de zero avisos) e a bancada E7/R6.2 estão em
+[`plans/PLANO_FINALIZACAO.md`](plans/PLANO_FINALIZACAO.md).
+
 This document is the current release-status source. The detailed build sequence remains in
 [ROADMAP.md](ROADMAP.md), historical implementation evidence remains in
 [PHASE_LOG.md](PHASE_LOG.md), and released changes remain in [CHANGELOG.md](CHANGELOG.md).

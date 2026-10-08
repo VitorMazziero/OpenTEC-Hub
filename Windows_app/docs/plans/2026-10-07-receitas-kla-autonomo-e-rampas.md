@@ -1,7 +1,7 @@
 # Receitas: determinação autônoma de kLa e rampas lineares
 
 Data: 07/10/2026. Segunda revisão após chegada de E5/E6/E7. Base inspecionada: `main`, HEAD `237c254`, com base E5/E6/E7 consolidada e entregas R0.2/R1.1/R1.2. Há imagens/evidências locais modificadas ou não rastreadas, inclusive duplicatas de sincronização; não as incorporar nem excluir automaticamente.
-Estado: R0.1, R0.2, R1.1, R1.2, R1.3, R3.1, R2.1, R2.2 e R4.1 entregues para software conforme [registro de execução](EXECUCAO_RECEITAS.md). Próxima etapa: R4.2, blocos, editor e apresentação de resultados. Esta revisão não libera atuação ou qualificação de bancada. Recibos E7 de outras revisões não identificam automaticamente este conjunto de fontes. Os diagnósticos abaixo preservam a auditoria original; consultar os recibos para as correções posteriores.
+Estado (08/10/2026): R0.1–R6.1 entregues e auditadas em software conforme [registro de execução](EXECUCAO_RECEITAS.md) e [auditoria final](AUDITORIA_FINAL_RECEITAS.md), com ressalvas A-04/A-05/A-06/A-07/A-08. R6.2 depende de bancada. Próximas etapas: [plano de finalização](PLANO_FINALIZACAO.md). Esta revisão não libera atuação ou qualificação de bancada. Recibos E7 de outras revisões não identificam automaticamente este conjunto de fontes. Os diagnósticos abaixo preservam a auditoria original; consultar os recibos para as correções posteriores.
 
 ## 1. Situação atual e escopo
 
@@ -303,7 +303,7 @@ As nove primeiras etapas da ordem revisada são entregas registradas, não taref
 - R0 original e extensão de periodicidade/handoff: commits `b8b5f2e` e `c51253f`; seus contratos não provam execução autônoma.
 - R0.1/R0.2/R1.1/R1.2: commits `be213dc`, `5669f3a`, `52cee5a`, `237c254`; gate integrado ao engine/PID. R1.3 foi validada em software; integração de produção depende de R3.1/R2.1/R4.1.
 - E5/E6/E7: reutilizar o que foi entregue; não refazer núcleo/diário/visualizador nem remover bloqueios para fazer o exemplo funcionar.
-- Próxima alteração de código: conectar os blocos ao catálogo, editor e provedor do engine em R4.2, sobre a integração R4.1 validada. Preservar qualificação por perfil e instalação ao registrar o provedor.
+- Próxima alteração de código: pacotes F2–F7 do [plano de finalização](PLANO_FINALIZACAO.md). Preservar qualificação por perfil e instalação.
 - Pacote só termina com alterações, testes relevantes e recibo; aprovação simulada não fecha bancada. Rever este plano se o checkout receber nova alteração concorrente antes da etapa seguinte.
 
 Arquivos existentes envolvidos: `Services/KlaTesting/{IKlaTestRunner,KlaTestRunner,KlaTestRunner.Biotic,KlaAssayCoordinator,KlaSessionModels,IKlaTestStore,KlaTestStore}.cs`; `Services/Recipes/{RecipeEnums,RecipeNodeCatalog,RecipeSchema,RecipeValidator,RecipeSerializer,RecipeEngine,RecipeEngine.Flow,RecipeEngine.State,RecipeEngine.Safety,RecipeEngine.Actuation,RecipeEngine.Cascade}.cs`; editor/visualizadores de receitas e kLa. Novos serviços devem permanecer fora de ViewModels e compartilhar o núcleo científico atual.

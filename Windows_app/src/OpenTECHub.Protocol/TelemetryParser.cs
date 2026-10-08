@@ -216,6 +216,7 @@ public sealed class TelemetryParser
         // instant, or two devices in the same frame disagree about what "now" is.
         var now = _time.GetUtcNow();
 
+        Readings.TemperatureUpdated = false;
         Readings.OxygenUpdated = false;
         Readings.PHUpdated = false;
         Readings.OxygenFrameReceived = root.TryGetProperty(TelemetryKeys.OxygenRaw, out _);
@@ -248,6 +249,7 @@ public sealed class TelemetryParser
             value is > 10.0 and < 100.0)
         {
             Readings.Temperature = value;
+            Readings.TemperatureUpdated = true;
         }
     }
 

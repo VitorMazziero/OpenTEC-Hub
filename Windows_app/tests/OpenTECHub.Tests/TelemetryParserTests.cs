@@ -10,6 +10,22 @@ namespace OpenTECHub.Tests;
 /// <remarks>See <c>docs/PROTOCOL.md</c> section 2.</remarks>
 public class TelemetryParserTests
 {
+    [Fact]
+    public void TemperatureFreshnessDoesNotPromoteRetainedOrRejectedReadings()
+    {
+        var parser = new TelemetryParser();
+        parser.Parse("{\"Tempval\":37}");
+        Assert.True(parser.Readings.Snapshot().TemperatureUpdated);
+        foreach (var frame in new[] { "{\"Time\":2}", "{\"Tempval\":-1}", "{\"Tempval\":10}", "{\"Tempval\":100}" })
+        {
+            parser.Parse(frame);
+            Assert.False(parser.Readings.Snapshot().TemperatureUpdated);
+            Assert.Equal(37, parser.Readings.Temperature);
+        }
+        parser.Parse("{\"Tempval\":38}");
+        Assert.True(parser.Readings.Snapshot().TemperatureUpdated);
+        Assert.Equal(38, parser.Readings.Temperature);
+    }
     /// <summary>
     /// A real frame captured from the bench ESP32-S3 on 2026-08-19, with no
     /// bioreactor module attached - hence the sentinels and <c>SensorCommOK:false</c>.

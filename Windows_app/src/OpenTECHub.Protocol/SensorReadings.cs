@@ -40,6 +40,8 @@ public sealed class SensorReadings
            absorbance < BiomassDarkThreshold;
 
     public double Temperature { get; set; } = NotReceived;
+    /// <summary>The current frame supplied a temperature accepted by the parser.</summary>
+    public bool TemperatureUpdated { get; set; }
 
     /// <summary>Accepted raw ADC count for oxygen, after spike filtering.</summary>
     public double OxygenRaw { get; set; } = NotReceived;
@@ -369,6 +371,7 @@ public sealed class SensorReadings
     public SensorSnapshot Snapshot() => new()
     {
         Temperature = Temperature,
+        TemperatureUpdated = TemperatureUpdated,
         OxygenRaw = OxygenRaw,
         OxygenUpdated = OxygenUpdated,
         OxygenFrameReceived = OxygenFrameReceived,
@@ -550,6 +553,8 @@ public sealed class SensorReadings
 public sealed record SensorSnapshot
 {
     public double Temperature { get; init; }
+    /// <summary>Whether this frame supplied an accepted temperature, rather than a retained prior value.</summary>
+    public bool TemperatureUpdated { get; init; } = true;
     public double OxygenRaw { get; init; }
     /// <summary>Whether this frame supplied a new, accepted oxygen reading.</summary>
     public bool OxygenUpdated { get; init; } = true;

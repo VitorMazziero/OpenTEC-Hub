@@ -27,6 +27,31 @@ public sealed partial class KlaDeterminationViewModelTests
         Assert.All(document.Runs, r => Assert.Equal(KlaOperatorDecision.Pending, r.EffectiveOutcome.OperatorDecision));
     }
 
+    [Theory]
+    [InlineData(KlaAssayProtocol.Abiotic)] [InlineData(KlaAssayProtocol.Biotic)]
+    public void AutomaticHistoryRejectsProtocolAndCaptureChangesWithoutOpeningCreationDialog(KlaAssayProtocol protocol)
+    {
+        var request = RecipeExecutionContractTests.Request(protocol);
+        var document = _store.CreateTest("Immutable automatic history", request.Definition);
+        document.RecipeRequest = request;
+        _store.SaveTestManifest(document);
+        _vm.LoadTest(document.FolderName);
+        var before = KlaTestFileContracts.SerializeTestDocument(_vm.CurrentTest!);
+        var expectedBiotic = protocol == KlaAssayProtocol.Biotic;
+        var expectedSingle = document.EffectiveCaptureMode == KlaCaptureMode.Single;
+        _vm.IsBiotic = !expectedBiotic;
+        _vm.IsSingleCapture = !expectedSingle;
+        Assert.Equal(expectedBiotic, _vm.IsBiotic);
+        Assert.Equal(expectedSingle, _vm.IsSingleCapture);
+        Assert.False(_vm.IsCreateDialogOpen);
+        Assert.Equal(before, KlaTestFileContracts.SerializeTestDocument(_vm.CurrentTest!));
+        var manual = _store.CreateTest("Manual session", new KlaTestSettings());
+        _vm.LoadTest(manual.FolderName);
+        _vm.IsBiotic = true;
+        Assert.True(_vm.IsBiotic);
+        Assert.True(_vm.IsCreateDialogOpen);
+    }
+
     [Fact]
     public async Task Automatic_attempt_can_be_opened_for_reading_but_cannot_be_reclassified_or_reconfigured()
     {

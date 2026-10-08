@@ -203,6 +203,12 @@ public sealed partial class KlaDeterminationViewModel
 
     partial void OnIsBioticChanged(bool value)
     {
+        if (!_isLoadingSettings && IsAutomaticSession && CurrentTest is { } saved &&
+            value != (saved.EffectiveProtocol == KlaAssayProtocol.Biotic))
+        {
+            IsBiotic = saved.EffectiveProtocol == KlaAssayProtocol.Biotic;
+            return;
+        }
         OnPropertyChanged(nameof(IsAbiotic));
         OnPropertyChanged(nameof(GasConfirmationLabel));
         OnPropertyChanged(nameof(ProtocolSummary));
@@ -212,6 +218,12 @@ public sealed partial class KlaDeterminationViewModel
     }
     partial void OnIsSingleCaptureChanged(bool value)
     {
+        if (!_isLoadingSettings && IsAutomaticSession && CurrentTest is { } saved &&
+            value != (saved.EffectiveCaptureMode == KlaCaptureMode.Single))
+        {
+            IsSingleCapture = saved.EffectiveCaptureMode == KlaCaptureMode.Single;
+            return;
+        }
         OnPropertyChanged(nameof(IsMultipleCapture));
         if (!_isLoadingSettings && CurrentTest is not null && (CurrentTest.EffectiveCaptureMode == KlaCaptureMode.Single) != value)
             OpenCreateDialog();

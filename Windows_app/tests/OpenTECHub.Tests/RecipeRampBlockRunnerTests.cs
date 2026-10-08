@@ -131,6 +131,8 @@ public sealed class RecipeRampBlockRunnerTests
     [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 4)]
     [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 5)]
     [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 6)]
+    [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 7)]
+    [InlineData(true, RampCancellationPolicy.RestoreSnapshot, 8)]
     public async Task InvocationPreparesExecutesAndPersistsItsCompletionOrCancellation(bool cancel, RampCancellationPolicy policy, int pauseKind)
     {
         var device = new RecordingDeviceService();
@@ -220,6 +222,21 @@ public sealed class RecipeRampBlockRunnerTests
                 Assert.Equal(pausedReference, Volatile.Read(ref reference));
                 Assert.Equal(count, device.Sent.Count);
                 if (assay is not null) assay.AbortBeforeAssay(); else engine.Resume();
+            }
+            if (pauseKind is 7 or 8)
+            {
+                var commandsBeforeLoss = device.Sent.Count;
+                if (pauseKind == 7) device.PushState(ConnectionState.Disconnected, "link lost during ramp");
+                else arbiter.Claim(CommandOwner.Manual, [ActuatorId.Temperature], "manual takeover during ramp");
+                var lost = await running.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal(pauseKind == 7 ? RecipeRampTerminalStatus.EmergencyStopped : RecipeRampTerminalStatus.Faulted, lost.Status);
+                Assert.Equal(pauseKind == 7 ? RecipeRampReturnOutcome.SuppressedForEmergency : RecipeRampReturnOutcome.Failed, lost.ReturnOutcome);
+                Assert.False(lost.HasVerifiedRecovery);
+                Assert.Equal(commandsBeforeLoss, device.Sent.Count);
+                Assert.Equal(28, Volatile.Read(ref reference));
+                Assert.Equal(CommandOwner.Manual, arbiter.OwnerOf(ActuatorId.Temperature));
+                Assert.Equal(lost.Status, store.ReadTerminal(engine.ExecutionId, lost.InvocationId)!.Status);
+                return;
             }
             if (pauseKind == 3) arbiter.DispatchSafety(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 0), "emergency during ramp");
             else if (cancel) cancellation.Cancel();

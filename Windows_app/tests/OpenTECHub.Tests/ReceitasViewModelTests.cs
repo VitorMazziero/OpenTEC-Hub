@@ -3,6 +3,12 @@ using OpenTECHub.Services.KlaTesting;
 using OpenTECHub.Services.Recipes;
 using OpenTECHub.ViewModels;
 using Xunit;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using OpenTECHub.Tests.Rendering;
+using OpenTECHub.Views;
 
 namespace OpenTECHub.Tests;
 
@@ -59,6 +65,55 @@ public sealed class ReceitasViewModelTests
             return fileName;
         }
         public void Delete(string fileName) => _files.Remove(fileName);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void TerminalRestorationFailureRendersAndActualButtonNavigatesToSavedSession(bool dark)
+        => WpfRenderingHost.Run(() =>
+        {
+            WpfRenderingHost.SetTheme(dark);
+            try
+            {
+                var engine = new FakeRecipeEngine();
+                using var vm = new ReceitasViewModel(engine, new FakeRecipeStore());
+                var request = RecipeExecutionContractTests.Request();
+                var result = new KlaRecipeResult { Context = request.Context, SessionId = Guid.NewGuid(),
+                    SessionFolder = "automatic-session", Status = KlaRecipeTerminalStatus.RestorationFailure,
+                    Attempts = [], PreAssayStateRestored = false, PersistenceConfirmed = true,
+                    Reason = "Sem confirmação de retorno" };
+                result.Validate();
+                engine.AutonomousResults = [result];
+                engine.NotifyState();
+                string? opened = null;
+                vm.OpenAutomaticSessionRequested += folder => opened = folder;
+                var view = new ReceitasView { DataContext = vm };
+                ((Expander)view.FindName("KlaObservationsExpander")).IsExpanded = true;
+                var bitmap = WpfRenderingHost.RenderElement(view, 1280, 800, 120);
+                Assert.True(VisualValidationHelper.ValidateBitmap(bitmap).IsNonTrivial);
+                Assert.Contains(TerminalControls<TextBlock>(view), text => text.Text.Contains("Falha de restauração"));
+                Assert.Contains(TerminalControls<TextBlock>(view), text => text.Text.Contains("Retorno: não confirmado"));
+                Assert.Contains(TerminalControls<TextBlock>(view), text => text.Text.Contains("gravação: confirmada"));
+                var button = Assert.Single(TerminalControls<Button>(view)
+                    .Where(button => Equals(button.Content, "Abrir sessão e tentativas")));
+                Assert.True(button.IsEnabled);
+                Assert.True(button.Command!.CanExecute(button.CommandParameter));
+                button.Command.Execute(button.CommandParameter);
+                Assert.Equal(result.SessionFolder, opened);
+                WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
+                    "evidence", "ui-terminal", $"restoration-failure-{dark}.png"));
+            }
+            finally { WpfRenderingHost.SetTheme(false); }
+        });
+
+    private static IEnumerable<T> TerminalControls<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match) yield return match;
+            foreach (var nested in TerminalControls<T>(child)) yield return nested;
+        }
     }
 
     private static ReceitasViewModel Build() => new(new FakeRecipeEngine(), new FakeRecipeStore());

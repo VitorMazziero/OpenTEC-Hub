@@ -27,6 +27,15 @@ public sealed partial class KlaDeterminationViewModelTests
                 document.RecipeRequest = request;
                 document.Runs.Add(KlaAutomaticResultsTests.Run(request, 1, KlaAutomaticDecision.Retry));
                 document.Runs.Add(KlaAutomaticResultsTests.Run(request, 2, KlaAutomaticDecision.Selected));
+                var points = Enumerable.Range(0, 40).Select(index => new KlaRawDataPoint(DateTimeOffset.UnixEpoch.AddSeconds(index),
+                    index, RunPhase.Reoxygenating, 80 - 60 * Math.Exp(-index / 10d), 80 - 60 * Math.Exp(-index / 10d),
+                    2, 2, 300, false, false, true)).ToArray();
+                foreach (var run in document.Runs)
+                {
+                    _store.SaveRunRawData(document.FolderName, run.FolderName, points);
+                    _store.SaveRunAnalysis(document.FolderName, run.FolderName, new KlaAnalysisRevision
+                        { RevisionNumber = 1, KlaPerHour = 77, Quality = DecisionQuality.Acceptable });
+                }
                 _store.SaveTestManifest(document);
                 _vm.LoadTest(document.FolderName);
                 _vm.RefreshConditionsList();
@@ -49,6 +58,15 @@ public sealed partial class KlaDeterminationViewModelTests
                 Assert.All(document.Runs, run => Assert.Equal(KlaOperatorDecision.Pending, run.EffectiveOutcome.OperatorDecision));
                 WpfRenderingHost.SavePng(bitmap, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
                     "evidence", "ui-results", $"history-{protocol}-{dark}.png"));
+                attempts[0].Command!.Execute(attempts[0].CommandParameter);
+                Assert.True(_vm.IsReviewOpen);
+                Assert.Equal(points.Length, _vm.LivePoints.Count);
+                Assert.False(_vm.CanDecideRun);
+                Assert.Equal(77, _vm.CurrentAnalysis!.KlaPerHour);
+                Assert.Null(_vm.RecordedAutomaticAttempts[0].Run.AutomaticDecision!.KlaPerHour);
+                var review = WpfRenderingHost.RenderElement(view, 1280, 800, 120);
+                WpfRenderingHost.SavePng(review, Path.Combine(TestPaths.RepositoryRoot, "docs", "plans", "receitas-r61",
+                    "evidence", "ui-results", $"review-{protocol}-{dark}.png"));
             }
             finally { WpfRenderingHost.SetTheme(false); }
         });

@@ -12,7 +12,8 @@ public sealed class KlaRecipePulseLifecycle(KlaTestRunner runner, RecipeAssayRes
     private int _started;
     public async Task<KlaRecipePulseLifecycleResult> ExecuteAsync(KlaTestDocument document, KlaTestCondition condition,
         int replicateNumber, KlaRecipeRestorationContract contract, RecipeAssayRecoveryCriteria criteria,
-        CancellationToken acquisitionCancellation, Func<CancellationToken, Task>? beforeRun = null)
+        CancellationToken acquisitionCancellation, Func<CancellationToken, Task>? beforeRun = null,
+        Func<Task>? recordCancelledPreparation = null)
     {
         if (!ReferenceEquals(runner.RecipeAuthorityLease, lease))
             throw new ArgumentException("Runner e recuperação devem usar a mesma reserva.");
@@ -30,6 +31,12 @@ public sealed class KlaRecipePulseLifecycle(KlaTestRunner runner, RecipeAssayRes
             acquisition = new(KlaRecipeAcquisitionState.Failed, runner.Phase, ex.Message);
             // Acquisition seals enqueues before any persistence operation that might throw.
         }
+        string? recordingError = null;
+        if (acquisition.State == KlaRecipeAcquisitionState.Cancelled && runner.CurrentRun is null && recordCancelledPreparation is not null)
+        {
+            try { await recordCancelledPreparation().ConfigureAwait(false); }
+            catch (Exception ex) { recordingError = ex.Message; }
+        }
         RecipeAssayRecoveryResult recovery;
         try
         {
@@ -41,7 +48,6 @@ public sealed class KlaRecipePulseLifecycle(KlaTestRunner runner, RecipeAssayRes
             recovery = new(contract.BeforeAssay.SnapshotId, KlaRestorationState.Failed, time.GetUtcNow(),
                 !lease.IsAssayAuthorityCurrent, ex.Message, null);
         }
-        string? recordingError = null;
         try
         {
             if (runner.CurrentRun is not null) runner.RecordRecipeRecovery(recovery);

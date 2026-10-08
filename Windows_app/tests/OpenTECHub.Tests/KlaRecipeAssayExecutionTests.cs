@@ -34,13 +34,15 @@ public sealed class KlaRecipeAssayExecutionTests
     }
 
     [Theory]
-    [InlineData(KlaAssayProtocol.Abiotic, false, false, false)]
-    [InlineData(KlaAssayProtocol.Biotic, false, false, false)]
-    [InlineData(KlaAssayProtocol.Abiotic, true, false, false)]
-    [InlineData(KlaAssayProtocol.Abiotic, false, true, false)]
-    [InlineData(KlaAssayProtocol.Abiotic, false, false, true)]
-    [InlineData(KlaAssayProtocol.Biotic, false, false, true)]
-    public async Task ApiPulseUsesCommonRecoveryAnalysisAndPersistence(KlaAssayProtocol protocol, bool deadline, bool failPersistence, bool completeNormally)
+    [InlineData(KlaAssayProtocol.Abiotic, false, false, false, false)]
+    [InlineData(KlaAssayProtocol.Biotic, false, false, false, false)]
+    [InlineData(KlaAssayProtocol.Abiotic, true, false, false, false)]
+    [InlineData(KlaAssayProtocol.Abiotic, false, true, false, false)]
+    [InlineData(KlaAssayProtocol.Abiotic, false, false, true, false)]
+    [InlineData(KlaAssayProtocol.Biotic, false, false, true, false)]
+    [InlineData(KlaAssayProtocol.Abiotic, false, false, false, true)]
+    [InlineData(KlaAssayProtocol.Biotic, false, false, false, true)]
+    public async Task ApiPulseUsesCommonRecoveryAnalysisAndPersistence(KlaAssayProtocol protocol, bool deadline, bool failPersistence, bool completeNormally, bool cancelBeforeObservation)
     {
         using var fixture = new RecipeAssayRestorationTests.Fixture(virtualTimers: deadline); await fixture.Initialize();
         var directory = Path.Combine(Path.GetTempPath(), "recipe-execution-" + Guid.NewGuid().ToString("N"));
@@ -100,15 +102,24 @@ public sealed class KlaRecipeAssayExecutionTests
             };
             activeRequest = request.RequestId;
             api.Create(request); await api.StartAsync(request.RequestId);
-            for (var index = 0; index < 100 && fixture.Device.Sent.Count == 0; index++)
+            for (var index = 0; !cancelBeforeObservation && index < 100 && fixture.Device.Sent.Count == 0; index++)
             {
                 fixture.Clock.Advance(TimeSpan.FromSeconds(1));
                 fixture.Device.PushTelemetry(fixture.Sample(285, 2, command: 1, oxygen: 80));
                 await Task.Delay(1);
             }
-            Assert.NotEmpty(fixture.Device.Sent);
-            Assert.Single(Directory.GetFiles(Path.Combine(directory, document.FolderName),
-                $"receita-{request.RequestId:N}-BeforeActuation.json", SearchOption.AllDirectories));
+            if (cancelBeforeObservation)
+            {
+                using var waiting = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                while (executor.Phase is null) await Task.Delay(1, waiting.Token);
+                Assert.Empty(fixture.Device.Sent);
+            }
+            else
+            {
+                Assert.NotEmpty(fixture.Device.Sent);
+                Assert.Single(Directory.GetFiles(Path.Combine(directory, document.FolderName),
+                    $"receita-{request.RequestId:N}-BeforeActuation.json", SearchOption.AllDirectories));
+            }
             var running = await api.StartAsync(request.RequestId);
             Assert.Equal(KlaAssayApiState.Running, running.State);
             if (!(completeNormally && protocol == KlaAssayProtocol.Biotic)) fixture.Device.Sent.Clear();
@@ -205,6 +216,12 @@ public sealed class KlaRecipeAssayExecutionTests
             var analysis = store.LoadRunAnalysis(document.FolderName, run.FolderName);
             Assert.NotNull(analysis);
             Assert.NotNull(analysis.DeterministicResult);
+            if (cancelBeforeObservation)
+            {
+                Assert.Empty(analysis.DeterministicResult.Input!.Samples);
+                Assert.Equal(KlaScientificQuality.Inconclusive, completed.Result.Outcome.KlaQuality);
+                Assert.Contains("acquisition_cancelled", completed.Result.ReasonCodes);
+            }
             if (completeNormally)
             {
                 Assert.True(analysis.DeterministicResult.Input!.Samples.Length > (protocol == KlaAssayProtocol.Abiotic ? 200 : 5));

@@ -92,7 +92,19 @@ public sealed class KlaRecipeAssayExecution : IKlaAssayExecution
         }
         var lifecycle = await new KlaRecipePulseLifecycle(runner, _lease, new RecipeAssayRestoration(_device, _time), _time)
             .ExecuteAsync(_document, condition, _document.EffectiveCaptureMode == KlaCaptureMode.Single ? 1 : binding.ReplicateNumber,
-                invocation.Restoration, _recoveryCriteria, acquisition.Token, WaitForInitialObservation).ConfigureAwait(false);
+                invocation.Restoration, _recoveryCriteria, acquisition.Token, WaitForInitialObservation, async () =>
+                {
+                    var run = runner.RecordCancelledRecipePreparation(_document, condition,
+                        _document.EffectiveCaptureMode == KlaCaptureMode.Single ? 1 : binding.ReplicateNumber);
+                    var checkpoint = new KlaAttemptPersistenceCheckpoint
+                    {
+                        Request = request, Authority = _lease.Authority, TestId = _document.TestId, RunId = run.RunId,
+                        TestFolder = _document.FolderName, RunFolder = run.FolderName,
+                        Phase = KlaAttemptPersistencePhase.BeforeActuation
+                    };
+                    await _store.PersistRecipeAttemptAsync(checkpoint, CancellationToken.None).ConfigureAwait(false);
+                    prepared = checkpoint;
+                }).ConfigureAwait(false);
         var outcome = new KlaRunOutcome { Restoration = lifecycle.Recovery.Restoration,
             RestorationReason = lifecycle.Recovery.Reason, KlaQuality = KlaScientificQuality.Inconclusive,
             OurQuality = request.Definition.Protocol == KlaAssayProtocol.Abiotic ? KlaScientificQuality.NotApplicable : KlaScientificQuality.NotEvaluated };

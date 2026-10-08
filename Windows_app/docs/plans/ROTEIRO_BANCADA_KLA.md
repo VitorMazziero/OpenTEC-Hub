@@ -8,9 +8,9 @@ Objetivo: comprovar no reator os blocos **Determinar kLa** e **Periodicidade**, 
 
 1. Abra o aplicativo sem `--kla-test-file` (ambiente físico) e conecte o Hub.
 2. Em **Determinar kLa › Configurações**, ajuste os valores decididos (Q6): agitação de remoção 700 rpm, OD alvo da remoção 20 %, desoxigenação máxima 5 min, término da reoxigenação 85 %, reoxigenação máxima 10 min. O bloco autônomo lê esses valores no início de cada ensaio.
-3. Opcional: em **Receitas › Preparar kLa**, informe o identificador do cultivo. Sem ele, cada execução da receita é tratada como um cultivo.
+3. O nome da receita é o identificador dos ensaios (não há mais painel de preparação); escolha um nome que reconheça na pasta.
 4. No bloco **Determinar kLa**, o perfil já vem como **operador · atual**. Padrões: OD mínimo biótico 5 %, prazo de retorno 600 s, intervalo entre ensaios 30 s, demais limites "0 = não aplicável", resultado inconclusivo continua após restaurar.
-5. Resultados: `Testes-kLa/Receitas-automaticas/<data>_<Abiotico|Biotico>_<Unico|Matriz>_N…_Q…/Corridas/N0300_Q02p00_Rep01/`. Também aparecem em **Determinar kLa › Carregar ensaio**.
+5. Resultados: `Testes-kLa/Receitas-automaticas/<receita>_<data>_<Abiotico|Biotico>_<Unico|Matriz>_N…_Q…/Corridas/N0300_Q02p00_Rep01/`. Também aparecem em **Determinar kLa › Carregar ensaio**.
 
 ## Casos
 

@@ -6,6 +6,15 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.27.2] - 2026-10-08
+
+- Receitas: removido o painel "Preparar kLa"; o nome da receita identifica os ensaios e dá nome à pasta (`<receita>_<data>_…`); o editor ganha a altura toda (D-068);
+- padrões do Controle de O₂ (cascata, página e bloco de receita) iguais aos valores de bancada: ganhos, janelas, limites físicos e janelas de atuação;
+- alarmes: a barra aparece só na página Eventos, sem cobrir o menu; ponto colorido no ícone de Eventos; **Silenciar áudio** reabilita quando o som volta; "Gás aberto sem supervisão" espera 15 s;
+- gráficos do sinóptico já tinham leitura ao passar o mouse e filtro de outliers (0.27.1).
+
+---
+
 ## [0.27.1] - 2026-10-08
 
 - controle de O₂ (cascata Automática e da receita), receita, rampas e kLa autônomo atravessam a queda do enlace PC–Hub: donos mantidos, envio suspenso e retomada sem salto ao reconectar; o retorno do ensaio aguarda a reconexão (D-065);

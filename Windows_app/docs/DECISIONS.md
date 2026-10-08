@@ -1690,7 +1690,7 @@ emergência, reservas, suspensão da cascata, restauração e gravação duráve
 2. Padrões do bloco: OD mínimo biótico 5 %, prazo de retorno 600 s, intervalo entre ensaios 30 s,
    limites cumulativos "não aplicáveis" (campo 0), resultado inconclusivo restaura e continua.
 3. Sem cultivo informado, cada execução da receita é um cultivo para o diário de orçamento.
-4. Sessões em `Testes-kLa/Receitas-automaticas/<data>_<protocolo>_<Unico|Matriz>_N…_Q…`; corridas
+4. Sessões em `Testes-kLa/Receitas-automaticas/<receita>_<data>_<protocolo>_<Unico|Matriz>_N…_Q…` (D-068); corridas
    em `Corridas/N0300_Q02p00_Rep01`. Aparecem no histórico da página Determinar kLa.
 5. **Criar cópia editável para recalcular** copia a sessão para `Testes-kLa` como ensaio do operador
    (sem a decisão automática), preservando a original.
@@ -1749,6 +1749,28 @@ No sinóptico, passar o mouse perto da linha mostra `valor unidade · t h`. Cana
 grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, banho) passam por filtro de
 Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
 preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
+
+### D-068 · Receitas sem painel de preparação, padrões do Controle de O₂, barra de alarmes só em Eventos
+
+**Status:** Accepted and implemented · 2026-10-08 · substitui os itens 1 e 3 de D-062
+
+1. **Painel "Preparar kLa" removido** da tela de Receitas (instalação, cultivo, importar/atualizar perfis).
+   Só uma linha vermelha aparece se o serviço de kLa falhar ao iniciar. O bloco usa o perfil do operador
+   sem seletor; o seletor só existe em blocos que citam um perfil importado de arquivo.
+2. **O nome da receita é o identificador** dos ensaios e do diário de orçamento. Pasta:
+   `Testes-kLa/Receitas-automaticas/<receita>_<data-hora>_<protocolo>_<Unico|Matriz>_…`. Duas execuções da mesma
+   receita compartilham o identificador, mas cada uma tem pasta própria pela data e hora. "Máximo de tentativas da
+   receita" 0 = não aplicável (padrão), para o diário não esgotar entre execuções.
+3. **Padrões do Controle de O₂** (cascata, página e bloco de receita): K_DOT 0,075; T_pred 90 s; Kp 0,035;
+   Ki 0,0010; Kd 1,5; τ_D 25 s; integral −1…1; janela do integrador 2400; J_AVG 8; N_PRED 20; período 3 s;
+   agitação 50–800 rpm; aeração 0,5–12 L/min; janelas de esforço agitação 0–90 %, aeração 10–100 %.
+   Valem para configurações novas; o que já está salvo no seu workspace não é sobrescrito.
+4. **Barra de alarmes só na página Eventos**, no topo do conteúdo (não cobre o menu lateral), visível quando há
+   alarme. Reconhecer, silenciar e a lista seguem iguais. Nos demais lugares aparece um **ponto no canto do ícone de
+   Eventos** (vermelho para falha crítica ativa, âmbar para aviso ou falha já normalizada) enquanto houver alarme a
+   reconhecer; o ícone não se move. Fim do silêncio de 10 min reabilita **Silenciar áudio**.
+5. **"Gás aberto sem supervisão"** passa a esperar **15 s** (antes 2 s) com o fluxômetro fora do Hub; "Fluxômetro
+   offline" continua avisando em 2 s. O fluxômetro mantém válvulas e setpoint enquanto está fora (fail-in-place).
 
 ## Open questions
 

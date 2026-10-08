@@ -365,7 +365,7 @@ No módulo **Receitas**, o usuário pode desenhar bateladas automatizadas conect
 - **Rampa linear de referências:** cada linha vai do valor inicial ao final no seu próprio tempo, com no máximo um comando por segundo. Conclui quando a medição do processo fica dentro da tolerância por 10 s (prazo padrão 900 s).
 - **Queda do enlace com o Hub:** a cascata, a receita e o ensaio em andamento são mantidos; o Hub segue com os últimos comandos e a receita mostra "Receita aguardando dispositivo". Ao reconectar, o controle volta sem salto e o ensaio restaura as condições anteriores. Desconectar pelo botão continua devolvendo tudo ao Manual.
 - **Gráficos do sinóptico:** passe o mouse perto da linha para ver valor e tempo em horas. Picos isolados de rotação, vazão, temperatura e outros canais medidos são suprimidos só no desenho; os arquivos guardam o dado bruto.
-- **Resultados:** cada execução cria `Testes-kLa/Receitas-automaticas/<data>_<protocolo>_<Unico|Matriz>_N…_Q…`, com as corridas em `Corridas/N0300_Q02p00_Rep01`. Abra pela página Determinar kLa (Carregar ensaio) ou pelo botão da receita. Para revisar a janela e recalcular o kLa, use **Criar cópia editável para recalcular**; a sessão original permanece intacta.
+- **Resultados:** cada execução cria `Testes-kLa/Receitas-automaticas/<nome da receita>_<data>_<protocolo>_<Unico|Matriz>_N…_Q…` (o nome da receita identifica os ensaios; não há painel de preparação), com as corridas em `Corridas/N0300_Q02p00_Rep01`. Abra pela página Determinar kLa (Carregar ensaio) ou pelo botão da receita. Para revisar a janela e recalcular o kLa, use **Criar cópia editável para recalcular**; a sessão original permanece intacta.
 
 ---
 
@@ -373,7 +373,9 @@ No módulo **Receitas**, o usuário pode desenhar bateladas automatizadas conect
 
 ### Monitor de Alarmes
 - O sistema classifica os desvios em: **Informativo** (azul), **Alerta** (amarelo) e **Crítico** (vermelho).
-- Alarmes críticos emitem aviso sonoro contínuo no computador da sala de controle. O operador pode clicar em **Silenciar** para pausar o áudio por 5 minutos enquanto corrige a causa física.
+- Alarmes críticos emitem aviso sonoro contínuo no computador da sala de controle. Em **Silenciar áudio (10 min)** o som pausa por 10 minutos enquanto você corrige a causa física; ao fim da pausa o som volta e o botão fica disponível de novo.
+- A barra de alarmes (Reconhecer, Silenciar e a lista) fica no topo da página **Eventos**. Em qualquer página, um **ponto no canto do ícone de Eventos** avisa que há alarme a reconhecer: vermelho para falha crítica ativa, âmbar para aviso ou falha que já voltou ao normal.
+- "Gás aberto sem supervisão" só é acionado depois de 15 s com o fluxômetro fora do Hub; "Fluxômetro offline" avisa em 2 s.
 
 ### Exportação de Dados e Históricos
 - Na tela **Histórico** ou **Gráficos**, utilize o botão **Exportar CSV** para salvar todas as variáveis minuto a minuto para análise em Excel, Origin ou MATLAB.

@@ -155,6 +155,7 @@ public sealed partial class RecipeEngine : IRecipeEngine, IAsyncDisposable
         // Snapshot the run task the previous run left behind, so a fast restart still awaits it.
         await _run.ConfigureAwait(false);
 
+        ClearAssayReturnAlarm();
         Current = recipe;
         ExecutionId = Guid.NewGuid();
         PreparePeriodicWork(recipe);

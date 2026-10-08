@@ -9,6 +9,8 @@ public sealed record KlaRecipePulseLifecycleResult(KlaRecipeAcquisitionResult Ac
 public sealed class KlaRecipePulseLifecycle(KlaTestRunner runner, RecipeAssayResourceLease lease,
     RecipeAssayRestoration restoration, TimeProvider time)
 {
+    /// <summary>The previous state is resent up to three times while the assay still holds authority (D-060).</summary>
+    public const int MaximumRestorationAttempts = 3;
     private int _started;
     public async Task<KlaRecipePulseLifecycleResult> ExecuteAsync(KlaTestDocument document, KlaTestCondition condition,
         int replicateNumber, KlaRecipeRestorationContract contract, RecipeAssayRecoveryCriteria criteria,
@@ -37,17 +39,16 @@ public sealed class KlaRecipePulseLifecycle(KlaTestRunner runner, RecipeAssayRes
             try { await recordCancelledPreparation().ConfigureAwait(false); }
             catch (Exception ex) { recordingError = ex.Message; }
         }
-        RecipeAssayRecoveryResult recovery;
-        try
-        {
-            // Cancellation belongs to acquisition. Restoration owns its independent deadline.
-            recovery = await restoration.RestoreAsync(lease, contract, criteria, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            recovery = new(contract.BeforeAssay.SnapshotId, KlaRestorationState.Failed, time.GetUtcNow(),
-                !lease.IsAssayAuthorityCurrent, ex.Message, null);
-        }
+        // Cancellation belongs to acquisition. Restoration owns its independent deadline.
+        var recovery = await RecipeAssayRestoration.WithRetriesAsync(async () =>
+            {
+                try { return await restoration.RestoreAsync(lease, contract, criteria, CancellationToken.None).ConfigureAwait(false); }
+                catch (Exception ex)
+                {
+                    return new(contract.BeforeAssay.SnapshotId, KlaRestorationState.Failed, time.GetUtcNow(),
+                        !lease.IsAssayAuthorityCurrent, ex.Message, null);
+                }
+            }, () => lease.IsAssayAuthorityCurrent, MaximumRestorationAttempts).ConfigureAwait(false);
         try
         {
             if (runner.CurrentRun is not null) runner.RecordRecipeRecovery(recovery);

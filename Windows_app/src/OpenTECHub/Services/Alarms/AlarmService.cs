@@ -275,6 +275,9 @@ public sealed class AlarmService : IAlarmService
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5)),
         new(AlarmId.ExternalBathDualActuation, "Telemetria de rota térmica inconsistente", AlarmSeverity.Critical,
             TimeSpan.Zero, TimeSpan.FromSeconds(3)),
+        // The engine already retried the return three times before declaring it (D-060).
+        new(AlarmId.AssayReturnUnconfirmed, "Retorno do ensaio kLa não confirmado", AlarmSeverity.Critical,
+            TimeSpan.Zero, TimeSpan.Zero),
     ];
 
     private readonly IDeviceService _device;
@@ -692,6 +695,8 @@ public sealed class AlarmService : IAlarmService
         AlarmId.ExternalBathDualActuation => (
             connected && _lastSnapshot is { HasBathTelemetry: true, TempControlViaBath: true, TempModuleActuatorOn: true },
             "A via externa está selecionada, mas o Hub indica que a placa original ainda recebeu um setpoint ativo (B ≠ 100B)."),
+
+        AlarmId.AssayReturnUnconfirmed => (_recipes?.AssayReturnAlarm is not null, _recipes?.AssayReturnAlarm ?? ""),
 
         _ => (false, ""),
     };

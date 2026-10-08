@@ -78,6 +78,9 @@ public interface IRecipeEngine : IDisposable
     /// <summary>Why the run stopped or failed, when it did.</summary>
     string? StatusReason { get; }
 
+    /// <summary>Why the last run ended with an assay return that was never confirmed; raises <see cref="WaitingChanged"/>.</summary>
+    string? AssayReturnAlarm => null;
+
     /// <summary>The device a block is currently holding for, or null when nothing is held.</summary>
     RecipeDeviceWait? Waiting { get; }
 

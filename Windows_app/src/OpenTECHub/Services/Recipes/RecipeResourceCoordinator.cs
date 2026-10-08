@@ -28,11 +28,15 @@ public sealed partial class RecipeResourceCoordinator(ICommandAuthorityArbiter a
     private readonly SemaphoreSlim _assay = new(1, 1);
     private readonly List<RecipeAssayResourceLease> _issued = [];
 
-    public bool HasUnreturnedAssayAuthority(Guid executionId)
+    public bool HasUnreturnedAssayAuthority(Guid executionId) => UnreturnedAssayBlocks(executionId).Count > 0;
+
+    /// <summary>Blocks whose assay still holds current authority, i.e. whose return was never confirmed.</summary>
+    public IReadOnlyList<string> UnreturnedAssayBlocks(Guid executionId)
     {
         lock (_sync)
-            return _issued.Any(lease => lease.Authority.ExecutionId == executionId &&
-                lease.Authority.Owner == CommandOwner.KlaAssay && arbiter.IsCurrent(lease.Authority));
+            return _issued.Where(lease => lease.Authority.ExecutionId == executionId &&
+                lease.Authority.Owner == CommandOwner.KlaAssay && arbiter.IsCurrent(lease.Authority))
+                .Select(lease => lease.Authority.BlockId).Distinct().ToArray();
     }
 
     public void Register(IRecipeResourceProducer producer)

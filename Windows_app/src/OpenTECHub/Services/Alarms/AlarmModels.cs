@@ -119,6 +119,9 @@ public enum AlarmId
     ExternalBathImplausibleDelta,
     /// <summary>Both the original and external temperature paths appear active.</summary>
     ExternalBathDualActuation,
+
+    /// <summary>A recipe ended with a kLa assay whose return to the previous state was never confirmed.</summary>
+    AssayReturnUnconfirmed,
 }
 
 /// <summary>Alarm severity — the colour and the audit level it maps to.</summary>

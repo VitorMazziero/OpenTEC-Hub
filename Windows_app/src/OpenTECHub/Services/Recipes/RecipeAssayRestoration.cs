@@ -220,4 +220,27 @@ public sealed class RecipeAssayRestoration(IDeviceService device, TimeProvider t
     }
 
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Resends the complete previous state until it is confirmed, up to <paramref name="maximumAttempts"/> times (D-060).
+    /// A transient device, such as a flowmeter that drops off the Hub for a few seconds, gets another chance; a revoked
+    /// authority (emergency or link loss) is never used to resend outputs.
+    /// </summary>
+    public static async Task<RecipeAssayRecoveryResult> WithRetriesAsync(Func<Task<RecipeAssayRecoveryResult>> restore,
+        Func<bool> authorityCurrent, int maximumAttempts)
+    {
+        ArgumentNullException.ThrowIfNull(restore); ArgumentNullException.ThrowIfNull(authorityCurrent);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumAttempts, 1);
+        var failures = new List<string>();
+        for (var attempt = 1; ; attempt++)
+        {
+            var recovery = await restore().ConfigureAwait(false);
+            if (recovery.Restoration == KlaRestorationState.Confirmed)
+                return failures.Count == 0 ? recovery : recovery with
+                    { Reason = $"Retorno confirmado na tentativa {attempt}/{maximumAttempts} ({string.Join("; ", failures)})." };
+            failures.Add($"tentativa {attempt}/{maximumAttempts}: {recovery.Reason}");
+            if (attempt >= maximumAttempts || recovery.EmergencyStopped || !authorityCurrent())
+                return recovery with { Reason = string.Join("; ", failures) };
+        }
+    }
 }

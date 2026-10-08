@@ -70,6 +70,7 @@ public sealed partial class RecipeRampCheckpointStore(string rootDirectory, Back
             initial.ExecutionId == Guid.Empty || string.IsNullOrWhiteSpace(initial.NodeId) || initial.References.IsDefault || initial.Commands.IsDefault)
             throw new InvalidDataException("Identificação ou versão da captura inicial inválida.");
         configuration.Definition.Validate();
+        configuration.CompletionCriteria?.Validate();
         if (configuration.TemperatureRoute is { } temperatureRoute && !Enum.IsDefined(temperatureRoute))
             throw new InvalidDataException("Rota de temperatura inválida na captura.");
         var required = configuration.Definition.Lines.Where(line => line.StartSource == SetpointStartSource.CurrentConfirmed ||

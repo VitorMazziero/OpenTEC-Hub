@@ -361,7 +361,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
 
     public IEnumerable<RecipeParameterFieldViewModel> VisibleFields => Fields.Where(f => f.IsVisible &&
         !(IsKlaAssay && f.Key is "profileId" or "profileVersion") &&
-        !(Type == NodeType.LinearSetpointRamp && f.Key == "cascadeNodeId"));
+        !(Type == NodeType.LinearSetpointRamp && f.Key == "cascadeNodeId") && IsRampCriterionRelevant(f.Key));
 
     public bool ShowSummary => Type is not (NodeType.Start or NodeType.End or NodeType.And or NodeType.Or or NodeType.ManualIntervention);
 

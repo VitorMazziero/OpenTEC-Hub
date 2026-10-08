@@ -16,6 +16,7 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
         ArgumentNullException.ThrowIfNull(configuration);
         configuration.Definition.Validate();
+        configuration.CompletionCriteria?.Validate();
         foreach (var interval in new[] { preparationTimeout, confirmationTimeout, recoveryTimeout, minimumDispatchInterval })
             if (interval <= TimeSpan.Zero || interval.TotalMilliseconds > uint.MaxValue - 1)
                 throw new ArgumentOutOfRangeException(nameof(preparationTimeout), "Prazos devem ser positivos e finitos.");

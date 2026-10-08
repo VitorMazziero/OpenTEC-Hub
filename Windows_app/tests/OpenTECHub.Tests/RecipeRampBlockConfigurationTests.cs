@@ -7,6 +7,50 @@ namespace OpenTECHub.Tests;
 public sealed class RecipeRampBlockConfigurationTests
 {
     [Fact]
+    public void CompletionCriteriaRoundtripPreservesUserValuesAndRejectsInvalidLimits()
+    {
+        var node = RecipeNode.Create(NodeType.LinearSetpointRamp);
+        node.Set("lines", new JsonArray(new JsonObject { ["variable"] = "Temperature", ["startSource"] = "Explicit",
+            ["initialSetpoint"] = 25, ["finalSetpoint"] = 30, ["endAfterSeconds"] = 60 }));
+        node.Set("temperatureTolerance", .2);
+        node.Set("confirmationStabilitySeconds", 12);
+        node.Set("confirmationTimeoutSeconds", 120);
+        var recipe = new RecipeDocument(); recipe.Nodes.Add(node);
+        var reopened = RecipeSerializer.Deserialize(RecipeSerializer.Serialize(recipe)).Nodes.Single();
+        var configuration = RecipeRampBlockConfiguration.Read(reopened);
+        Assert.Equal(.2, configuration.CompletionCriteria!.TemperatureToleranceCelsius);
+        Assert.Equal(12, configuration.CompletionCriteria.StabilitySeconds);
+        Assert.Equal(120, configuration.CompletionCriteria.TimeoutSeconds);
+        Assert.Equal(.5, configuration.CompletionCriteria.PressureToleranceKilopascals);
+        reopened.Set("temperatureTolerance", -1);
+        Assert.Throws<ArgumentException>(() => RecipeRampBlockConfiguration.Read(reopened));
+        reopened.Set("temperatureTolerance", .2);
+        reopened.Set("confirmationTimeoutSeconds", 12);
+        Assert.Throws<ArgumentException>(() => RecipeRampBlockConfiguration.Read(reopened));
+        reopened.Set("confirmationTimeoutSeconds", 120);
+        reopened.Set("maximumTelemetryGapSeconds", 0);
+        Assert.Throws<ArgumentException>(() => RecipeRampBlockConfiguration.Read(reopened));
+        reopened.Set("maximumTelemetryGapSeconds", 1e100);
+        Assert.Throws<ArgumentException>(() => RecipeRampBlockConfiguration.Read(reopened));
+    }
+
+    [Fact]
+    public void EditorShowsOnlyToleranceForSelectedParameters()
+    {
+        var node = RecipeNode.Create(NodeType.LinearSetpointRamp);
+        node.Set("lines", new JsonArray(new JsonObject { ["variable"] = "Temperature", ["startSource"] = "Explicit",
+            ["initialSetpoint"] = 25, ["finalSetpoint"] = 30, ["endAfterSeconds"] = 60 }));
+        var editor = new OpenTECHub.ViewModels.RecipeNodeViewModel(node);
+        Assert.Contains(editor.VisibleFields, field => field.Key == "temperatureTolerance");
+        Assert.DoesNotContain(editor.VisibleFields, field => field.Key is "agitationTolerance" or "flowTolerance" or "phTolerance" or "pressureTolerance");
+        Assert.Contains(editor.VisibleFields, field => field.Key == "confirmationStabilitySeconds");
+        node.Set("lines", new JsonArray(new JsonObject { ["variable"] = "Oxygen", ["oxygenTarget"] = "ActiveCascadeReference",
+            ["startSource"] = "Explicit", ["initialSetpoint"] = 30, ["finalSetpoint"] = 40, ["endAfterSeconds"] = 60 }));
+        Assert.DoesNotContain(editor.VisibleFields, field => field.Key.EndsWith("Tolerance", StringComparison.Ordinal));
+        Assert.DoesNotContain(editor.VisibleFields, field => field.Key == "confirmationStabilitySeconds");
+    }
+
+    [Fact]
     public void StoredMonitorRampIsRejectedWithoutSilentCascadeMigration()
     {
         var node = RecipeNode.Create(NodeType.LinearSetpointRamp);

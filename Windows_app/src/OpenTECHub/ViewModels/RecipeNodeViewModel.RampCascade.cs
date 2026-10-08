@@ -5,6 +5,22 @@ namespace OpenTECHub.ViewModels;
 
 public sealed partial class RecipeNodeViewModel
 {
+    private bool IsRampCriterionRelevant(string key)
+    {
+        if (Type != NodeType.LinearSetpointRamp) return true;
+        var variable = key switch
+        {
+            "temperatureTolerance" => "Temperature", "agitationTolerance" => "Agitation",
+            "flowTolerance" => "Flow", "phTolerance" => "Ph", "pressureTolerance" => "Pressure", _ => null
+        };
+        if (variable is not null) return Model.Rows("lines").OfType<JsonObject>()
+            .Any(row => RecipeParameterFieldViewModel.GuardValue(row, "variable") == variable);
+        if (key is "confirmationStabilitySeconds" or "maximumTelemetryGapSeconds" or "confirmationTimeoutSeconds")
+            return Model.Rows("lines").OfType<JsonObject>()
+                .Any(row => RecipeParameterFieldViewModel.GuardValue(row, "variable") != "Oxygen");
+        return true;
+    }
+
     public bool UsesRampCascadeReference => Type == NodeType.LinearSetpointRamp && Model.Rows("lines")
         .OfType<JsonObject>().Any(row => RecipeParameterFieldViewModel.GuardValue(row, "variable") == "Oxygen" &&
             RecipeParameterFieldViewModel.GuardValue(row, "oxygenTarget") == "ActiveCascadeReference");

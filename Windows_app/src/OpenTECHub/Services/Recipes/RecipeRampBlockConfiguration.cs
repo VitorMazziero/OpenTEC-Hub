@@ -6,6 +6,9 @@ namespace OpenTECHub.Services.Recipes;
 public sealed record RecipeRampBlockConfiguration(LinearSetpointRampDefinition Definition, string? CascadeNodeId,
     RampTemperatureRoute? TemperatureRoute = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public RecipeRampCompletionCriteria? CompletionCriteria { get; init; }
+
     public static RecipeRampBlockConfiguration Read(RecipeNode node)
     {
         if (node.Type != NodeType.LinearSetpointRamp) throw new ArgumentException("Bloco não é rampa.");
@@ -28,7 +31,16 @@ public sealed record RecipeRampBlockConfiguration(LinearSetpointRampDefinition D
         var cascade = needsCascade ? node.Text("cascadeNodeId") : null;
         if (needsCascade && string.IsNullOrWhiteSpace(cascade))
             throw new ArgumentException("Rampa da referência de O₂ requer controle associado.");
-        return new(definition, string.IsNullOrWhiteSpace(cascade) ? null : cascade);
+        RecipeRampCompletionCriteria? criteria = null;
+        if (node.Parameters.ContainsKey("confirmationTimeoutSeconds"))
+        {
+            criteria = new(Number(node.Parameters, "temperatureTolerance"), Number(node.Parameters, "agitationTolerance"),
+                Number(node.Parameters, "flowTolerance"), Number(node.Parameters, "phTolerance"), Number(node.Parameters, "pressureTolerance"),
+                Number(node.Parameters, "confirmationStabilitySeconds"), Number(node.Parameters, "maximumTelemetryGapSeconds"),
+                Number(node.Parameters, "confirmationTimeoutSeconds"));
+            criteria.Validate();
+        }
+        return new(definition, string.IsNullOrWhiteSpace(cascade) ? null : cascade) { CompletionCriteria = criteria };
     }
 
     private static double Number(JsonObject row, string key) => row[key] is JsonValue value &&

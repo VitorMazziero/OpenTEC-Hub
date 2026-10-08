@@ -54,10 +54,15 @@ public partial class SynopticView : UserControl
         BottomRightHost.Child = _bottomRightPlot;
 
         _redraw = new VisibleRedrawTimer(this, TimeSpan.FromSeconds(1), Redraw);
-        _leftPlot.MouseMove += (_, args) => UpdateCursor(_leftPlot, args.GetPosition(_leftPlot));
-        _rightPlot.MouseMove += (_, args) => UpdateCursor(_rightPlot, args.GetPosition(_rightPlot));
-        _bottomLeftPlot.MouseMove += (_, args) => UpdateCursor(_bottomLeftPlot, args.GetPosition(_bottomLeftPlot));
-        _bottomRightPlot.MouseMove += (_, args) => UpdateCursor(_bottomRightPlot, args.GetPosition(_bottomRightPlot));
+        foreach (var plot in new[] { _leftPlot, _rightPlot, _bottomLeftPlot, _bottomRightPlot })
+        {
+            plot.MouseMove += (_, args) =>
+            {
+                UpdateCursor(plot, args.GetPosition(plot));
+                UpdateHover(plot, args.GetPosition(plot));
+            };
+            plot.MouseLeave += (_, _) => ClearHover(plot);
+        }
 
         Loaded += (_, _) =>
         {
@@ -277,27 +282,28 @@ public partial class SynopticView : UserControl
 
         viewModel.UpdateSampleCount();
 
-        DrawPanel(_leftPlot, viewModel.LeftChannel, viewModel);
+        DrawPanel(_leftPlot, viewModel.LeftChannel, viewModel, HoverOf(_leftPlot));
 
         if (viewModel.PanelCount >= 2 && viewModel.RightChannel is { } right)
         {
-            DrawPanel(_rightPlot, right, viewModel);
+            DrawPanel(_rightPlot, right, viewModel, HoverOf(_rightPlot));
         }
 
         if (viewModel.PanelCount >= 4)
         {
             if (viewModel.BottomLeftChannel is { } bl)
             {
-                DrawPanel(_bottomLeftPlot, bl, viewModel);
+                DrawPanel(_bottomLeftPlot, bl, viewModel, HoverOf(_bottomLeftPlot));
             }
             if (viewModel.BottomRightChannel is { } br)
             {
-                DrawPanel(_bottomRightPlot, br, viewModel);
+                DrawPanel(_bottomRightPlot, br, viewModel, HoverOf(_bottomRightPlot));
             }
         }
     }
 
-    private static void DrawPanel(WpfPlot host, ChartChannelOption spec, ChartsViewModel viewModel)
+    private static void DrawPanel(WpfPlot host, ChartChannelOption spec, ChartsViewModel viewModel,
+        (double Minutes, double Value)? hover = null)
     {
         var series = viewModel.GetSeries(spec, MaxPointsPerPanel);
         var setpoint = viewModel.GetSetpointSeries(spec, MaxPointsPerPanel);
@@ -402,8 +408,79 @@ public partial class SynopticView : UserControl
             }
         }
 
+        if (hover is { } point)
+        {
+            // Hover readout: value and time in hours, right next to the point under the mouse.
+            var color = ToPlotColor(TryBrush(spec.SeriesBrushKey), MediaColors.SteelBlue);
+            var marker = host.Plot.Add.Marker(point.Minutes, point.Value);
+            marker.Color = color;
+            marker.Size = 6;
+            marker.Shape = MarkerShape.FilledCircle;
+            var unit = string.IsNullOrWhiteSpace(spec.Unit) ? "" : $" {spec.Unit}";
+            var label = host.Plot.Add.Text($"{FormatHoverValue(point.Value)}{unit} · {point.Minutes / 60:0.00} h",
+                point.Minutes, point.Value);
+            label.LabelFontSize = 11;
+            label.LabelFontColor = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
+            label.LabelBackgroundColor = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White).WithAlpha(0.9f);
+            label.LabelBorderColor = color.WithAlpha(0.6f);
+            label.LabelBorderWidth = 1;
+            label.LabelPadding = 3;
+            label.OffsetX = 8;
+            label.OffsetY = -8;
+            label.LabelAlignment = Alignment.LowerLeft;
+        }
+
         host.Refresh();
     }
+
+    private readonly Dictionary<WpfPlot, (double Minutes, double Value)> _hover = [];
+
+    private (double Minutes, double Value)? HoverOf(WpfPlot plot)
+        => _hover.TryGetValue(plot, out var point) ? point : null;
+
+    private ChartChannelOption? SpecFor(WpfPlot plot, ChartsViewModel viewModel)
+        => ReferenceEquals(plot, _leftPlot) ? viewModel.LeftChannel
+            : ReferenceEquals(plot, _rightPlot) ? viewModel.RightChannel
+            : ReferenceEquals(plot, _bottomLeftPlot) ? viewModel.BottomLeftChannel
+            : ReferenceEquals(plot, _bottomRightPlot) ? viewModel.BottomRightChannel : null;
+
+    private static string FormatHoverValue(double value)
+        => Math.Abs(value) >= 100 ? value.ToString("0", System.Globalization.CultureInfo.CurrentCulture)
+            : Math.Abs(value) >= 10 ? value.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture)
+            : value.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture);
+
+    /// <summary>Shows the readout only when the mouse is near the line, not anywhere in the panel.</summary>
+    private void UpdateHover(WpfPlot plot, Point point)
+    {
+        if (ViewModel is not { } viewModel || SpecFor(plot, viewModel) is not { } spec)
+        {
+            return;
+        }
+
+        var coordinates = plot.Plot.GetCoordinates((float)point.X, (float)point.Y);
+        (double Minutes, double Value)? hit = null;
+        if (viewModel.GetValueAt(spec, coordinates.X) is { } nearest)
+        {
+            var pixel = plot.Plot.GetPixel(new Coordinates(nearest.Minutes, nearest.Value));
+            if (Math.Abs(pixel.X - point.X) <= HoverRadiusPixels && Math.Abs(pixel.Y - point.Y) <= HoverRadiusPixels)
+            {
+                hit = nearest;
+            }
+        }
+
+        var had = HoverOf(plot);
+        if (hit == had) return;
+        if (hit is { } value) _hover[plot] = value; else _hover.Remove(plot);
+        DrawPanel(plot, spec, viewModel, hit);
+    }
+
+    private void ClearHover(WpfPlot plot)
+    {
+        if (!_hover.Remove(plot) || ViewModel is not { } viewModel || SpecFor(plot, viewModel) is not { } spec) return;
+        DrawPanel(plot, spec, viewModel);
+    }
+
+    private const double HoverRadiusPixels = 24;
 
     private void UpdateCursor(WpfPlot plot, Point point)
     {

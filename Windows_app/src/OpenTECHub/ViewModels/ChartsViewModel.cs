@@ -224,6 +224,11 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
             : History.GetSeries(option.Channel, SelectedWindow.Window, maxPoints);
 
         canonical = ApplyViewFloor(canonical);
+        if (canonical.Count > 0 && FiltersOutliers(option.Channel))
+        {
+            // Display only: isolated spikes (a servo frame reporting 0 rpm) are drawn at the local median.
+            canonical = new ChannelSeries(canonical.Minutes, ChartOutlierFilter.Apply(canonical.Values));
+        }
 
         if (canonical.Count == 0 ||
             option.Channel is not (TelemetryChannel.Temperature or TelemetryChannel.Pressure))
@@ -245,6 +250,15 @@ public sealed partial class ChartsViewModel : ObservableObject, IDisposable
 
         return new ChannelSeries(canonical.Minutes, values);
     }
+
+    /// <summary>
+    /// Measured channels whose plotted line drops isolated outliers. Oxygen and pH are already spike-filtered
+    /// when parsed; commanded values, cumulative totals and controller internals are drawn as they are.
+    /// </summary>
+    public static bool FiltersOutliers(TelemetryChannel channel) => channel is TelemetryChannel.ServoRpm or
+        TelemetryChannel.ServoTorquePct or TelemetryChannel.ServoTorqueNm or TelemetryChannel.ServoLoadPct or
+        TelemetryChannel.ServoPowerW or TelemetryChannel.Flow or TelemetryChannel.Temperature or TelemetryChannel.Pressure or
+        TelemetryChannel.Distance or TelemetryChannel.Biomass or TelemetryChannel.PumpFlow or TelemetryChannel.BathPv;
 
     /// <summary>
     /// The dashed setpoint overlay for a channel, or an empty series when it has none.

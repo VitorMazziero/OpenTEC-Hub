@@ -83,7 +83,7 @@ public sealed record RecipeRampInitialState(Guid SnapshotId, Guid ExecutionId, s
             required.Any(line => line.OxygenTarget == RampOxygenTarget.ActiveCascadeReference) ? controller : null);
     }
 
-    private static string KeyFor(SetpointVariable variable) => variable switch
+    internal static string KeyFor(SetpointVariable variable) => variable switch
     {
         SetpointVariable.Temperature => CommandKeys.TempSetpoint,
         SetpointVariable.Agitation => CommandKeys.MotorSetpoint,

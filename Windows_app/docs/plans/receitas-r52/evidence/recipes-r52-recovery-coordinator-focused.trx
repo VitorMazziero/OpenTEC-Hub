@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="7abde416-4153-4e5b-9d90-fd514b79c7ed" name="vitor@DESKTOP-J4OP7IO 2026-10-08 08:10:44" runUser="DESKTOP-J4OP7IO\vitor" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-08T08:10:44.4900714-03:00" queuing="2026-10-08T08:10:44.4900726-03:00" start="2026-10-08T08:10:43.4582087-03:00" finish="2026-10-08T08:10:44.4949342-03:00" />
+  <TestSettings name="default" id="4e843319-b77d-4bea-bcaa-9ff1b95dcf71">
+    <Deployment runDeploymentRoot="vitor_DESKTOP-J4OP7IO_2026-10-08_08_10_44" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="17d138a0-940d-42cf-9467-e272ccba24df" testId="be5c1024-459c-aa08-ea74-b57ff275e6e2" testName="OpenTECHub.Tests.RecipeRampRecoveryCoordinatorTests.RecoveryRetainsReservationUntilValidatedDurableReceipt(incompleteProof: True)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.1848104" startTime="2026-10-08T08:10:44.3783223-03:00" endTime="2026-10-08T08:10:44.3783225-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="17d138a0-940d-42cf-9467-e272ccba24df" />
+    <UnitTestResult executionId="e517fcc2-8f2b-4f2e-8559-2bb09f9afea9" testId="77078183-2a8a-e3bb-aa85-ec7a6c8c0508" testName="OpenTECHub.Tests.RecipeRampPreparationTests.FailedPreparationStopsUnregisteredProducerAndReleasesDrainedReservation(foreignCapture: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.1401166" startTime="2026-10-08T08:10:44.3366002-03:00" endTime="2026-10-08T08:10:44.3366243-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e517fcc2-8f2b-4f2e-8559-2bb09f9afea9" />
+    <UnitTestResult executionId="a73547d9-1da6-421e-aad9-c67d1f5d45d2" testId="26717c25-8a1c-877d-7075-03eefb75a639" testName="OpenTECHub.Tests.RecipeRampPreparationTests.DurablePreparationRegistersTheProducerBeforeAnAssayCanSuspendIt" computerName="DESKTOP-J4OP7IO" duration="00:00:00.0088789" startTime="2026-10-08T08:10:44.3643574-03:00" endTime="2026-10-08T08:10:44.3643575-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a73547d9-1da6-421e-aad9-c67d1f5d45d2" />
+    <UnitTestResult executionId="d37986f2-a235-4bd5-a031-95f61f79a5fa" testId="711871f6-6441-e3e6-28db-c70b110a9d43" testName="OpenTECHub.Tests.RecipeRampRecoveryCoordinatorTests.RecoveryRetainsReservationUntilValidatedDurableReceipt(incompleteProof: False)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.0094154" startTime="2026-10-08T08:10:44.3880501-03:00" endTime="2026-10-08T08:10:44.3880504-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d37986f2-a235-4bd5-a031-95f61f79a5fa" />
+    <UnitTestResult executionId="d9679a34-c2ca-4f15-9d8e-c830f66685b9" testId="da9f661b-dba4-af0a-f581-87bcc3ac6f2a" testName="OpenTECHub.Tests.RecipeEngineTests.MixedRampReturnConfirmsSavedControllerAndTemperatureWhileCascadeRemainsPaused" computerName="DESKTOP-J4OP7IO" duration="00:00:00.1820449" startTime="2026-10-08T08:10:44.3755355-03:00" endTime="2026-10-08T08:10:44.3755358-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d9679a34-c2ca-4f15-9d8e-c830f66685b9" />
+    <UnitTestResult executionId="73285938-61da-42d0-9fd3-796de781b4c8" testId="94145097-e362-a16b-9918-d2fd45cb7f8b" testName="OpenTECHub.Tests.RecipeRampPreparationTests.OxygenPreparationCapturesTheSelectedPausedControllerAndResumesItAfterStorage" computerName="DESKTOP-J4OP7IO" duration="00:00:00.0133771" startTime="2026-10-08T08:10:44.3539054-03:00" endTime="2026-10-08T08:10:44.3539055-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="73285938-61da-42d0-9fd3-796de781b4c8" />
+    <UnitTestResult executionId="cb74a5bf-5a86-4db7-9988-7ecef7b22fcc" testId="e4dde668-d578-1701-08b2-fbd158e3e349" testName="OpenTECHub.Tests.RecipeRampPreparationTests.FailedPreparationStopsUnregisteredProducerAndReleasesDrainedReservation(foreignCapture: True)" computerName="DESKTOP-J4OP7IO" duration="00:00:00.0025525" startTime="2026-10-08T08:10:44.3399164-03:00" endTime="2026-10-08T08:10:44.3399165-03:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cb74a5bf-5a86-4db7-9988-7ecef7b22fcc" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="OpenTECHub.Tests.RecipeRampRecoveryCoordinatorTests.RecoveryRetainsReservationUntilValidatedDurableReceipt(incompleteProof: True)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="be5c1024-459c-aa08-ea74-b57ff275e6e2">
+      <Execution id="17d138a0-940d-42cf-9467-e272ccba24df" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.RecipeRampRecoveryCoordinatorTests" name="RecoveryRetainsReservationUntilValidatedDurableReceipt" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.RecipeRampPreparationTests.FailedPreparationStopsUnregisteredProducerAndReleasesDrainedReservation(foreignCapture: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="77078183-2a8a-e3bb-aa85-ec7a6c8c0508">
+      <Execution id="e517fcc2-8f2b-4f2e-8559-2bb09f9afea9" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.RecipeRampPreparationTests" name="FailedPreparationStopsUnregisteredProducerAndReleasesDrainedReservation" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.RecipeRampPreparationTests.FailedPreparationStopsUnregisteredProducerAndReleasesDrainedReservation(foreignCapture: True)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="e4dde668-d578-1701-08b2-fbd158e3e349">
+      <Execution id="cb74a5bf-5a86-4db7-9988-7ecef7b22fcc" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.RecipeRampPreparationTests" name="FailedPreparationStopsUnregisteredProducerAndReleasesDrainedReservation" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.RecipeRampPreparationTests.OxygenPreparationCapturesTheSelectedPausedControllerAndResumesItAfterStorage" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="94145097-e362-a16b-9918-d2fd45cb7f8b">
+      <Execution id="73285938-61da-42d0-9fd3-796de781b4c8" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.RecipeRampPreparationTests" name="OxygenPreparationCapturesTheSelectedPausedControllerAndResumesItAfterStorage" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.RecipeRampRecoveryCoordinatorTests.RecoveryRetainsReservationUntilValidatedDurableReceipt(incompleteProof: False)" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="711871f6-6441-e3e6-28db-c70b110a9d43">
+      <Execution id="d37986f2-a235-4bd5-a031-95f61f79a5fa" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.RecipeRampRecoveryCoordinatorTests" name="RecoveryRetainsReservationUntilValidatedDurableReceipt" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.RecipeEngineTests.MixedRampReturnConfirmsSavedControllerAndTemperatureWhileCascadeRemainsPaused" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="da9f661b-dba4-af0a-f581-87bcc3ac6f2a">
+      <Execution id="d9679a34-c2ca-4f15-9d8e-c830f66685b9" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.RecipeEngineTests" name="MixedRampReturnConfirmsSavedControllerAndTemperatureWhileCascadeRemainsPaused" />
+    </UnitTest>
+    <UnitTest name="OpenTECHub.Tests.RecipeRampPreparationTests.DurablePreparationRegistersTheProducerBeforeAnAssayCanSuspendIt" storage="d:\onedrive\posdoc_fapesp\_automacao_e_controle\projetotecnal\windows_app\tests\opentechub.tests\bin\debug\net10.0-windows10.0.19041.0\opentechub.tests.dll" id="26717c25-8a1c-877d-7075-03eefb75a639">
+      <Execution id="a73547d9-1da6-421e-aad9-c67d1f5d45d2" />
+      <TestMethod codeBase="D:\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\ProjetoTECNAL\Windows_app\tests\OpenTECHub.Tests\bin\Debug\net10.0-windows10.0.19041.0\OpenTECHub.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="OpenTECHub.Tests.RecipeRampPreparationTests" name="DurablePreparationRegistersTheProducerBeforeAnAssayCanSuspendIt" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="be5c1024-459c-aa08-ea74-b57ff275e6e2" executionId="17d138a0-940d-42cf-9467-e272ccba24df" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="77078183-2a8a-e3bb-aa85-ec7a6c8c0508" executionId="e517fcc2-8f2b-4f2e-8559-2bb09f9afea9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="26717c25-8a1c-877d-7075-03eefb75a639" executionId="a73547d9-1da6-421e-aad9-c67d1f5d45d2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="711871f6-6441-e3e6-28db-c70b110a9d43" executionId="d37986f2-a235-4bd5-a031-95f61f79a5fa" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="da9f661b-dba4-af0a-f581-87bcc3ac6f2a" executionId="d9679a34-c2ca-4f15-9d8e-c830f66685b9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="94145097-e362-a16b-9918-d2fd45cb7f8b" executionId="73285938-61da-42d0-9fd3-796de781b4c8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e4dde668-d578-1701-08b2-fbd158e3e349" executionId="cb74a5bf-5a86-4db7-9988-7ecef7b22fcc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Resultados que não estão em uma lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos os resultados carregados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="7" executed="7" passed="7" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 10.0.12)&#xD;
+[xUnit.net 00:00:00.09]   Discovering: OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.31]   Discovered:  OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.32]   Starting:    OpenTECHub.Tests&#xD;
+[xUnit.net 00:00:00.56]   Finished:    OpenTECHub.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

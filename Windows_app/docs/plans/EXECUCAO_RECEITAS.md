@@ -38,3 +38,5 @@ Destinos de R5.2: [restauração direta](receitas-r52/RESTAURACAO_DIRETA.md), co
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.
 
 Autoridade de R5.2: [confirmação durante recuperação](receitas-r52/AUTORIDADE_RECUPERACAO.md) conecta restauração do estado completo da cascata aos destinos e exige reserva vigente para confirmar retorno durante pausa; 2441 testes na regressão completa. O cenário misto integrado, coordenação da recuperação e ciclo completo do bloco permanecem pendentes.
+
+Coordenação de R5.2: [recuperação coordenada](receitas-r52/COORDENACAO_RECUPERACAO.md) suspende os produtores, confirma e grava o retorno antes de liberar a reserva e retomar a cascata. O cenário misto O₂/temperatura passou no engine; 2444 testes na regressão completa. Uma corrida de entrega de amostras virtuais no teste da API biótica foi corrigida no simulador, mantendo os critérios de produção. Ciclo do bloco, emergência e encerramento dos produtores permanecem pendentes.

@@ -62,6 +62,7 @@ public sealed class SensorReadings
 
     public double Pressure { get; set; } = NotReceived;
     public double FlowRate { get; set; } = NotReceived;
+    public bool FlowRateUpdated { get; set; }
     public double FlowSetpoint { get; set; } = NotReceived;
     public double FlowVoltage { get; set; } = NotReceived;
     public double Antifoam { get; set; } = NotReceived;
@@ -382,6 +383,7 @@ public sealed class SensorReadings
         PHCalibrated = PHCalibrated,
         Pressure = Pressure,
         FlowRate = FlowRate,
+        FlowRateUpdated = FlowRateUpdated,
         FlowSetpoint = FlowSetpoint,
         FlowVoltage = FlowVoltage,
         Antifoam = Antifoam,
@@ -567,6 +569,7 @@ public sealed record SensorSnapshot
     public double PHCalibrated { get; init; }
     public double Pressure { get; init; }
     public double FlowRate { get; init; }
+    public bool FlowRateUpdated { get; init; } = true;
     public double FlowSetpoint { get; init; }
     public double FlowVoltage { get; init; }
     public double Antifoam { get; init; }

@@ -11,6 +11,24 @@ namespace OpenTECHub.Tests;
 public class TelemetryParserTests
 {
     [Fact]
+    public void FlowFreshnessDoesNotPromoteRetainedOrOfflineReadings()
+    {
+        var parser = new TelemetryParser();
+        parser.Parse("""{"FlowmeterOnline":true,"FlowRate":2}""");
+        Assert.True(parser.Readings.Snapshot().FlowRateUpdated);
+        parser.Parse("""{"Time":2}""");
+        Assert.False(parser.Readings.Snapshot().FlowRateUpdated);
+        Assert.Equal(2, parser.Readings.FlowRate);
+        parser.Parse("""{"FlowRate":-1}""");
+        Assert.False(parser.Readings.Snapshot().FlowRateUpdated);
+        parser.Parse("""{"FlowRate":2,"FlowmeterOnline":false}""");
+        Assert.False(parser.Readings.Snapshot().FlowRateUpdated);
+        Assert.Equal(SensorReadings.NotReceived, parser.Readings.FlowRate);
+        parser.Parse("""{"FlowmeterOnline":true,"FlowRate":0}""");
+        Assert.True(parser.Readings.Snapshot().FlowRateUpdated);
+        Assert.Equal(0, parser.Readings.FlowRate);
+    }
+    [Fact]
     public void TemperatureFreshnessDoesNotPromoteRetainedOrRejectedReadings()
     {
         var parser = new TelemetryParser();

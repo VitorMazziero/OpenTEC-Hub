@@ -307,6 +307,7 @@ public sealed class TelemetryParser
 
     private void ParseFlowAndMisc(JsonElement root, DateTimeOffset now)
     {
+        Readings.FlowRateUpdated = false;
         if (TryGetDouble(root, TelemetryKeys.Pressure, out var pressure))
         {
             Readings.Pressure = pressure;
@@ -315,6 +316,7 @@ public sealed class TelemetryParser
         if (TryGetDouble(root, TelemetryKeys.FlowRate, out var flowRate))
         {
             Readings.FlowRate = flowRate;
+            Readings.FlowRateUpdated = double.IsFinite(flowRate) && flowRate >= 0;
         }
 
         if (TryGetDouble(root, TelemetryKeys.FlowSetpoint, out var flowSetpoint))
@@ -347,6 +349,7 @@ public sealed class TelemetryParser
             // the flowmeter is offline.
             if (!flowmeterOnline)
             {
+                Readings.FlowRateUpdated = false;
                 Readings.FlowRate = SensorReadings.NotReceived;
                 Readings.FlowSetpoint = SensorReadings.NotReceived;
                 Readings.FlowVoltage = SensorReadings.NotReceived;

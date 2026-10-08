@@ -97,10 +97,15 @@ public sealed class KlaRecipeAssayExecutionTests
             var api = activeApi = new KlaAssayApi(Path.Combine(directory, "api.json"), executor, fixture.Clock);
             var recoveryCommands = 0;
             var diversionDispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var recoveryReferenceDispatched = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             fixture.Device.CommandSent += json =>
             {
                 if (executor.Phase == RunPhase.RestoringCultivation) Interlocked.Increment(ref recoveryCommands);
-                if (executor.Phase == RunPhase.DivertingAir && OpenTECCommand.Parse(json).Contains(CommandKeys.FlowSetpoint))
+                var command = OpenTECCommand.Parse(json);
+                if (executor.Phase == RunPhase.RestoringCultivation && command.Contains(CommandKeys.MotorSetpoint) &&
+                    RecipeAssayReturnState.Number(command, CommandKeys.MotorSetpoint) == fixture.Snapshot.AgitationSetpointRpm)
+                    recoveryReferenceDispatched.TrySetResult();
+                if (executor.Phase == RunPhase.DivertingAir && command.Contains(CommandKeys.FlowSetpoint))
                     diversionDispatched.TrySetResult();
             };
             activeRequest = request.RequestId;
@@ -187,6 +192,9 @@ public sealed class KlaRecipeAssayExecutionTests
                     await Task.Delay(1, recoveryDispatchTimeout.Token);
             }
             await fixture.DriveRoute(command: 20);
+            // Acquisition/abort commands may still be in Sent. Its total cannot establish that
+            // recovery has frozen its final telemetry baseline and sent the restored reference.
+            await recoveryReferenceDispatched.Task.WaitAsync(TimeSpan.FromSeconds(3));
             if (failPersistence) writer.Run(Path.Combine(directory, document.FolderName, "controlled-error"),
                 () => throw new IOException("terminal persistence failure"));
             await fixture.PushStable(command: 20);

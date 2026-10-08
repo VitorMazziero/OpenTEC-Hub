@@ -8,8 +8,8 @@ Evidência comum atual: `receitas-r61/evidence/recipes-r61-readonly-and-link-ful
 |---|---|
 | R0.1 | Critérios de baseline de software conferidos abaixo |
 | R0.2 | Critérios contratuais de software conferidos abaixo |
-| R1.1 | Pendente de conferência final |
-| R1.2 | Pendente de conferência final |
+| R1.1 | Critérios de reservas de software conferidos abaixo |
+| R1.2 | Critérios de suspensão/PID de software conferidos abaixo |
 | R1.3 | Pendente de conferência final |
 | R3.1 | Pendente de conferência final |
 | R2.1 | Pendente de conferência final |
@@ -51,3 +51,35 @@ Fontes inspecionadas: `KlaRecipePulseBinding.cs`, `KlaAssayApi.cs`, `KlaAssayApi
 | Nenhuma atuação na etapa | Mapeador/contratos não despacham; testes usam Executor substituído | Escopo contratual, atuação concreta auditada em R2.1 |
 
 Os recibos duráveis reais, restauração concreta e orçamento entre reinícios pertencem às etapas seguintes; esta auditoria não transfere o aceite contratual para esses requisitos.
+
+## R1.1 — Reserva e cessão
+
+Fontes/testes examinados nesta auditoria: `CommandAuthorityTests`, `RecipeResourceCoordinatorTests`, `RecipeResourceCoordinator.ReturnAsync`; arbitrador comum e dispatcher da rampa examinados também na auditoria de comunicação. Recibos originais vinculados aos commits `52cee5a` (R1.1) e `237c254` (R1.2), existentes no histórico. No TRX comum, **26 casos aprovados** pertencem a `CommandAuthorityTests`, `RecipeResourceCoordinatorTests`, `CascadeResumeTests` e `RecipeCascadeSuspensionGateTests`; esse número não inclui os testes do engine e não se soma à regressão completa.
+
+| Requisito | Prova examinada | Conclusão |
+|---|---|---|
+| Reserva atômica N/Q/recursos | `Conflicting_reservations_wait_as_whole_sets_and_cancel_without_partial_acquisition`: reserva conjunta aguarda, recurso independente permanece adquirível, cancelamento não retém conjunto parcial | Comprovado |
+| Timeout/cancelamento sem alterar posse | `Releasing_resources_wakes_a_waiter_and_timeout_never_changes_ownership`; `Cancelled_wait_does_not_disturb_an_active_assay` | Comprovado |
+| Mesmo proprietário não autoriza outro bloco | `Reservation_excludes_other_blocks_with_the_same_owner_but_preserves_independent_resources`: despacho Recipe sem lease recusado, temperatura independente aceita | Comprovado |
+| Receita → ensaio → receita sem Manual | `Handoff_is_atomic_and_old_generations_cannot_dispatch_or_return_ownership`: sequência de transferências exatamente KlaAssay/Recipe, geração incrementada, token antigo inválido | Comprovado |
+| Drenagem antes da troca | Mesmo teste recusa transferência antes da barreira; `Transport_barrier_fails_before_handoff_if_a_previous_frame_was_not_written` preserva posse Recipe em falha | Comprovado como transporte, não aplicação física |
+| Emergência invalida tokens | `Emergency_invalidates_all_authorities_and_a_late_return_cannot_restart_actuation` exige somente comando seguro; callback de rastreamento com troca de posse não enfileira comando antigo | Comprovado |
+| Retorno depende do snapshot/recibo | Teste do coordenador recusa snapshot diferente e recibo ausente antes de retomar; `ReturnAsync` revalida produtores, autoridade e prova durável e somente depois devolve/resume | Comprovado no coordenador; restauração real auditada em R1.3 |
+| Produtor independente continua | Teste de quiescência do coordenador mantém zero pausas no produtor de temperatura | Comprovado |
+
+## R1.2 — Suspensão real e retomada
+
+Fontes examinadas: `RecipeEngine.Cascade.cs`, `CascadeController.ResumeFromSuspension`, `CascadeTwoLoopPidController.ResumeFromSuspension`, gate e testes abaixo. O produtor de cascata é privado do engine; o recibo de suspensão é consumido pelo coordenador e sua disponibilidade confere estado capturado e geração de pausa.
+
+| Requisito | Prova examinada | Conclusão |
+|---|---|---|
+| Barreira cobre atualização/despacho em voo | Engine entra no gate antes de construir/atualizar o controlador; `Pause_waits_for_in_flight_step_and_rejects_new_commands` aguarda o passo e recusa novo ingresso | Comprovado em composição de código/teste do gate |
+| Recibo antigo e término não retomam | `Old_receipt_cannot_resume_a_new_pause`, `Stop_blocks_late_resume_and_new_step`; coordenador confere `CanResume` antes/depois da drenagem | Comprovado |
+| Cancelamento de espera não interfere no ensaio ativo | Gate desfaz somente sua pausa cancelada; coordenador serializa ensaios e `Cancelled_wait_does_not_disturb_an_active_assay` mantém primeira cessão sem retomada | Comprovado |
+| Nenhum Update ou comando durante ensaio | `Assay_suspension_preserves_cascade_state_and_resumes_without_integrating_the_gap` compara termos e contagem de comandos após 2 h virtuais e cinco quadros durante suspensão; sintonia recusada | Comprovado no engine |
+| Sem dt acumulado/replay | Engine usa timestamp monotônico, ignora `IgnoreFramesThrough`, exige quadro novo e rebaseia sem despacho; teste integrado preserva saída/integral e exige derivada/delta zero | Comprovado |
+| Preservar sintonia/alocação/história coerente | `CascadeResumeTests` preserva esforço, integral e objetos de sintonia/alocação; controlador delega ao PID que limpa história de derivada sem zerar integral/saída | Comprovado |
+| Condição de saída continua observada | Engine avalia monitor antes do gate e antes de descartar quadros antigos; `Suspended_cascade_still_observes_buffered_exit_condition_and_cannot_resume_after_end` conclui por temperatura durante suspensão e não recria cascata | Comprovado |
+| Debounce e quadro de retorno | Regressão de `RecipeEngineTests` no TRX comum inclui debounce; integração de grupo/retorno em andamento também disponível em `RecipePeriodicKlaIntegrationTests`, auditada novamente em R4.1/R5.2 | Sem regressão conhecida; encerramento completo permanece no escopo dessas etapas |
+
+Esses aceites são de software. Não comprovam cessão física, estado real de válvulas, motor ou retorno do cultivo. R1.3/R3.1/R2.1 devem ter suas provas próprias examinadas.

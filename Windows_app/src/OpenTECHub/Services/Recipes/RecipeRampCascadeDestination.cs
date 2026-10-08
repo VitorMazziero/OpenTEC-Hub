@@ -67,6 +67,20 @@ public sealed class RecipeRampCascadeDestination : IRecipeRampDestination, IReci
             throw new InvalidOperationException("Referência da cascata ainda não confirmada ou controle indisponível.");
     }
 
+    internal void ValidateFrameTarget(LinearRampSample target) => Reference([target]);
+
+    internal void ObserveAcceptedFrame(LinearRampSample target)
+    {
+        lock (_gate) { _confirmations = []; _lastApplied = target; }
+    }
+
+    internal bool HasCurrentFrameConfirmation()
+    {
+        lock (_gate)
+            return !_confirmations.IsEmpty && _lastApplied is not null &&
+                _engine.TryConfirmRampCascadeReference(_cascadeNodeId, _lastApplied, _executionId) is not null;
+    }
+
     private static LinearRampSample Reference(ImmutableArray<LinearRampSample> references)
     {
         if (references.IsDefault || references.Length != 1 || references[0].Variable != SetpointVariable.Oxygen ||

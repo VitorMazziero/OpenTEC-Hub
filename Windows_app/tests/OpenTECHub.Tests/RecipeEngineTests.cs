@@ -18,6 +18,41 @@ namespace OpenTECHub.Tests;
 public sealed class RecipeEngineTests
 {
     [Fact]
+    public async Task RampFrameComposesTemperatureFeedbackWithTheAssociatedCascadeReference()
+    {
+        var (engine, device, _, clock) = Build();
+        await using var run = engine;
+        await engine.StartAsync(CascadeWithGateRecipe(out _));
+        PushFrame(device, clock, oxygen: 25);
+        await WaitForCascadeStartedAsync(engine);
+        var barrier = await engine.Resources!.ReserveForAssayAsync(
+            RecipeExecutionContractTests.Request().Context with { RecipeRunId = engine.ExecutionId },
+            [ActuatorId.Agitation, ActuatorId.Aeration], TimeSpan.FromSeconds(5));
+        barrier.AbortBeforeAssay();
+        var configuration = new RecipeRampBlockConfiguration(new() { Lines = [
+            new() { Variable = SetpointVariable.Temperature, FinalSetpoint = 30, EndAfterSeconds = 60 },
+            new() { Variable = SetpointVariable.Oxygen, OxygenTarget = RampOxygenTarget.ActiveCascadeReference,
+                FinalSetpoint = 42, EndAfterSeconds = 90 }] }, "casc");
+        using var destination = new RecipeRampFrameDestination(engine, configuration,
+            new(2, TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(15)),
+            new(.5, TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(15)),
+            new(.1, TimeSpan.Zero, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(15)));
+        ImmutableArray<LinearRampSample> target = [new(SetpointVariable.Temperature, null, 30, true),
+            new(SetpointVariable.Oxygen, RampOxygenTarget.ActiveCascadeReference, 42, true)];
+        Assert.True(await destination.TryApplyAsync(target, default));
+        var confirming = destination.TryConfirmFinalAsync(target, default);
+        device.PushTelemetry(new() { TempControlViaBath = false, TempSetpoint = 30, TempSetpointCommanded = true,
+            Temperature = 30, TemperatureUpdated = true, TemperatureValid = true, TemperatureAgeMs = 0, SensorCommOk = true });
+        Assert.True(await confirming.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal(2, destination.FinalConfirmations.Length);
+        Assert.Equal(RecipeRampConfirmationEvidence.ControllerReference,
+            destination.FinalConfirmations.Single(receipt => receipt.Variable == SetpointVariable.Oxygen).Evidence);
+        engine.Pause();
+        Assert.False(await destination.TryConfirmFinalAsync(target, default));
+        Assert.Empty(destination.FinalConfirmations);
+        await engine.StopAsync("mixed cascade frame verified");
+    }
+    [Fact]
     public async Task RampCascadeConfirmationRequiresMatchingLiveReferenceCurrentOwnershipAndOpenBarrier()
     {
         var (engine, device, arbiter, clock) = Build();

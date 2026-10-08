@@ -36,6 +36,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
     private long _sequence, _receivedSequence, _receivedAt, _afterApplication, _applicationRevision;
     private RecipeRampMeasuredRoute? _route;
     private bool _disposed;
+    private long _confirmedSequence;
     private LinearRampSample? _lastApplied;
     private ImmutableArray<RecipeRampFinalConfirmation> _confirmations = [];
 
@@ -126,6 +127,7 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
                         _engine.RampMeasuredAvailability(_executionId, Variable, route) != RecipeRampDestinationAvailability.Available) return false;
                     _confirmations = [new(Variable, null, target.Reference,
                         proof!.Evidence, _time.GetUtcNow(), proof.ObservedValue, proof.Tolerance)];
+                    _confirmedSequence = sequence;
                     return true;
                 }
             }
@@ -149,6 +151,28 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
         return references[0];
     }
 
+    internal void ValidateFrameTarget(LinearRampSample target) => Target([target]);
+
+    // Called only by the frame destination after one complete engine dispatch has been accepted.
+    internal void ObserveAcceptedFrame(LinearRampSample target, RecipeRampMeasuredRoute route)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _confirmations = []; _lastApplied = target; _route = route; _applicationRevision++;
+            _afterApplication = Volatile.Read(ref _receivedSequence);
+            _signal.TrySetResult(); _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
+    internal bool HasCurrentFrameConfirmation(SensorSnapshot? frame)
+    {
+        lock (_gate)
+            return !_disposed && !_confirmations.IsEmpty && ReferenceEquals(frame, _latest) && _confirmedSequence == _sequence &&
+                _time.GetElapsedTime(_receivedAt) <= Policy.MaximumSampleGap && _route is not null &&
+                _engine.RampMeasuredAvailability(_executionId, Variable, _route) == RecipeRampDestinationAvailability.Available;
+    }
+
     private void OnTelemetry(SensorSnapshot snapshot)
     {
         var sequence = Interlocked.Increment(ref _receivedSequence);
@@ -157,7 +181,26 @@ public abstract class RecipeRampMeasuredDestination : IRecipeRampDestination, IR
         lock (_gate)
         {
             if (_disposed || sequence <= _sequence) return;
+            var previousSequence = _sequence;
+            var previousReceived = _receivedAt;
             _latest = snapshot; _receivedAt = received; _sequence = sequence;
+            // A completed component stays confirmed only while every later frame remains valid.
+            // Refresh its measured evidence so a slower sibling never consumes an old observation.
+            if (!_confirmations.IsEmpty && _lastApplied is { } target && _route is { } route)
+            {
+                var proof = Evaluate(snapshot, target, route);
+                if (sequence != previousSequence + 1 || _time.GetElapsedTime(previousReceived, received) > Policy.MaximumSampleGap ||
+                    proof is null || !double.IsFinite(proof.ObservedValue) || !double.IsFinite(proof.Tolerance) || proof.Tolerance < 0 ||
+                    proof.Evidence is not (RecipeRampConfirmationEvidence.ProcessFeedback or RecipeRampConfirmationEvidence.DeviceReferenceReadback) ||
+                    Math.Abs(proof.ObservedValue - target.Reference) > proof.Tolerance)
+                    _confirmations = [];
+                else
+                {
+                    _confirmations = [new(Variable, null, target.Reference, proof.Evidence,
+                        _time.GetUtcNow(), proof.ObservedValue, proof.Tolerance)];
+                    _confirmedSequence = sequence;
+                }
+            }
             signal = _signal; _signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
         signal.TrySetResult();

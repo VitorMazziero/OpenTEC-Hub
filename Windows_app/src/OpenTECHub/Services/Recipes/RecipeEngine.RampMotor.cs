@@ -1,5 +1,6 @@
 using OpenTECHub.Protocol;
 using OpenTECHub.Services.Communication;
+using System.Collections.Immutable;
 
 namespace OpenTECHub.Services.Recipes;
 
@@ -11,11 +12,15 @@ public sealed partial class RecipeEngine
     internal TimeProvider RampTimeProvider => _time;
 
     internal bool TryApplyRampMeasuredReference(LinearRampSample target, Guid executionId, out RecipeRampMeasuredRoute route)
+        => TryApplyRampMeasuredFrame([target], null, 0, executionId, out route);
+
+    internal bool TryApplyRampMeasuredFrame(ImmutableArray<LinearRampSample> targets, string? cascadeNodeId, double phInactiveBand,
+        Guid executionId, out RecipeRampMeasuredRoute route)
     {
         lock (_lock)
         {
             route = new(_routeCoordinator.IsUartFallback, _hubRoutesTemperatureToBath, _settings.Current.GasRig.ToConfiguration());
-            return TryApplyRampFrame([target], null, 0, executionId);
+            return TryApplyRampFrame(targets, cascadeNodeId, phInactiveBand, executionId);
         }
     }
 

@@ -458,6 +458,10 @@
                                                     <Setter Property="BorderBrush" Value="{DynamicResource StateAlarmBrush}" />
                                                     <Setter Property="BorderThickness" Value="2" />
                                                 </DataTrigger>
+                                                <DataTrigger Binding="{Binding ExecutionState}" Value="Cancelled">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource StrokeStrongBrush}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>

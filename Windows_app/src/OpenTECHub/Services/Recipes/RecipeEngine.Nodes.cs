@@ -11,9 +11,6 @@ public sealed partial class RecipeEngine
     {
         switch (node.Type)
         {
-            case NodeType.LinearSetpointRamp:
-                await ExecuteRampAsync(node, ct).ConfigureAwait(false);
-                break;
             case NodeType.KlaAssay:
                 await ExecuteKlaWorkAsync(node, null, ct).ConfigureAwait(false);
                 break;

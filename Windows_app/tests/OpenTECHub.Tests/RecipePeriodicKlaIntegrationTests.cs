@@ -38,7 +38,15 @@ public sealed class RecipePeriodicKlaIntegrationTests
     [InlineData(KlaAssayProtocol.Abiotic, false, false, true, true)] [InlineData(KlaAssayProtocol.Biotic, false, false, true, true)]
     [InlineData(KlaAssayProtocol.Abiotic, true, false, true, true)] [InlineData(KlaAssayProtocol.Biotic, true, false, true, true)]
     [InlineData(KlaAssayProtocol.Abiotic, false, true, true, true)] [InlineData(KlaAssayProtocol.Biotic, false, true, true, true)]
-    public async Task Cascade_exit_pause_or_emergency_during_common_assay_awaits_terminal_group(KlaAssayProtocol protocol, bool pause, bool emergency, bool graph = false, bool concrete = false)
+    [InlineData(KlaAssayProtocol.Abiotic, false, false, true, true, true)]
+    [InlineData(KlaAssayProtocol.Biotic, false, false, true, true, true)]
+    [InlineData(KlaAssayProtocol.Abiotic, true, false, true, true, true)]
+    [InlineData(KlaAssayProtocol.Biotic, true, false, true, true, true)]
+    [InlineData(KlaAssayProtocol.Abiotic, false, true, true, true, true)]
+    [InlineData(KlaAssayProtocol.Biotic, false, true, true, true, true)]
+    [InlineData(KlaAssayProtocol.Abiotic, false, false, true, true, true, true)]
+    [InlineData(KlaAssayProtocol.Biotic, false, false, true, true, true, true)]
+    public async Task Cascade_exit_pause_or_emergency_during_common_assay_awaits_terminal_group(KlaAssayProtocol protocol, bool pause, bool emergency, bool graph = false, bool concrete = false, bool ramp = false, bool completeAssay = false)
     {
         var root = Path.Combine(Path.GetTempPath(), "periodic-kla-" + Guid.NewGuid().ToString("N"));
         using var fixture = new RecipeAssayRestorationTests.Fixture(virtualTimers: true);
@@ -122,7 +130,8 @@ public sealed class RecipePeriodicKlaIntegrationTests
             Path.Combine(root, "recipe-journal"), () => template.Context.CultivationId);
         using var engine = new RecipeEngine(arbiter, arbiter, settings, clock,
             periodicWorkSource: graph ? null : source,
-            autonomousWorkSource: concrete ? concreteSource : graph ? new GraphSource(source, capabilities, () => result!) : null);
+            autonomousWorkSource: concrete ? concreteSource : graph ? new GraphSource(source, capabilities, () => result!) : null,
+            rampExecution: ramp ? RecipeRampApplicationConfiguration.Create(root, true, writer) : null);
         var recipe = new RecipeDocument { Name = "periodic common assay" };
         var cascade = RecipeNode.Create(NodeType.CascadeControl, id: "casc");
         cascade.Set("spO2", 80.0); cascade.Set("nMinRpm", 300.0); cascade.Set("nMaxRpm", 350.0);
@@ -146,13 +155,39 @@ public sealed class RecipePeriodicKlaIntegrationTests
             recipe.Connections.AddRange([new("start", ConnectorNames.Out, "periodic", ConnectorNames.In),
                 new("periodic", ConnectorNames.Out, "kla", ConnectorNames.In)]);
         }
+        if (ramp)
+        {
+            var delay = RecipeNode.Create(NodeType.Timer, id: "ramp-delay");
+            delay.Set("duracao", 1); delay.Set("unidade", nameof(TimeUnit.Seconds));
+            var rampNode = RecipeNode.Create(NodeType.LinearSetpointRamp, id: "ramp");
+            rampNode.Set("cascadeNodeId", "casc");
+            rampNode.Set("cancellationPolicy", nameof(RampCancellationPolicy.RestoreSnapshot));
+            rampNode.Set("lines", new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject {
+                ["variable"] = "Oxygen", ["oxygenTarget"] = "ActiveCascadeReference", ["startSource"] = "Explicit",
+                ["initialSetpoint"] = 80, ["finalSetpoint"] = 90, ["endAfterSeconds"] = 1000 }));
+            var afterRamp = RecipeNode.Create(NodeType.LogEvent, id: "after-ramp");
+            afterRamp.Set("mensagem", "only after completed ramp");
+            recipe.Nodes.AddRange([delay, rampNode, afterRamp]);
+            recipe.Connections.AddRange([new("start", ConnectorNames.Out, "ramp-delay", ConnectorNames.In),
+                new("ramp-delay", ConnectorNames.Out, "ramp", ConnectorNames.In),
+                new("ramp", ConnectorNames.Out, "after-ramp", ConnectorNames.In)]);
+        }
         try
         {
             await engine.StartAsync(recipe);
             fixture.Device.PushTelemetry(fixture.Sample(300, 2, command: 10, oxygen: 80));
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             while (engine.CascadeTermsFor("casc") is null || clock.PendingTimers == 0) await Task.Delay(1, timeout.Token);
-            clock.Advance(TimeSpan.FromSeconds(5));
+            if (ramp)
+            {
+                clock.Advance(TimeSpan.FromSeconds(1));
+                while (Directory.GetFiles(root, "start.json", SearchOption.AllDirectories).Length == 0)
+                    await Task.Delay(1, timeout.Token);
+                // The next slot starts after the ramp's durable preparation.
+                await Task.Delay(10, timeout.Token);
+                clock.Advance(TimeSpan.FromSeconds(4));
+            }
+            else clock.Advance(TimeSpan.FromSeconds(5));
             if (concrete)
             {
                 while (concreteSource.ActiveInvocations.Count == 0) await Task.Delay(1, timeout.Token);
@@ -164,6 +199,15 @@ public sealed class RecipePeriodicKlaIntegrationTests
             await KlaRecipeOrchestratorTests.Drive(engine.Completion, orchestrator!, fixture, request!, () => false,
                 KlaRecipeOrchestratorTests.Scenario.Normal, cancellation, current =>
                 {
+                    if (completeAssay)
+                    {
+                        if (!exit && engine.AutonomousResults.Count == 1)
+                        {
+                            exit = true;
+                            gate.Set("operacao", nameof(ManualGateOperation.Pass));
+                        }
+                        return;
+                    }
                     if (pause && exit && !resumed && (concrete ? concreteSource.ActiveInvocations.Count == 0 && engine.AutonomousResults.Count > 0 : matrix!.IsCompleted))
                     {
                         Assert.NotNull(engine.CascadeTermsFor("casc")); Assert.Equal(RecipeRunState.Paused, engine.State);
@@ -186,7 +230,7 @@ public sealed class RecipePeriodicKlaIntegrationTests
                 journal = new RecipePeriodicJournal(Path.Combine(root, "recipe-journal"), engine.ExecutionId, result.Context.RecipeSha256, writer, clock);
             }
             Assert.True(exit, $"Ensaio terminou antes da recuperação: {result?.Status}, {result?.Reason}; engine {engine.State}, {engine.StatusReason}");
-            Assert.Equal(emergency ? RecipeRunState.Stopped : RecipeRunState.Completed, engine.State);
+            Assert.True(engine.State == (emergency ? RecipeRunState.Stopped : RecipeRunState.Completed), engine.StatusReason);
             Assert.NotNull(result);
             if (graph) Assert.Single(engine.AutonomousResults);
             if (emergency)
@@ -197,14 +241,28 @@ public sealed class RecipePeriodicKlaIntegrationTests
             }
             else
             {
-                Assert.Equal(KlaRecipeTerminalStatus.Cancelled, result.Status);
+                if (completeAssay) Assert.Contains(result.Status, new[] { KlaRecipeTerminalStatus.Completed, KlaRecipeTerminalStatus.CompletedWithWarnings });
+                else Assert.Equal(KlaRecipeTerminalStatus.Cancelled, result.Status);
                 Assert.True(result.PreAssayStateRestored); Assert.True(result.PersistenceConfirmed);
                 Assert.Single(result.Attempts);
             }
             Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(store.ReadRecipeResult(result.SessionFolder, request!.Context.InvocationId)));
             Assert.Single(result.Pulses[0].RecipePulse!.Invocation.Restoration.BeforeAssay.Controllers);
             Assert.Null(engine.CascadeTermsFor("casc"));
-            Assert.Equal(new[] { RecipePeriodicSlotState.Started, RecipePeriodicSlotState.Cancelled }, journal!.Read(scheduleId).Select(r => r.State));
+            if (ramp)
+            {
+                var path = Assert.Single(Directory.GetFiles(root, "terminal.json", SearchOption.AllDirectories));
+                var terminal = JsonSerializer.Deserialize<RecipeRampTerminalCheckpoint>(File.ReadAllText(path))!;
+                Assert.Equal(emergency ? RecipeRampTerminalStatus.EmergencyStopped : RecipeRampTerminalStatus.Cancelled, terminal.Status);
+                Assert.Equal(!emergency, terminal.HasVerifiedRecovery);
+                if (emergency) Assert.Equal(RecipeRampReturnOutcome.SuppressedForEmergency, terminal.ReturnOutcome);
+                else Assert.Equal(80, Assert.Single(terminal.Recovery!.References).Reference);
+                Assert.True(terminal.ActiveSeconds < 15, $"Rampa acumulou tempo durante o ensaio: {terminal.ActiveSeconds}");
+                Assert.Equal(emergency ? NodeState.Error : NodeState.Cancelled, engine.NodeStateOf("ramp"));
+                Assert.Equal(NodeState.Waiting, engine.NodeStateOf("after-ramp"));
+                Assert.False(engine.WasTraversed(recipe.Connections.Single(edge => edge.SourceNodeId == "ramp")));
+            }
+            Assert.Equal(new[] { RecipePeriodicSlotState.Started, completeAssay ? RecipePeriodicSlotState.Completed : RecipePeriodicSlotState.Cancelled }, journal!.Read(scheduleId).Select(r => r.State));
         }
         finally
         {

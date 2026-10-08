@@ -227,7 +227,10 @@ public sealed class RecipeRampBlockRunnerTests
             {
                 await recoverySent.Task.WaitAsync(TimeSpan.FromSeconds(3));
                 if (pauseKind == 5)
+                {
                     arbiter.DispatchSafety(OpenTECCommand.Create().Set(CommandKeys.TempSetpoint, 0), "emergency during recovery");
+                    arbiter.Claim(CommandOwner.Manual, [ActuatorId.Temperature], "later manual ownership notification");
+                }
                 else
                 {
                     await Assert.ThrowsAsync<AggregateException>(() => running.WaitAsync(TimeSpan.FromSeconds(5)));

@@ -40,7 +40,7 @@ public sealed partial class RecipeEngine
                 return; // this arrival does not fire the join; another branch will (or already did)
             }
 
-            if (!isJoin && IsCompleted(current.Id))
+            if (!isJoin && (IsCompleted(current.Id) || NodeStateOf(current.Id) == NodeState.Cancelled))
             {
                 // A diamond without an explicit join re-reached this block; run it once only.
                 return;
@@ -48,7 +48,7 @@ public sealed partial class RecipeEngine
 
             if (!(isJoin && IsCompleted(current.Id)))
             {
-                await ExecuteNodeWithStateAsync(current, ct).ConfigureAwait(false);
+                if (!await ExecuteNodeWithStateAsync(current, ct).ConfigureAwait(false)) return;
             }
 
             if (current.Type == NodeType.Periodic) return; // Its owned target returns to the scheduler.
@@ -132,13 +132,22 @@ public sealed partial class RecipeEngine
         }
     }
 
-    private async Task ExecuteNodeWithStateAsync(RecipeNode node, CancellationToken ct)
+    private async Task<bool> ExecuteNodeWithStateAsync(RecipeNode node, CancellationToken ct)
     {
         SetNodeState(node.Id, NodeState.Evaluating);
         try
         {
-            await ExecuteNodeAsync(node, ct).ConfigureAwait(false);
+            if (node.Type == NodeType.LinearSetpointRamp)
+            {
+                if (!await ExecuteRampAsync(node, ct).ConfigureAwait(false))
+                {
+                    SetNodeState(node.Id, NodeState.Cancelled);
+                    return false;
+                }
+            }
+            else await ExecuteNodeAsync(node, ct).ConfigureAwait(false);
             SetNodeState(node.Id, NodeState.Completed);
+            return true;
         }
         catch (OperationCanceledException)
         {

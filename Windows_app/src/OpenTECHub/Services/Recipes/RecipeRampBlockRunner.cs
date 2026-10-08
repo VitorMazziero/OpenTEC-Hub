@@ -48,7 +48,7 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
             lock (pauseGate)
             {
                 if (detached) return;
-                revocation = transfer;
+                if (revocation?.IsSafeAbort != true) revocation = transfer;
                 revoked.Cancel();
             }
         }
@@ -62,6 +62,9 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
             }
         }
         engine.StateChanged += ObserveState;
+        // OwnershipChanged is emitted before revocation listeners cancel dependent producers.
+        // Capture the cause first so their cancellation cannot be mistaken for failed recovery.
+        arbiter.OwnershipChanged += ObserveRevocation;
         arbiter.OwnershipRevoked += ObserveRevocation;
         ObserveState();
         RecipeRampStartCheckpoint? start = null;
@@ -148,6 +151,7 @@ public sealed class RecipeRampBlockRunner(RecipeEngine engine, ICommandAuthority
         {
             lock (pauseGate) detached = true;
             engine.StateChanged -= ObserveState;
+            arbiter.OwnershipChanged -= ObserveRevocation;
             arbiter.OwnershipRevoked -= ObserveRevocation;
             destination?.Dispose();
             if (start is not null) coordinator.Unregister(nodeId);

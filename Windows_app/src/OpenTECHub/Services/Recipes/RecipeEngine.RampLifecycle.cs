@@ -5,6 +5,11 @@ public sealed partial class RecipeEngine
     private readonly Dictionary<Guid, RampLifecycle> _rampLifecycles = [];
     private readonly HashSet<string> _closingRampCascades = [];
 
+    private bool IsRampCascadeClosing(string? cascadeNodeId)
+    {
+        lock (_lock) return cascadeNodeId is not null && _closingRampCascades.Contains(cascadeNodeId);
+    }
+
     internal RampLifecycle TrackRampLifecycle(string? cascadeNodeId)
     {
         lock (_lock)

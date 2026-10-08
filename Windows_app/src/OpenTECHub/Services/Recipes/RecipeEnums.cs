@@ -114,6 +114,8 @@ public enum NodeState
 
     /// <summary>Faulted.</summary>
     Error,
+    /// <summary>Interrupted by the normal closure of its associated controller; no downstream flow.</summary>
+    Cancelled,
 }
 
 /// <summary>The six block categories, with their header colours from <c>docs/UI_DESIGN.md</c> §5.3.6.</summary>

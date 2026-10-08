@@ -52,6 +52,10 @@ public sealed class KlaAutomaticResultsTests
         Assert.Contains("inconclusivo", row.Kla); Assert.DoesNotContain("999", row.Kla);
         Assert.Contains(protocol == KlaAssayProtocol.Abiotic ? "não aplicável" : "condicional", row.Our);
         Assert.Contains("nova tentativa", row.Decision);
+        Assert.Equal("Recuperação confirmada insuficiente", row.Reasons);
+        Assert.Equal("Resultado atende aos critérios do perfil", new KlaRecordedAttemptViewModel(document.Runs[1], protocol).Reasons);
+        Assert.Contains("insufficient_confirmed_recovery", csv);
+        Assert.Contains("qualified_result", csv);
     }
 
     [Fact]

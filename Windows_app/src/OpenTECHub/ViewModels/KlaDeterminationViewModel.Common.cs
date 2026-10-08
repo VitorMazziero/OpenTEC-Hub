@@ -133,8 +133,13 @@ public sealed partial class KlaDeterminationViewModel
         _ => "Inconclusivo",
     };
 
-    private static string ExplainReason(string reason) => reason switch
+    internal static string ExplainReason(string reason) => reason switch
     {
+        "qualified_result" => "Resultado atende aos critérios do perfil",
+        "recipe_pause" => "Tentativa interrompida pela pausa da receita",
+        "acquisition_cancelled" => "Aquisição cancelada",
+        "acquisition_failed" => "Falha durante a aquisição",
+        "acquisition_faulted" => "Falha durante a aquisição",
         "unknown_probe_response_rate_is_conditional" => "Resposta da sonda não verificada: taxa condicionada",
         "respiratory_transient_probe_response_not_independently_verified" => "Transiente respiratório condicionado à resposta da sonda",
         "constant_process_conditions_not_independently_verified" => "Condições de processo não verificadas",

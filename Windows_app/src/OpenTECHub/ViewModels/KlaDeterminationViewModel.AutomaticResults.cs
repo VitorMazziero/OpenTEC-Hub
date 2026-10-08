@@ -35,7 +35,7 @@ public sealed record KlaRecordedAttemptViewModel(KlaTestRunSummary Run, KlaAssay
         ? $"Autoria: política automática · versão {decision.PolicyVersion} · " +
             (decision.PersistenceConfirmed ? "decisão gravada" : "gravação não confirmada")
         : "Autoria automática ainda não registrada";
-    public string Reasons => string.Join(" · ", Run.AutomaticDecision?.ReasonCodes ?? []);
+    public string Reasons => string.Join(" · ", (Run.AutomaticDecision?.ReasonCodes ?? []).Select(KlaDeterminationViewModel.ExplainReason));
     public string SavedFolder => Run.FolderName;
     private static string Number(double? value) => value?.ToString("0.###", CultureInfo.CurrentCulture) ?? "—";
     private static string Quality(KlaScientificQuality quality) => quality switch

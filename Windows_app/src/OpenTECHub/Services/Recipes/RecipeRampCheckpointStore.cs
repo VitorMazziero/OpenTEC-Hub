@@ -10,7 +10,7 @@ public sealed record RecipeRampStartCheckpoint(int SchemaVersion, Guid Invocatio
     RecipeRampBlockConfiguration Configuration, RecipeRampInitialState InitialState);
 
 /// <summary>Durable start receipt. A saved receipt never authorizes automatic restart or actuation.</summary>
-public sealed class RecipeRampCheckpointStore(string rootDirectory, BackgroundFileWriter writer)
+public sealed partial class RecipeRampCheckpointStore(string rootDirectory, BackgroundFileWriter writer)
 {
     private readonly string _root = Path.GetFullPath(rootDirectory);
     private readonly SemaphoreSlim _gate = new(1, 1);

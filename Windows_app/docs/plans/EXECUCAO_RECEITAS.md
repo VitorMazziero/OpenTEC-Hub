@@ -21,4 +21,6 @@ Requisitos de entrega confirmados pelo autor: preservar suas correções do apli
 | R6.1 | Pendente | Regressão final, exemplos e UI |
 | R6.2 | Pendente — exige bancada | Retorno físico e habilitação por instalação/protocolo |
 
+Incrementos de R5.2: [captura inicial durável](receitas-r52/GRAVACAO_INICIAL.md) e [resultado terminal durável](receitas-r52/GRAVACAO_TERMINAL.md). Os armazenamentos estão implementados; consumo dos recibos pelo ciclo de vida do bloco e confirmação dos destinos permanecem pendentes. A revisão do editor está descrita em [edição guiada](receitas-r42/EDICAO_GUIADA.md).
+
 Contagens não se somam: incluem testes repetidos. Aprovação de software não habilita protocolos físicos pendentes. Nenhuma etapa posterior é dada como concluída apenas porque seus contratos já existem.

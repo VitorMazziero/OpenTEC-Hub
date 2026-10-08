@@ -21,7 +21,7 @@ public sealed class RecipeRampBlockConfigurationTests
         Assert.Equal(.2, configuration.CompletionCriteria!.TemperatureToleranceCelsius);
         Assert.Equal(12, configuration.CompletionCriteria.StabilitySeconds);
         Assert.Equal(120, configuration.CompletionCriteria.TimeoutSeconds);
-        Assert.Equal(.5, configuration.CompletionCriteria.PressureToleranceKilopascals);
+        Assert.Equal(RecipeRampCompletionCriteria.OperationalDefaults.PressureToleranceKilopascals, configuration.CompletionCriteria.PressureToleranceKilopascals);
         reopened.Set("temperatureTolerance", -1);
         Assert.Throws<ArgumentException>(() => RecipeRampBlockConfiguration.Read(reopened));
         reopened.Set("temperatureTolerance", .2);

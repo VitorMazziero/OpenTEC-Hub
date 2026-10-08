@@ -5,7 +5,8 @@ public sealed record RecipeRampCompletionCriteria(double TemperatureToleranceCel
     double FlowToleranceLpm, double PhTolerance, double PressureToleranceKilopascals, double StabilitySeconds,
     double MaximumSampleGapSeconds, double TimeoutSeconds)
 {
-    public static RecipeRampCompletionCriteria OperationalDefaults { get; } = new(.5, 2, .1, .05, .5, 10, 5, 300);
+    /// <summary>Author's bench tolerances (Q9, 08/10/2026); the timeout covers a bath that needs about 10 min.</summary>
+    public static RecipeRampCompletionCriteria OperationalDefaults { get; } = new(.5, 5, .2, .2, 1, 10, 5, 900);
 
     public RecipeRampFrameDestination CreateCapturedDestination(RecipeEngine engine, RecipeRampStartCheckpoint start)
     {

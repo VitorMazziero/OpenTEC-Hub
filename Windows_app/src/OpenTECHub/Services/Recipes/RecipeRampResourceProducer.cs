@@ -8,9 +8,11 @@ public sealed class RecipeRampResourceProducer : IRecipeResourceProducer, IDispo
 {
     private readonly RecipeCascadeSuspensionGate _dispatch = new();
     private readonly RecipeRampActiveClock _clock;
+    private readonly CancellationToken _stopToken;
     public string NodeId { get; }
     public IReadOnlyList<ActuatorId> Resources { get; }
-    public CancellationToken StopToken => _dispatch.StopToken;
+    public CancellationToken StopToken => _stopToken;
+    internal RecipeRampActiveClock ActiveClock => _clock;
 
     public RecipeRampResourceProducer(string nodeId, IReadOnlyList<ActuatorId> resources,
         RecipeRampActiveClock clock)
@@ -22,6 +24,7 @@ public sealed class RecipeRampResourceProducer : IRecipeResourceProducer, IDispo
         NodeId = nodeId;
         Resources = Array.AsReadOnly(resources.Distinct().ToArray());
         _clock = clock;
+        _stopToken = _dispatch.StopToken;
     }
 
     // The destination must hold this lease across sampling and the complete dispatch.

@@ -9,6 +9,21 @@ public interface IRecipeRampDestination
     Task<bool> TryApplyAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation);
     /// <summary>Confirm each final reference through its own destination, using a bounded deadline.</summary>
     Task ConfirmFinalAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation);
+
+    /// <summary>Destinations with a handoff barrier override this to sample inside the dispatch lease.</summary>
+    async Task<ImmutableArray<LinearRampSample>> TryApplyTrajectoryAsync(LinearSetpointRampTrajectory trajectory,
+        RecipeRampActiveClock clock, ImmutableArray<LinearRampSample> last, CancellationToken cancellation)
+    {
+        if (clock.IsSuspended) return [];
+        var samples = trajectory.Sample(clock.ActiveSeconds);
+        return samples.SequenceEqual(last) || await TryApplyAsync(samples, cancellation).ConfigureAwait(false) ? samples : [];
+    }
+
+    async Task<bool> TryConfirmFinalAsync(ImmutableArray<LinearRampSample> references, CancellationToken cancellation)
+    {
+        await ConfirmFinalAsync(references, cancellation).ConfigureAwait(false);
+        return true;
+    }
 }
 
 /// <summary>One cadence with no replay of overdue frames. Ownership and suspension are enforced by the destination.</summary>
@@ -31,14 +46,16 @@ public sealed class LinearSetpointRampExecutor(TimeProvider time)
             cancellation.ThrowIfCancellationRequested();
             if (!activeClock.IsSuspended)
             {
-                var samples = trajectory.Sample(activeClock.ActiveSeconds);
-                if (!samples.SequenceEqual(last) && await destination.TryApplyAsync(samples, cancellation).ConfigureAwait(false))
+                var samples = await destination.TryApplyTrajectoryAsync(trajectory, activeClock, last, cancellation).ConfigureAwait(false);
+                if (!samples.IsEmpty)
                     last = samples;
-                if (!last.IsEmpty && samples.SequenceEqual(last) && samples.All(sample => sample.AtFinalTarget))
+                if (!samples.IsEmpty && samples.All(sample => sample.AtFinalTarget))
                 {
-                    await destination.ConfirmFinalAsync(samples, cancellation).ConfigureAwait(false);
-                    cancellation.ThrowIfCancellationRequested();
-                    return;
+                    if (await destination.TryConfirmFinalAsync(samples, cancellation).ConfigureAwait(false))
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        return;
+                    }
                 }
             }
             // Delay from completion, rather than prior due time: slow dispatch cannot create a catch-up burst.

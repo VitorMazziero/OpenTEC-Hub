@@ -28,7 +28,10 @@ class ReactorPvModel:
             self.valid = False
 
     def fresh(self, now_ms):
-        return self.valid and self.updated_ms > 0 and now_ms - self.updated_ms <= self.timeout_ms
+        # uint32 arithmetic, as on the ESP32; a stamp later than now has age zero.
+        diff = (now_ms - self.updated_ms) & 0xFFFFFFFF
+        age = 0 if diff >= 0x80000000 else diff
+        return self.valid and self.updated_ms > 0 and age <= self.timeout_ms
 
 
 class ReactorTemperatureTests(unittest.TestCase):
@@ -39,6 +42,20 @@ class ReactorTemperatureTests(unittest.TestCase):
         pv.accept(float("nan"), 5000)
         self.assertFalse(pv.fresh(6000))
         self.assertEqual(1000, pv.updated_ms)
+
+    def test_sample_stamped_after_the_loop_read_now_is_fresh(self):
+        # 2026-10-09: the loop reads now, then the sensor read stamps the PV a few hundred ms
+        # later; unsigned now - stamp wrapped, the cascade paused on every read and its slope
+        # window never filled, so the bath PI never engaged.
+        pv = ReactorPvModel()
+        pv.accept(31.5, 10_300)
+        self.assertTrue(pv.fresh(10_000))
+
+    def test_freshness_checks_use_the_wrap_safe_age(self):
+        app = (ROOT / "src/core/AppContext.h").read_text(encoding="utf-8")
+        runtime = (ROOT / "src/core/Runtime.h").read_text(encoding="utf-8")
+        self.assertIn("elapsedSinceMs(nowMs, reactorTempPvUpdatedMs)", app)
+        self.assertIn("elapsedSinceMs(now, bathLastUpdateSnapshot)", runtime)
 
     def test_timeout_is_three_delays_with_floor_and_ceiling(self):
         pv = ReactorPvModel()

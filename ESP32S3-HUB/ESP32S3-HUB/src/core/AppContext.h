@@ -280,9 +280,16 @@ inline unsigned long reactorTempStaleTimeoutMs() {
   return triple < REACTOR_TEMP_STALE_MIN_MS ? REACTOR_TEMP_STALE_MIN_MS : triple;
 }
 
+// Age of a timestamp. The loop reads `now` once at the top of the pass, and the sensor read
+// (or the web task) can stamp a sample after that: unsigned `now - then` was then ~49 days, so
+// a sample taken a few ms ago counted as stale. A stamp later than `now` has age zero.
+inline unsigned long elapsedSinceMs(unsigned long nowMs, unsigned long thenMs) {
+  return static_cast<long>(nowMs - thenMs) < 0 ? 0UL : nowMs - thenMs;
+}
+
 inline bool reactorTempPvFresh(unsigned long nowMs) {
   return reactorTempPvValid && reactorTempPvUpdatedMs > 0 &&
-         nowMs - reactorTempPvUpdatedMs <= reactorTempStaleTimeoutMs();
+         elapsedSinceMs(nowMs, reactorTempPvUpdatedMs) <= reactorTempStaleTimeoutMs();
 }
 
 // ---------- Sensor UART ----------

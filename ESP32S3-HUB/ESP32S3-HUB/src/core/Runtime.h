@@ -315,7 +315,7 @@ void serviceExternalBathCascade(unsigned long now) {
   const BathCoordinatorView link = bathLinkView();
   const bool active = tempReferenceCommanded;
   const bool reactorFresh = reactorTempPvFresh(now);
-  const bool nodeFresh = bathLastUpdateSnapshot > 0 && now - bathLastUpdateSnapshot <= 5000;
+  const bool nodeFresh = bathLastUpdateSnapshot > 0 && elapsedSinceMs(now, bathLastUpdateSnapshot) <= 5000;
   const bool nodeSequenceRunning = strcmp(bathStateSnapshot, "running") == 0 ||
                                    strcmp(bathStateSnapshot, "settling") == 0;
   const bool completionPending = link.completion == BathCompletionState::Pending;

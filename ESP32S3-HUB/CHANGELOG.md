@@ -1,5 +1,19 @@
 # Changelog do Hub
 
+## 10.7.1-dev — o PI do banho nunca entrava
+
+- **Leitura do reator tida como velha a cada leitura:** o loop lê `now = millis()` no início da
+  volta e só depois lê a UART, que carimba `reactorTempPvUpdatedMs` com um instante posterior.
+  `now − carimbo` em `unsigned long` dava ~49 dias, a leitura recém-feita contava como velha e a
+  cascata pausava (`reactor_pv_stale`) por uma volta a cada leitura (~2 s). Na volta seguinte o
+  filtro era re-semeado e a janela da inclinação zerada: a inclinação nunca ficava válida e a
+  cascata ficava em `approaching` (banho em `ref + bias`, P = I = 0) para sempre. Visto no cultivo
+  de 09/10/2026: reator a 31,5 °C com referência 30 °C por 35 min, banho fixo em 30,6 °C. A pausa
+  durava ~10 ms e não aparecia na telemetria; o sinal era o PV filtrado sempre igual ao bruto.
+- `elapsedSinceMs()` (idade zero para carimbo posterior a `now`) em `reactorTempPvFresh` e na
+  checagem de nó do banho online, que tinha o mesmo defeito com o `/bathData` chegando durante a
+  volta. Teste de contrato em `test_reactor_temp.py`.
+
 ## 10.7.0-dev — PI do banho só no ajuste fino
 
 - **Portão do PI:** a cascata só atua perto da referência com o reator assentado. Entra com

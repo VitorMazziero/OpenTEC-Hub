@@ -12,7 +12,8 @@
 // 10.3.0: transicao editavel do fluxometro v12; 10.4.0: calibracao polinomial da bomba v3.12.
 // 10.5.0: telemetria completa e diagnostico da cascata termica externa.
 // 10.7.0: PI do banho restrito ao ajuste fino (estado `approaching`); chaves aditivas.
-#define HUB_FIRMWARE_VERSION "10.7.0-dev"
+// 10.7.1: idade das leituras sem estouro (o PI do banho nunca entrava).
+#define HUB_FIRMWARE_VERSION "10.7.1-dev"
 #define HUB_PROTOCOL_VERSION 10
 
 // ===================================================================

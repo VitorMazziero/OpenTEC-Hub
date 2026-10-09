@@ -372,7 +372,8 @@ public sealed partial class RecipeEngine
             node.Number("qMinVvm"), node.Number("qMaxVvm"),
             node.Number("aeracaoOutMin"), node.Number("aeracaoOutMax"));
 
-        var controller = new CascadeController(BuildTuning(node), agitation, aeration, node.Number("spO2"));
+        var controller = new CascadeController(BuildTuning(node), agitation, aeration, node.Number("spO2"),
+            node.Number("passoAeracaoLpm"));
 
         var currentAgitation = node.Number("nMinRpm");
         var currentAeration = snapshot?.FlowRate is { } fr && fr >= 0 ? fr : node.Number("qMinVvm");

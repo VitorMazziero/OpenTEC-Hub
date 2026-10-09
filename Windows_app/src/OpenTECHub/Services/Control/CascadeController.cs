@@ -26,13 +26,24 @@ public sealed partial class CascadeController
 
     /// <summary>Actuator name for aeration.</summary>
     public const string AerationActuator = "aeration";
-    public const double AerationCommandStepLpm = 0.05;
 
-    internal static double QuantizeAeration(double flow)
+    /// <summary>
+    /// Default grid of the aeration setpoint sent to the flowmeter, in L/min (D-070). It used to be a fixed
+    /// 0.05; the operator now sets it in the tuning (<see cref="CascadeSettings.AerationStepLpm"/>).
+    /// </summary>
+    public const double DefaultAerationStepLpm = 0.2;
+
+    internal static double QuantizeAeration(double flow, double stepLpm = DefaultAerationStepLpm)
     {
-        var step = (decimal)AerationCommandStepLpm;
+        var step = (decimal)SanitizeAerationStep(stepLpm);
         return (double)(Math.Round((decimal)flow / step, 0, MidpointRounding.AwayFromZero) * step);
     }
+
+    /// <summary>A step that is not a positive finite number (a hand-edited file) falls back to the default.</summary>
+    internal static double SanitizeAerationStep(double stepLpm)
+        => double.IsFinite(stepLpm) && stepLpm > 0 ? stepLpm : DefaultAerationStepLpm;
+
+    private readonly double _aerationStepLpm;
 
     private readonly CascadeTwoLoopPidController _pid;
     private CascadeAllocation _allocation;
@@ -41,11 +52,13 @@ public sealed partial class CascadeController
         CascadeTuning tuning,
         ActuatorWindow agitation,
         ActuatorWindow aeration,
-        double oxygenSetpoint)
+        double oxygenSetpoint,
+        double aerationStepLpm = DefaultAerationStepLpm)
     {
         ArgumentNullException.ThrowIfNull(tuning);
         ArgumentNullException.ThrowIfNull(agitation);
         ArgumentNullException.ThrowIfNull(aeration);
+        _aerationStepLpm = SanitizeAerationStep(aerationStepLpm);
 
         _pid = new CascadeTwoLoopPidController(tuning, oxygenSetpoint);
         _allocation = new WindowAllocation(
@@ -106,8 +119,11 @@ public sealed partial class CascadeController
         var (rpm, flow) = _allocation.Allocate(terms.Output);
         var minimumFlow = _allocation.Allocate(0).AerationLpm;
         var maximumFlow = _allocation.Allocate(100).AerationLpm;
-        // Keep exact configured endpoints (and held flow) when they are not on the grid.
-        var commandedFlow = Math.Clamp(QuantizeAeration(flow), minimumFlow, maximumFlow);
+        // Keep exact configured endpoints (and held flow) when they are not on the grid: a step coarser than
+        // the window must not round the lower end up past the upper one.
+        var commandedFlow = flow <= minimumFlow ? minimumFlow
+            : flow >= maximumFlow ? maximumFlow
+            : Math.Clamp(QuantizeAeration(flow, _aerationStepLpm), minimumFlow, maximumFlow);
 
         return new CascadeActuationResult(
             AgitationRpm: (int)Math.Round(rpm, MidpointRounding.AwayFromZero),

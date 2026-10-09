@@ -6,6 +6,13 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.28.0] - 2026-10-09
+
+- Controle de O₂: o passo da vazão de ar enviada ao fluxômetro (antes fixo em 0,05 L/min) agora é uma entrada em Limites Físicos e no bloco de receita, com padrão **0,2 L/min** (D-070);
+- corrigido: no modo "somente aeração" o cartão de limites físicos ficava oculto.
+
+---
+
 ## [0.27.3] - 2026-10-08
 
 - Alarmes: removido o botão Reconhecer; o ponto do ícone de Eventos permanece enquanto houver alarmes e não some ao silenciar o áudio (D-069);

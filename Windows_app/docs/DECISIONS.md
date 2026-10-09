@@ -1750,6 +1750,19 @@ grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, 
 Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
 preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
 
+### D-070 · Passo da vazão enviada ao fluxômetro configurável (padrão 0,2 L/min)
+
+**Status:** Accepted and implemented · 2026-10-09
+
+A cascata (e todo controle de O₂ que usa o mesmo controlador: página e bloco de receita) só comandava a vazão de
+aeração em múltiplos de um passo fixo de **0,05 L/min** no código (não 0,5). Agora o passo é uma entrada do operador:
+em **Controle de O₂ › Limites Físicos** ("Passo da vazão enviada ao fluxômetro") e no bloco **Controle de O₂** da
+receita ("Passo da vazão", grupo Faixas físicas). **Padrão 0,2 L/min**, faixa aceita 0,01 a 5 L/min; um valor
+inválido em arquivo volta ao padrão. Os extremos da faixa de vazão (mínimo e máximo) continuam sendo enviados exatos,
+mesmo fora da grade, e um passo maior que a janela não arredonda o mínimo para cima do máximo. Receitas antigas, que
+não têm o campo, passam a usar 0,2. Também corrigido: no modo "somente aeração" o cartão de limites físicos ficava
+oculto, escondendo os limites de vazão.
+
 ### D-069 · Alarmes sem "Reconhecer", ponto fixo em Eventos, botão de som e fluxômetro em 15 s
 
 **Status:** Accepted and implemented · 2026-10-08 · ajusta o item 4 e o item 5 de D-068

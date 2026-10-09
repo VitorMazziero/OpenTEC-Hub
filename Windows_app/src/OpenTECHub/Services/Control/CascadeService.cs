@@ -619,7 +619,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
         new ActuatorWindow(
             CascadeController.AerationActuator,
             c.AerationMinLpm, c.AerationMaxLpm, c.AerationEffortStart, c.AerationEffortEnd),
-        c.OxygenSetpointPercent);
+        c.OxygenSetpointPercent,
+        c.AerationStepLpm);
 
     private static bool SameWindows(CascadeSettings a, CascadeSettings b) =>
         a.AgitationMinRpm == b.AgitationMinRpm &&
@@ -629,7 +630,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
         a.AerationMinLpm == b.AerationMinLpm &&
         a.AerationMaxLpm == b.AerationMaxLpm &&
         a.AerationEffortStart == b.AerationEffortStart &&
-        a.AerationEffortEnd == b.AerationEffortEnd;
+        a.AerationEffortEnd == b.AerationEffortEnd &&
+        a.AerationStepLpm == b.AerationStepLpm;
 
     private void OnTelemetry(SensorSnapshot snapshot)
     {

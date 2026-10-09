@@ -46,6 +46,7 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
         AgitationMaxRpmText = cfg.AgitationMaxRpm.ToString("F0", CultureInfo.InvariantCulture);
         AerationMinLpmText = cfg.AerationMinLpm.ToString("F2", CultureInfo.InvariantCulture);
         AerationMaxLpmText = cfg.AerationMaxLpm.ToString("F2", CultureInfo.InvariantCulture);
+        AerationStepLpmText = cfg.AerationStepLpm.ToString("0.0###", CultureInfo.InvariantCulture);
 
         // Cascata effort windows
         AgitationEffortStartText = cfg.AgitationEffortStart.ToString("F0", CultureInfo.InvariantCulture);
@@ -76,6 +77,7 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAgitationLimits))]
     [NotifyPropertyChangedFor(nameof(ShowAerationLimits))]
+    [NotifyPropertyChangedFor(nameof(ShowPhysicalLimits))]
     [NotifyPropertyChangedFor(nameof(ShowEffortWindows))]
     [NotifyPropertyChangedFor(nameof(ShowAdvancedGains))]
     [NotifyPropertyChangedFor(nameof(ShowKlaPathSelector))]
@@ -85,6 +87,9 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
     public bool ShowAgitationLimits => SelectedMode.Mode is CascadeMode.AgitationOnly or CascadeMode.DualCascade;
 
     public bool ShowAerationLimits => SelectedMode.Mode is CascadeMode.AerationOnly or CascadeMode.DualCascade;
+
+    /// <summary>The limits card: it was keyed to agitation alone, which hid the aeration fields in aeration-only mode.</summary>
+    public bool ShowPhysicalLimits => ShowAgitationLimits || ShowAerationLimits;
 
     public bool ShowEffortWindows => SelectedMode.Mode is CascadeMode.DualCascade;
 
@@ -126,6 +131,9 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
     [ObservableProperty] public partial string AgitationMaxRpmText { get; set; } = "800";
     [ObservableProperty] public partial string AerationMinLpmText { get; set; } = "0.50";
     [ObservableProperty] public partial string AerationMaxLpmText { get; set; } = "12.00";
+
+    /// <summary>Grid of the aeration setpoint sent to the flowmeter, in L/min (D-070).</summary>
+    [ObservableProperty] public partial string AerationStepLpmText { get; set; } = "0.2";
 
     // ── Effort Windows (Cascata) ──
 
@@ -281,6 +289,13 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
                 ValidationError = "A vazão máxima de aeração deve ser estritamente maior que a mínima.";
                 return false;
             }
+
+            var aerStep = ParseDouble(AerationStepLpmText, -1);
+            if (aerStep < 0.01 || aerStep > 5)
+            {
+                ValidationError = "O passo da vazão de aeração deve estar entre 0,01 e 5 L/min.";
+                return false;
+            }
         }
 
         // Effort windows (Cascata)
@@ -404,6 +419,7 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
             AgitationMaxRpm = ParseDouble(AgitationMaxRpmText, currentCfg.AgitationMaxRpm),
             AerationMinLpm = ParseDouble(AerationMinLpmText, currentCfg.AerationMinLpm),
             AerationMaxLpm = ParseDouble(AerationMaxLpmText, currentCfg.AerationMaxLpm),
+            AerationStepLpm = ParseDouble(AerationStepLpmText, currentCfg.AerationStepLpm),
 
             AgitationEffortStart = ParseDouble(AgitationEffortStartText, currentCfg.AgitationEffortStart),
             AgitationEffortEnd = ParseDouble(AgitationEffortEndText, currentCfg.AgitationEffortEnd),

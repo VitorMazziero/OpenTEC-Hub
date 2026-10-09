@@ -21,6 +21,7 @@ public sealed class CascadeBenchDefaultsTests
         Assert.Equal((-1.0, 1.0, 2400, 8, 20, 3.0), (pid.IMin, pid.IMax, pid.MWindow, pid.JAvg, pid.NPred, pid.IntervalSeconds));
         Assert.Equal((50.0, 800.0, 0.5, 12.0), (cascade.AgitationMinRpm, cascade.AgitationMaxRpm, cascade.AerationMinLpm, cascade.AerationMaxLpm));
         Assert.Equal((0.0, 90.0, 10.0, 100.0), (cascade.AgitationEffortStart, cascade.AgitationEffortEnd, cascade.AerationEffortStart, cascade.AerationEffortEnd));
+        Assert.Equal(0.2, cascade.AerationStepLpm);
         // The first-run preset seeds the same values.
         var preset = new AppSettings().Cascade;
         Assert.Equal(cascade.CascadePid, preset.CascadePid);
@@ -39,6 +40,7 @@ public sealed class CascadeBenchDefaultsTests
         Assert.Equal((50.0, 800.0, 0.5, 12.0), (node.Number("nMinRpm"), node.Number("nMaxRpm"), node.Number("qMinVvm"), node.Number("qMaxVvm")));
         Assert.Equal((0.0, 90.0, 10.0, 100.0), (node.Number("agitacaoOutMin"), node.Number("agitacaoOutMax"),
             node.Number("aeracaoOutMin"), node.Number("aeracaoOutMax")));
+        Assert.Equal(0.2, node.Number("passoAeracaoLpm"));
     }
 
     [Fact]
@@ -54,6 +56,7 @@ public sealed class CascadeBenchDefaultsTests
         Assert.Equal(("-1.0", "1.0", "2400", "8", "20"), (vm.IMinText, vm.IMaxText, vm.MWindowText, vm.JAvgText, vm.NPredText));
         Assert.Equal(("50", "800", "0.50", "12.00"), (vm.AgitationMinRpmText, vm.AgitationMaxRpmText, vm.AerationMinLpmText, vm.AerationMaxLpmText));
         Assert.Equal(("0", "90", "10", "100"), (vm.AgitationEffortStartText, vm.AgitationEffortEndText, vm.AerationEffortStartText, vm.AerationEffortEndText));
+        Assert.Equal("0.2", vm.AerationStepLpmText);
     }
 
     [Fact]

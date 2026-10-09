@@ -619,6 +619,8 @@ public static class RecipeNodeCatalog
             // The aeration window is applied directly in L/min (RecipeEngine.Cascade); the key keeps its old name.
             Num("qMinVvm", "Q_min", 0.5, min: 0, unit: "L/min", group: "Faixas físicas"),
             Num("qMaxVvm", "Q_max", 12.0, min: 0, unit: "L/min", group: "Faixas físicas"),
+            // Grid of the aeration setpoint sent to the flowmeter (D-070).
+            Num("passoAeracaoLpm", "Passo da vazão", 0.2, min: 0.01, max: 5, unit: "L/min", group: "Faixas físicas"),
 
             Num("agitacaoOutMin", "Agitação OutMin", 0, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),
             Num("agitacaoOutMax", "Agitação OutMax", 90, min: 0, max: 100, unit: "%", group: "Janelas de atuação"),

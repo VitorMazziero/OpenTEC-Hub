@@ -19,8 +19,24 @@ public class CascadeServiceTests
     [InlineData(3.525, 3.55)]
     [InlineData(3.575, 3.60)]
     [InlineData(0, 0)]
-    public void Aeration_commands_use_steps_of_five_hundredths(double requested, double expected)
-        => Assert.Equal(expected, CascadeController.QuantizeAeration(requested));
+    public void Aeration_commands_follow_a_configured_step_of_five_hundredths(double requested, double expected)
+        => Assert.Equal(expected, CascadeController.QuantizeAeration(requested, 0.05));
+
+    [Theory]
+    [InlineData(3.535, 3.6)]
+    [InlineData(3.49, 3.4)]
+    [InlineData(3.5, 3.6)]
+    [InlineData(0.09, 0.0)]
+    [InlineData(0.11, 0.2)]
+    public void The_default_aeration_step_is_two_tenths(double requested, double expected)
+        => Assert.Equal(expected, CascadeController.QuantizeAeration(requested), 10);
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(double.NaN)]
+    public void An_unusable_step_falls_back_to_the_default(double step)
+        => Assert.Equal(CascadeController.QuantizeAeration(3.535), CascadeController.QuantizeAeration(3.535, step));
 
     [Fact]
     public void Unchanged_commands_are_not_resent_and_reengaging_sends_the_first_command()
@@ -32,16 +48,35 @@ public class CascadeServiceTests
             service.Engage(331, 3.535679803241002);
             device.Sent.Clear();
             PushOxygen(device, clock, 30);
-            Assert.Contains("\"flowSetpoint\":3.55", Assert.Single(device.Sent));
+            Assert.Contains("\"flowSetpoint\":3.6", Assert.Single(device.Sent));
             PushOxygen(device, clock, 30, frames: 5);
             Assert.Single(device.Sent);
-            Assert.Equal(3.55, service.LastCommandedActuation!.AerationLpm);
+            Assert.Equal(3.6, service.LastCommandedActuation!.AerationLpm);
 
             service.Disengage("Fim");
             service.Engage(331, 3.535679803241002);
             device.Sent.Clear();
             PushOxygen(device, clock, 30);
             Assert.Single(device.Sent);
+        }
+    }
+
+    [Fact]
+    public void The_controller_sends_flow_only_in_multiples_of_the_configured_step()
+    {
+        foreach (var step in new[] { 0.05, 0.2, 0.5 })
+        {
+            var controller = new CascadeController(new CascadeTuning(),
+                new ActuatorWindow(CascadeController.AgitationActuator, 50, 800, 0, 90),
+                new ActuatorWindow(CascadeController.AerationActuator, 0.5, 12, 10, 100), 30, step);
+            controller.SetAllocation(SingleActuatorAllocation.Aeration(0.5, 12, 331));
+            foreach (var effort in new[] { 7.0, 23.0, 41.0, 58.0, 77.0, 93.0 })
+            {
+                controller.Preload(effort);
+                var flow = controller.Update(30, 2).AerationLpm;
+                var steps = flow / step;
+                Assert.True(flow is 0.5 or 12 || Math.Abs(steps - Math.Round(steps)) < 1e-6, $"{flow} L/min is not on the {step} grid");
+            }
         }
     }
 

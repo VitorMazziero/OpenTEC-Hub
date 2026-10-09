@@ -646,6 +646,12 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         set => SetParam("qMaxVvm", value);
     }
 
+    public double CascadeAerStepLpm
+    {
+        get => Model.Number("passoAeracaoLpm");
+        set => SetParam("passoAeracaoLpm", value);
+    }
+
     public string CascadeKlaMapId
     {
         get => Model.Text("klaMapId");
@@ -829,6 +835,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
         CascadeAgitOutMax = s.AgitationEffortEnd;
         CascadeAerMinLpm = s.AerationMinLpm;
         CascadeAerMaxLpm = s.AerationMaxLpm;
+        CascadeAerStepLpm = s.AerationStepLpm;
         CascadeAerOutMin = s.AerationEffortStart;
         CascadeAerOutMax = s.AerationEffortEnd;
 
@@ -903,6 +910,7 @@ public sealed partial class RecipeNodeViewModel : ObservableObject
             AgitationEffortEnd = CascadeAgitOutMax,
             AerationMinLpm = CascadeAerMinLpm,
             AerationMaxLpm = CascadeAerMaxLpm,
+            AerationStepLpm = CascadeAerStepLpm,
             AerationEffortStart = CascadeAerOutMin,
             AerationEffortEnd = CascadeAerOutMax,
             AgitationPid = mode == CascadeMode.AgitationOnly ? currentPid : _settings.Current.Cascade.AgitationPid,

@@ -838,6 +838,13 @@ public sealed record CascadeSettings
 
     public double AerationMinLpm { get; init; } = 0.5;
     public double AerationMaxLpm { get; init; } = 12.0;
+
+    /// <summary>
+    /// Grid of the aeration setpoint the cascade sends to the flowmeter, in L/min (D-070): the command only
+    /// changes in multiples of this step. Default 0.2; the operator edits it in the oxygen tuning.
+    /// </summary>
+    public double AerationStepLpm { get; init; } = 0.2;
+
     public double AerationEffortStart { get; init; } = 10;
     public double AerationEffortEnd { get; init; } = 100;
 

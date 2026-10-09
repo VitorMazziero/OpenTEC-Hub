@@ -249,7 +249,7 @@
                         CornerRadius="{DynamicResource RadiusMedium}"
                         Padding="16"
                         Margin="0,0,0,12"
-                        Visibility="{Binding ShowAgitationLimits, Converter={StaticResource BoolToVis}}">
+                        Visibility="{Binding ShowPhysicalLimits, Converter={StaticResource BoolToVis}}">
                     <StackPanel>
                         <TextBlock Text="Limites Físicos dos Atuadores" Style="{StaticResource SectionHeader}" />
                         
@@ -286,6 +286,12 @@
                                          ToolTip="Vazão máxima comandada à válvula de aeração" />
                             </StackPanel>
                         </Grid>
+
+                        <StackPanel Visibility="{Binding ShowAerationLimits, Converter={StaticResource BoolToVis}}" Margin="0,8,0,0">
+                            <TextBlock Text="Passo da vazão enviada ao fluxômetro (L/min)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Text="{Binding AerationStepLpmText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="A vazão de aeração só muda em múltiplos deste passo. Padrão 0,2 L/min; valores menores dão ajuste mais fino e mais comandos ao fluxômetro" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

@@ -49,7 +49,9 @@ public partial class MainWindow : Window
     private readonly IThemeService? _themeService;
     private WindowState _lastNonMinimizedState = WindowState.Normal;
     private WindowState _stateBeforeFullScreen = WindowState.Normal;
+    private Rect _boundsBeforeFullScreen = Rect.Empty;
     private WindowStyle _styleBeforeFullScreen = WindowStyle.SingleBorderWindow;
+    private ResizeMode _resizeBeforeFullScreen = ResizeMode.CanResize;
     private bool _switchingFullScreen;
 
     public static readonly DependencyProperty IsFullScreenProperty = DependencyProperty.Register(
@@ -165,28 +167,17 @@ public partial class MainWindow : Window
 
     private void OnWindowStateChanged(object? sender, EventArgs e)
     {
-        if (_switchingFullScreen)
-        {
-            return;
-        }
-
-        // Restored by the caption button, Win+Down or a drag off the top: that is leaving full screen.
-        if (IsFullScreen && WindowState == WindowState.Normal)
-        {
-            WindowChromeMaximizeFix.SetFullScreen(this, false);
-            WindowStyle = _styleBeforeFullScreen;
-            IsFullScreen = false;
-        }
-
-        if (WindowState != WindowState.Minimized)
+        if (!_switchingFullScreen && WindowState != WindowState.Minimized)
         {
             _lastNonMinimizedState = WindowState;
         }
     }
 
     // ── Full screen ──────────────────────────────────────────────────────────
-    // A maximized window whose maximized bounds are the whole monitor instead of the work
-    // area. The header stays, so the same button (or F11 / Esc) brings the window back.
+    // A borderless window in the Normal state sized to the whole monitor. Not Maximized: the
+    // WPF WindowChrome clips a maximized window to the monitor's work area with a window region,
+    // so the taskbar strip was never painted and the taskbar showed over the bottom bar. The
+    // header stays, so the same button (or F11 / Esc) brings the window back.
 
     private void OnToggleFullScreen(object sender, RoutedEventArgs e) => ToggleFullScreen();
 
@@ -205,16 +196,27 @@ public partial class MainWindow : Window
 
     private void EnterFullScreen()
     {
+        var monitor = WindowChromeMaximizeFix.MonitorBounds(this);
+        if (monitor.IsEmpty)
+        {
+            return;
+        }
+
         _stateBeforeFullScreen = WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+        _boundsBeforeFullScreen = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
         _styleBeforeFullScreen = WindowStyle;
+        _resizeBeforeFullScreen = ResizeMode;
         _switchingFullScreen = true;
         try
         {
-            WindowChromeMaximizeFix.SetFullScreen(this, true);
-            // Windows asks for the maximized bounds only when maximizing, so pass through Normal.
             WindowState = WindowState.Normal;
             WindowStyle = WindowStyle.None;
-            WindowState = WindowState.Maximized;
+            // No sizing frame: Windows only treats a monitor-sized window as full screen without one.
+            ResizeMode = ResizeMode.NoResize;
+            Left = monitor.Left;
+            Top = monitor.Top;
+            Width = monitor.Width;
+            Height = monitor.Height;
             IsFullScreen = true;
         }
         finally
@@ -222,17 +224,25 @@ public partial class MainWindow : Window
             _switchingFullScreen = false;
         }
 
-        _lastNonMinimizedState = WindowState.Maximized;
+        WindowChromeMaximizeFix.MarkTaskbarFullScreen(this, true);
     }
 
     private void ExitFullScreen()
     {
+        WindowChromeMaximizeFix.MarkTaskbarFullScreen(this, false);
         _switchingFullScreen = true;
         try
         {
-            WindowChromeMaximizeFix.SetFullScreen(this, false);
-            WindowState = WindowState.Normal;
             WindowStyle = _styleBeforeFullScreen;
+            ResizeMode = _resizeBeforeFullScreen;
+            if (!_boundsBeforeFullScreen.IsEmpty)
+            {
+                Left = _boundsBeforeFullScreen.Left;
+                Top = _boundsBeforeFullScreen.Top;
+                Width = _boundsBeforeFullScreen.Width;
+                Height = _boundsBeforeFullScreen.Height;
+            }
+
             WindowState = _stateBeforeFullScreen;
             IsFullScreen = false;
         }
@@ -251,9 +261,18 @@ public partial class MainWindow : Window
         => WindowState = WindowState.Minimized;
 
     private void OnMaximizeRestoreWindow(object sender, RoutedEventArgs e)
-        => WindowState = WindowState == WindowState.Maximized
+    {
+        // In full screen the restore button means "leave full screen", back to how it was.
+        if (IsFullScreen)
+        {
+            ExitFullScreen();
+            return;
+        }
+
+        WindowState = WindowState == WindowState.Maximized
             ? WindowState.Normal
             : WindowState.Maximized;
+    }
 
     private void OnCloseWindow(object sender, RoutedEventArgs e) => Close();
 
@@ -310,9 +329,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        var bounds = WindowState == WindowState.Normal
-            ? new Rect(Left, Top, ActualWidth, ActualHeight)
-            : RestoreBounds;
+        var bounds = IsFullScreen
+            ? _boundsBeforeFullScreen
+            : WindowState == WindowState.Normal
+                ? new Rect(Left, Top, ActualWidth, ActualHeight)
+                : RestoreBounds;
         if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0)
         {
             return;

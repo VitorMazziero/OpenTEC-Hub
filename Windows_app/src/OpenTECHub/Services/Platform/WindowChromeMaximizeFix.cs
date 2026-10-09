@@ -26,9 +26,6 @@ public static class WindowChromeMaximizeFix
     private const int WmGetMinMaxInfo = 0x0024;
     private const int MonitorDefaultToNearest = 0x00000002;
 
-    /// <summary>Windows in full-screen mode: maximized, they take the whole monitor, taskbar included.</summary>
-    private static readonly HashSet<IntPtr> FullScreenWindows = [];
-
     /// <summary>Hooks <paramref name="window"/> so its maximized state respects the work area.</summary>
     public static void Enable(Window window)
     {
@@ -41,11 +38,35 @@ public static class WindowChromeMaximizeFix
         };
     }
 
+    /// <summary>The whole monitor the window is on, in device-independent units, or empty.</summary>
+    public static System.Windows.Rect MonitorBounds(Window window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        var handle = new WindowInteropHelper(window).Handle;
+        var monitor = handle == IntPtr.Zero ? IntPtr.Zero : MonitorFromWindow(handle, MonitorDefaultToNearest);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info))
+        {
+            return System.Windows.Rect.Empty;
+        }
+
+        var pixels = new System.Windows.Rect(
+            info.Monitor.Left, info.Monitor.Top,
+            info.Monitor.Right - info.Monitor.Left, info.Monitor.Bottom - info.Monitor.Top);
+        var fromDevice = PresentationSource.FromVisual(window)?.CompositionTarget?.TransformFromDevice;
+        return fromDevice is { } transform ? System.Windows.Rect.Transform(pixels, transform) : pixels;
+    }
+
     /// <summary>
-    /// Switches <paramref name="window"/>'s maximized bounds between the work area and the whole monitor.
-    /// Takes effect at the next maximize, so the caller re-maximizes after the switch.
+    /// Tells the taskbar that <paramref name="window"/> is (or no longer is) a full-screen app, so
+    /// it drops behind the window while it is active. Call after the window has its final size.
     /// </summary>
-    public static void SetFullScreen(Window window, bool fullScreen)
+    /// <remarks>
+    /// The shell's own guess does not re-run when an open window changes style and size, and the
+    /// taskbar stayed drawn over the app's bottom bar.
+    /// </remarks>
+    public static void MarkTaskbarFullScreen(Window window, bool fullScreen)
     {
         ArgumentNullException.ThrowIfNull(window);
 
@@ -55,16 +76,16 @@ public static class WindowChromeMaximizeFix
             return;
         }
 
-        lock (FullScreenWindows)
+        try
         {
-            if (fullScreen)
-            {
-                FullScreenWindows.Add(handle);
-            }
-            else
-            {
-                FullScreenWindows.Remove(handle);
-            }
+            var taskbar = (ITaskbarList2)new TaskbarList();
+            taskbar.HrInit();
+            taskbar.MarkFullscreenWindow(handle, fullScreen);
+            Marshal.ReleaseComObject(taskbar);
+        }
+        catch (Exception ex) when (ex is COMException or InvalidCastException)
+        {
+            // No shell taskbar (kiosk, remote session): the window still covers the monitor.
         }
     }
 
@@ -93,14 +114,8 @@ public static class WindowChromeMaximizeFix
         }
 
         var mmi = Marshal.PtrToStructure<MinMaxInfo>(lParam);
+        var work = info.Work;
         var full = info.Monitor;
-        bool fullScreen;
-        lock (FullScreenWindows)
-        {
-            fullScreen = FullScreenWindows.Contains(hwnd);
-        }
-
-        var work = fullScreen ? full : info.Work;
 
         // Position/size are expressed relative to the monitor's own origin, not the desktop.
         mmi.MaxPosition = new Point { X = work.Left - full.Left, Y = work.Top - full.Top };
@@ -142,6 +157,26 @@ public static class WindowChromeMaximizeFix
         // clamping it to the work area would stop the operator dragging the window larger.
         Marshal.StructureToPtr(mmi, lParam, fDeleteOld: false);
         return true;
+    }
+
+    [ComImport]
+    [Guid("602D4995-B13A-429b-A66E-1935E44F4317")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface ITaskbarList2
+    {
+        void HrInit();
+        void AddTab(IntPtr hwnd);
+        void DeleteTab(IntPtr hwnd);
+        void ActivateTab(IntPtr hwnd);
+        void SetActiveAlt(IntPtr hwnd);
+        void MarkFullscreenWindow(IntPtr hwnd, [MarshalAs(UnmanagedType.Bool)] bool fullscreen);
+    }
+
+    [ComImport]
+    [Guid("56FDF344-FD6D-11d0-958A-006097C9A090")]
+    [ClassInterface(ClassInterfaceType.None)]
+    private class TaskbarList
+    {
     }
 
     [DllImport("user32.dll")]

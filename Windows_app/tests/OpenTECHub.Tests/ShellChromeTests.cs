@@ -243,7 +243,10 @@ public sealed class ShellChromeTests
             win.ToggleFullScreen();
             win.UpdateLayout();
             Assert.True(win.IsFullScreen);
-            Assert.Equal(WindowState.Maximized, win.WindowState);
+            // Not Maximized: WindowChrome clips a maximized window to the work area with a window
+            // region, which left the taskbar strip unpainted (bench, 2026-10-09).
+            Assert.Equal(WindowState.Normal, win.WindowState);
+            Assert.Equal(ResizeMode.NoResize, win.ResizeMode);
             var button = (System.Windows.Controls.Button)win.FindName("FullScreenButton");
             Assert.Equal("FullscreenExit", ((Controls.Icon)button.Content).Key);
             Assert.Equal("Sair da tela cheia (F11 ou Esc)", button.ToolTip);
@@ -252,6 +255,21 @@ public sealed class ShellChromeTests
                         full.Right >= info.rcMonitor.Right && full.Bottom >= info.rcMonitor.Bottom,
                 $"Full screen ({full.Left},{full.Top},{full.Right},{full.Bottom}) does not cover the monitor " +
                 $"({info.rcMonitor.Left},{info.rcMonitor.Top},{info.rcMonitor.Right},{info.rcMonitor.Bottom}).");
+            // The painted area, not only the rectangle: a region (if any) must span the monitor too.
+            var regionRect = CreateRectRgn(0, 0, 0, 0);
+            try
+            {
+                if (GetWindowRgn(hwnd, regionRect) is 2 or 3 /* SIMPLEREGION, COMPLEXREGION */)
+                {
+                    GetRgnBox(regionRect, out var painted);
+                    Assert.True(painted.Bottom - painted.Top >= info.rcMonitor.Bottom - info.rcMonitor.Top,
+                        $"Full screen paints only {painted.Bottom - painted.Top} px of the monitor height.");
+                }
+            }
+            finally
+            {
+                DeleteObject(regionRect);
+            }
 
             // Clicking again returns to the normal window.
             win.ToggleFullScreen();
@@ -269,11 +287,16 @@ public sealed class ShellChromeTests
             GetWindowRect(hwnd, out var maximized);
             Assert.True(maximized.Bottom - maximized.Top <= full.Bottom - full.Top);
 
-            // Restoring with the caption button (or Win+Down) also leaves full screen.
+            // The caption restore/maximize button also leaves full screen, back to how it was.
             win.ToggleFullScreen();
-            win.WindowState = WindowState.Normal;
+            var shellRoot = (System.Windows.Controls.DockPanel)win.FindName("ShellRoot");
+            var header = (System.Windows.Controls.DockPanel)((System.Windows.Controls.Border)shellRoot.Children[0]).Child;
+            var maximize = (System.Windows.Controls.Button)((System.Windows.Controls.StackPanel)header.Children[0]).Children[1];
+            maximize.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             Assert.False(win.IsFullScreen);
+            Assert.Equal(WindowState.Maximized, win.WindowState);
             Assert.Equal(originalStyle, win.WindowStyle);
+            Assert.Equal(ResizeMode.CanResize, win.ResizeMode);
 
             win.Close();
         });
@@ -281,6 +304,18 @@ public sealed class ShellChromeTests
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
+
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    private static extern int GetRgnBox(IntPtr region, out RECT box);
+
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr handle);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);

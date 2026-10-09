@@ -1762,6 +1762,15 @@ memorizada: o próximo início abre no estado de antes dela. Implementação: o 
 limita o maximizado à área útil (`WindowChromeMaximizeFix`) devolve o retângulo do monitor para a janela em tela
 cheia, e o estilo da janela fica sem borda enquanto dura.
 
+**Correção (0.29.1):** a janela maximizada em tela cheia deixava a faixa da barra de tarefas sem
+pintar: o `WindowChrome` do WPF aplica a uma janela **maximizada** uma região de recorte do tamanho
+da área útil do monitor, e a barra de tarefas aparecia por cima do rodapé do app (o gancho
+`WM_GETMINMAXINFO` acertava o retângulo, não a região). A tela cheia passou a ser uma janela em
+estado **Normal**, sem borda e sem redimensionamento, posicionada nos limites do monitor; ao sair,
+estilo, tamanho, posição e estado (normal ou maximizado) voltam ao de antes. A barra de tarefas é
+avisada por `ITaskbarList2.MarkFullscreenWindow`. O botão maximizar/restaurar do título, em tela
+cheia, também sai dela. O teste da janela confere a região de pintura, não só o retângulo.
+
 ### D-071 · Ajuste do cultivo de A. oryzae como padrão do Controle de O₂ e PIDs que sobrevivem ao reabrir
 
 **Status:** Accepted and implemented · 2026-10-09 · substitui o item 3 de D-068 nos ganhos

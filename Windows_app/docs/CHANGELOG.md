@@ -6,6 +6,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.29.1] - 2026-10-09
+
+- Corrigido: em tela cheia a barra de tarefas do Windows ficava por cima do rodapé do app (a janela era maximizada e o WindowChrome recorta a janela maximizada na área útil). Agora a tela cheia é uma janela sem borda do tamanho do monitor; o botão de restaurar também sai dela (D-072).
+
+---
+
 ## [0.29.0] - 2026-10-09
 
 - Novo botão de **tela cheia** na barra superior, ao lado do botão de tema (F11): a janela cobre o monitor inteiro, inclusive a barra de tarefas; clicar de novo, F11 ou Esc voltam ao estado anterior (D-072).

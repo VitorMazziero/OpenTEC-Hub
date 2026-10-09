@@ -309,6 +309,35 @@
                     </Button>
 
                     <Button Margin="8,0,0,0" Padding="10,4" ToolTip="Alternar entre tema claro e escuro" shell:WindowChrome.IsHitTestVisibleInChrome="True" Command="{Binding ToggleThemeCommand}"><ctl:Icon Key="Theme" Size="20" Stroke="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /></Button>
+
+                    <!-- Full screen (F11): the window takes the whole monitor, taskbar included; click again to leave. -->
+                    <Button x:Name="FullScreenButton" Margin="8,0,0,0" Padding="10,4"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True" Click="OnToggleFullScreen">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="ToolTip" Value="Tela cheia (F11)" />
+                                <Setter Property="AutomationProperties.Name" Value="Entrar em tela cheia" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsFullScreen, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                        <Setter Property="ToolTip" Value="Sair da tela cheia (F11 ou Esc)" />
+                                        <Setter Property="AutomationProperties.Name" Value="Sair da tela cheia" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <ctl:Icon Size="20" Stroke="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=Button}}">
+                            <ctl:Icon.Style>
+                                <Style TargetType="ctl:Icon">
+                                    <Setter Property="Key" Value="Fullscreen" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFullScreen, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                            <Setter Property="Key" Value="FullscreenExit" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ctl:Icon.Style>
+                        </ctl:Icon>
+                    </Button>
                 </StackPanel>
             </Grid>
             </DockPanel>

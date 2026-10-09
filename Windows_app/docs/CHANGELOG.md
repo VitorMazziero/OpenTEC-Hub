@@ -6,6 +6,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.29.0] - 2026-10-09
+
+- Novo botão de **tela cheia** na barra superior, ao lado do botão de tema (F11): a janela cobre o monitor inteiro, inclusive a barra de tarefas; clicar de novo, F11 ou Esc voltam ao estado anterior (D-072).
+
+---
+
 ## [0.28.1] - 2026-10-09
 
 - Controle de O₂: padrões da cascata (configuração, página e bloco de receita) iguais ao ajuste do cultivo de 06/10: Kd 3,5; T_pred 60 s; τ_D 30 s; integral −2,5…2,5; J_AVG 20; N_PRED 15; escalonamento por janela desligado (D-071);

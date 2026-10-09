@@ -1750,6 +1750,18 @@ grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, 
 Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
 preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
 
+### D-072 · Tela cheia na barra superior
+
+**Status:** Accepted and implemented · 2026-10-09
+
+Botão de **tela cheia** na barra superior, logo à direita do botão de tema (atalho **F11**). Ao clicar, a janela
+ocupa o monitor inteiro, por cima da barra de tarefas; a barra superior do app continua visível, e o mesmo botão
+(ícone com os cantos para dentro), **F11** ou **Esc** saem. Ao sair, a janela volta ao estado de antes (normal ou
+maximizada). Restaurar pelo botão de maximizar/restaurar ou por Win+↓ também sai da tela cheia. A tela cheia não é
+memorizada: o próximo início abre no estado de antes dela. Implementação: o mesmo gancho `WM_GETMINMAXINFO` que
+limita o maximizado à área útil (`WindowChromeMaximizeFix`) devolve o retângulo do monitor para a janela em tela
+cheia, e o estilo da janela fica sem borda enquanto dura.
+
 ### D-071 · Ajuste do cultivo de A. oryzae como padrão do Controle de O₂ e PIDs que sobrevivem ao reabrir
 
 **Status:** Accepted and implemented · 2026-10-09 · substitui o item 3 de D-068 nos ganhos

@@ -48,6 +48,19 @@ public partial class MainWindow : Window
     private readonly ISettingsService? _settings;
     private readonly IThemeService? _themeService;
     private WindowState _lastNonMinimizedState = WindowState.Normal;
+    private WindowState _stateBeforeFullScreen = WindowState.Normal;
+    private WindowStyle _styleBeforeFullScreen = WindowStyle.SingleBorderWindow;
+    private bool _switchingFullScreen;
+
+    public static readonly DependencyProperty IsFullScreenProperty = DependencyProperty.Register(
+        nameof(IsFullScreen), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
+
+    /// <summary>True while the window covers the whole monitor, taskbar included.</summary>
+    public bool IsFullScreen
+    {
+        get => (bool)GetValue(IsFullScreenProperty);
+        private set => SetValue(IsFullScreenProperty, value);
+    }
     private IInputElement? _focusBeforePalette;
 
     public MainWindow()
@@ -152,10 +165,83 @@ public partial class MainWindow : Window
 
     private void OnWindowStateChanged(object? sender, EventArgs e)
     {
+        if (_switchingFullScreen)
+        {
+            return;
+        }
+
+        // Restored by the caption button, Win+Down or a drag off the top: that is leaving full screen.
+        if (IsFullScreen && WindowState == WindowState.Normal)
+        {
+            WindowChromeMaximizeFix.SetFullScreen(this, false);
+            WindowStyle = _styleBeforeFullScreen;
+            IsFullScreen = false;
+        }
+
         if (WindowState != WindowState.Minimized)
         {
             _lastNonMinimizedState = WindowState;
         }
+    }
+
+    // ── Full screen ──────────────────────────────────────────────────────────
+    // A maximized window whose maximized bounds are the whole monitor instead of the work
+    // area. The header stays, so the same button (or F11 / Esc) brings the window back.
+
+    private void OnToggleFullScreen(object sender, RoutedEventArgs e) => ToggleFullScreen();
+
+    /// <summary>Enters full screen, or returns to the state the window had before it.</summary>
+    public void ToggleFullScreen()
+    {
+        if (IsFullScreen)
+        {
+            ExitFullScreen();
+        }
+        else
+        {
+            EnterFullScreen();
+        }
+    }
+
+    private void EnterFullScreen()
+    {
+        _stateBeforeFullScreen = WindowState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+        _styleBeforeFullScreen = WindowStyle;
+        _switchingFullScreen = true;
+        try
+        {
+            WindowChromeMaximizeFix.SetFullScreen(this, true);
+            // Windows asks for the maximized bounds only when maximizing, so pass through Normal.
+            WindowState = WindowState.Normal;
+            WindowStyle = WindowStyle.None;
+            WindowState = WindowState.Maximized;
+            IsFullScreen = true;
+        }
+        finally
+        {
+            _switchingFullScreen = false;
+        }
+
+        _lastNonMinimizedState = WindowState.Maximized;
+    }
+
+    private void ExitFullScreen()
+    {
+        _switchingFullScreen = true;
+        try
+        {
+            WindowChromeMaximizeFix.SetFullScreen(this, false);
+            WindowState = WindowState.Normal;
+            WindowStyle = _styleBeforeFullScreen;
+            WindowState = _stateBeforeFullScreen;
+            IsFullScreen = false;
+        }
+        finally
+        {
+            _switchingFullScreen = false;
+        }
+
+        _lastNonMinimizedState = WindowState;
     }
 
     // ── Custom caption buttons ───────────────────────────────────────────────
@@ -232,9 +318,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        var maximized = WindowState == WindowState.Maximized ||
-                        (WindowState == WindowState.Minimized &&
-                         _lastNonMinimizedState == WindowState.Maximized);
+        // Full screen is not remembered: the next launch opens in the state it was entered from.
+        var maximized = IsFullScreen
+            ? _stateBeforeFullScreen == WindowState.Maximized
+            : WindowState == WindowState.Maximized ||
+              (WindowState == WindowState.Minimized &&
+               _lastNonMinimizedState == WindowState.Maximized);
         _settings.Update(settings => settings with
         {
             Ui = settings.Ui with
@@ -303,6 +392,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (modifiers == ModifierKeys.None && e.Key == Key.F11)
+        {
+            ToggleFullScreen();
+            e.Handled = true;
+            return;
+        }
+
         if (modifiers == ModifierKeys.None && e.Key == Key.F5)
         {
             shell.Connection.ReconnectCommand.Execute(null);
@@ -331,6 +427,11 @@ public partial class MainWindow : Window
             else if (shell.SelectedNavigationId == "dashboard" && shell.SelectedVariable is not null)
             {
                 shell.ClearSelectionCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (IsFullScreen)
+            {
+                ExitFullScreen();
                 e.Handled = true;
             }
 

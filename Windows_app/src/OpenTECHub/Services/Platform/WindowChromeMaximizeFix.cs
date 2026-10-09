@@ -26,6 +26,9 @@ public static class WindowChromeMaximizeFix
     private const int WmGetMinMaxInfo = 0x0024;
     private const int MonitorDefaultToNearest = 0x00000002;
 
+    /// <summary>Windows in full-screen mode: maximized, they take the whole monitor, taskbar included.</summary>
+    private static readonly HashSet<IntPtr> FullScreenWindows = [];
+
     /// <summary>Hooks <paramref name="window"/> so its maximized state respects the work area.</summary>
     public static void Enable(Window window)
     {
@@ -36,6 +39,33 @@ public static class WindowChromeMaximizeFix
             var handle = new WindowInteropHelper(window).Handle;
             HwndSource.FromHwnd(handle)?.AddHook(WndProc);
         };
+    }
+
+    /// <summary>
+    /// Switches <paramref name="window"/>'s maximized bounds between the work area and the whole monitor.
+    /// Takes effect at the next maximize, so the caller re-maximizes after the switch.
+    /// </summary>
+    public static void SetFullScreen(Window window, bool fullScreen)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        lock (FullScreenWindows)
+        {
+            if (fullScreen)
+            {
+                FullScreenWindows.Add(handle);
+            }
+            else
+            {
+                FullScreenWindows.Remove(handle);
+            }
+        }
     }
 
     private static IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -63,8 +93,14 @@ public static class WindowChromeMaximizeFix
         }
 
         var mmi = Marshal.PtrToStructure<MinMaxInfo>(lParam);
-        var work = info.Work;
         var full = info.Monitor;
+        bool fullScreen;
+        lock (FullScreenWindows)
+        {
+            fullScreen = FullScreenWindows.Contains(hwnd);
+        }
+
+        var work = fullScreen ? full : info.Work;
 
         // Position/size are expressed relative to the monitor's own origin, not the desktop.
         mmi.MaxPosition = new Point { X = work.Left - full.Left, Y = work.Top - full.Top };

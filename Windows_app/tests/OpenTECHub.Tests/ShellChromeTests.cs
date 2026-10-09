@@ -219,6 +219,69 @@ public sealed class ShellChromeTests
         });
     }
 
+    [Fact]
+    public void Full_screen_button_covers_the_monitor_and_returns_to_the_previous_state()
+    {
+        var xaml = ReadShell("MainWindow.xaml");
+        Assert.Contains("Click=\"OnToggleFullScreen\"", xaml, StringComparison.Ordinal);
+        Assert.True(xaml.IndexOf("ToggleThemeCommand", StringComparison.Ordinal) <
+                    xaml.IndexOf("OnToggleFullScreen", StringComparison.Ordinal),
+            "The full-screen button sits right after the theme button.");
+
+        Rendering.WpfRenderingHost.Run(() =>
+        {
+            var win = new MainWindow { WindowState = WindowState.Normal };
+            win.Show();
+            win.UpdateLayout();
+            var originalStyle = win.WindowStyle;
+
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(win).Handle;
+            var info = new MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>() };
+            GetMonitorInfo(MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */), ref info);
+
+            // From a normal window: full screen covers the whole monitor, taskbar strip included.
+            win.ToggleFullScreen();
+            win.UpdateLayout();
+            Assert.True(win.IsFullScreen);
+            Assert.Equal(WindowState.Maximized, win.WindowState);
+            var button = (System.Windows.Controls.Button)win.FindName("FullScreenButton");
+            Assert.Equal("FullscreenExit", ((Controls.Icon)button.Content).Key);
+            Assert.Equal("Sair da tela cheia (F11 ou Esc)", button.ToolTip);
+            GetWindowRect(hwnd, out var full);
+            Assert.True(full.Left <= info.rcMonitor.Left && full.Top <= info.rcMonitor.Top &&
+                        full.Right >= info.rcMonitor.Right && full.Bottom >= info.rcMonitor.Bottom,
+                $"Full screen ({full.Left},{full.Top},{full.Right},{full.Bottom}) does not cover the monitor " +
+                $"({info.rcMonitor.Left},{info.rcMonitor.Top},{info.rcMonitor.Right},{info.rcMonitor.Bottom}).");
+
+            // Clicking again returns to the normal window.
+            win.ToggleFullScreen();
+            win.UpdateLayout();
+            Assert.False(win.IsFullScreen);
+            Assert.Equal(WindowState.Normal, win.WindowState);
+            Assert.Equal(originalStyle, win.WindowStyle);
+
+            // From a maximized window it returns maximized, back inside the work area.
+            win.WindowState = WindowState.Maximized;
+            win.ToggleFullScreen();
+            win.ToggleFullScreen();
+            win.UpdateLayout();
+            Assert.Equal(WindowState.Maximized, win.WindowState);
+            GetWindowRect(hwnd, out var maximized);
+            Assert.True(maximized.Bottom - maximized.Top <= full.Bottom - full.Top);
+
+            // Restoring with the caption button (or Win+Down) also leaves full screen.
+            win.ToggleFullScreen();
+            win.WindowState = WindowState.Normal;
+            Assert.False(win.IsFullScreen);
+            Assert.Equal(originalStyle, win.WindowStyle);
+
+            win.Close();
+        });
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);
 

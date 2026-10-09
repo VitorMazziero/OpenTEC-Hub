@@ -125,6 +125,10 @@ correspondente.
 Este manual em PDF/Markdown continua sendo a referência de instalação, procedimentos e diagnóstico;
 a documentação interna é a referência de *tela*, para consulta durante a operação.
 
+**Tela cheia.** O botão com quatro cantos, à direita do botão de tema na barra superior (ou **F11**), põe o
+OpenTEC-Hub em tela cheia, por cima da barra de tarefas do Windows. Clique de novo (ícone com os cantos para dentro),
+tecle **F11** ou **Esc** para voltar à janela como estava.
+
 ---
 
 ## 5. Sinótico e Painel de Monitoramento

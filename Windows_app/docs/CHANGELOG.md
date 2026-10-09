@@ -6,6 +6,14 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.28.1] - 2026-10-09
+
+- Controle de O₂: padrões da cascata (configuração, página e bloco de receita) iguais ao ajuste do cultivo de 06/10: Kd 3,5; T_pred 60 s; τ_D 30 s; integral −2,5…2,5; J_AVG 20; N_PRED 15; escalonamento por janela desligado (D-071);
+- corrigido: ao abrir o app, os PIDs de Agitação, Aeração e Mapa eram sobrescritos pelos da cascata;
+- corrigido: reabrir e aplicar a página de O₂ arredondava ganhos com mais casas que as exibidas.
+
+---
+
 ## [0.28.0] - 2026-10-09
 
 - Controle de O₂: o passo da vazão de ar enviada ao fluxômetro (antes fixo em 0,05 L/min) agora é uma entrada em Limites Físicos e no bloco de receita, com padrão **0,2 L/min** (D-070);

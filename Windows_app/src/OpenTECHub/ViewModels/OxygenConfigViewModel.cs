@@ -115,14 +115,14 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
     [ObservableProperty] public partial string KDotText { get; set; } = "0.075";
     [ObservableProperty] public partial string KpText { get; set; } = "0.035";
     [ObservableProperty] public partial string KiText { get; set; } = "0.0010";
-    [ObservableProperty] public partial string KdText { get; set; } = "1.500";
-    [ObservableProperty] public partial string TPredText { get; set; } = "90.0";
-    [ObservableProperty] public partial string TauDText { get; set; } = "25.0";
-    [ObservableProperty] public partial string IMinText { get; set; } = "-1.0";
-    [ObservableProperty] public partial string IMaxText { get; set; } = "1.0";
+    [ObservableProperty] public partial string KdText { get; set; } = "3.500";
+    [ObservableProperty] public partial string TPredText { get; set; } = "60.0";
+    [ObservableProperty] public partial string TauDText { get; set; } = "30.0";
+    [ObservableProperty] public partial string IMinText { get; set; } = "-2.5";
+    [ObservableProperty] public partial string IMaxText { get; set; } = "2.5";
     [ObservableProperty] public partial string MWindowText { get; set; } = "2400";
-    [ObservableProperty] public partial string JAvgText { get; set; } = "8";
-    [ObservableProperty] public partial string NPredText { get; set; } = "20";
+    [ObservableProperty] public partial string JAvgText { get; set; } = "20";
+    [ObservableProperty] public partial string NPredText { get; set; } = "15";
     [ObservableProperty] public partial string IntervalText { get; set; } = "3.0";
 
     // ── Physical Limits ──
@@ -144,7 +144,7 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
 
     // ── Advanced Gains (Cascata) ──
 
-    [ObservableProperty] public partial bool HabilitarGainScheduling { get; set; } = true;
+    [ObservableProperty] public partial bool HabilitarGainScheduling { get; set; }
     [ObservableProperty] public partial string FatorGanhoAeracaoText { get; set; } = "1.43";
 
     // ── Kla Profiles (Mapa) ──
@@ -182,21 +182,23 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
     private void LoadPidFieldsForMode(CascadeMode mode)
     {
         _loading = true;
+        // The formats keep the usual decimals but never drop a digit, so reopening and applying
+        // the page cannot round a saved gain (D-071).
         var p = _modePids.TryGetValue(mode, out var val) ? val : new ModePidSettings();
 
-        KDotText = p.KDot.ToString("F3", CultureInfo.InvariantCulture);
-        KpText = p.Kp.ToString("F3", CultureInfo.InvariantCulture);
-        KiText = p.Ki.ToString("F4", CultureInfo.InvariantCulture);
-        KdText = p.Kd.ToString("F3", CultureInfo.InvariantCulture);
-        TPredText = p.TPred.ToString("F1", CultureInfo.InvariantCulture);
-        TauDText = p.TauD.ToString("F1", CultureInfo.InvariantCulture);
-        IMinText = p.IMin.ToString("F1", CultureInfo.InvariantCulture);
-        IMaxText = p.IMax.ToString("F1", CultureInfo.InvariantCulture);
+        KDotText = p.KDot.ToString("0.000####", CultureInfo.InvariantCulture);
+        KpText = p.Kp.ToString("0.000####", CultureInfo.InvariantCulture);
+        KiText = p.Ki.ToString("0.0000###", CultureInfo.InvariantCulture);
+        KdText = p.Kd.ToString("0.000####", CultureInfo.InvariantCulture);
+        TPredText = p.TPred.ToString("0.0#####", CultureInfo.InvariantCulture);
+        TauDText = p.TauD.ToString("0.0#####", CultureInfo.InvariantCulture);
+        IMinText = p.IMin.ToString("0.0#####", CultureInfo.InvariantCulture);
+        IMaxText = p.IMax.ToString("0.0#####", CultureInfo.InvariantCulture);
         MWindowText = p.MWindow.ToString(CultureInfo.InvariantCulture);
         JAvgText = p.JAvg.ToString(CultureInfo.InvariantCulture);
         NPredText = p.NPred.ToString(CultureInfo.InvariantCulture);
-        IntervalText = p.IntervalSeconds.ToString("F1", CultureInfo.InvariantCulture);
-        FatorGanhoAeracaoText = p.FatorGanhoAeracao.ToString("F2", CultureInfo.InvariantCulture);
+        IntervalText = p.IntervalSeconds.ToString("0.0#####", CultureInfo.InvariantCulture);
+        FatorGanhoAeracaoText = p.FatorGanhoAeracao.ToString("0.00#####", CultureInfo.InvariantCulture);
         HabilitarGainScheduling = p.HabilitarGainScheduling;
 
         _loading = false;
@@ -209,14 +211,14 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
             KDot = ParseDouble(KDotText, 0.075),
             Kp = ParseDouble(KpText, 0.035),
             Ki = ParseDouble(KiText, 0.001),
-            Kd = ParseDouble(KdText, 1.50),
-            TPred = ParseDouble(TPredText, 90.0),
-            TauD = ParseDouble(TauDText, 25.0),
-            IMin = ParseDouble(IMinText, -1.0),
-            IMax = ParseDouble(IMaxText, 1.0),
+            Kd = ParseDouble(KdText, 3.50),
+            TPred = ParseDouble(TPredText, 60.0),
+            TauD = ParseDouble(TauDText, 30.0),
+            IMin = ParseDouble(IMinText, -2.5),
+            IMax = ParseDouble(IMaxText, 2.5),
             MWindow = ParseInt(MWindowText, 2400),
-            JAvg = ParseInt(JAvgText, 8),
-            NPred = ParseInt(NPredText, 20),
+            JAvg = ParseInt(JAvgText, 20),
+            NPred = ParseInt(NPredText, 15),
             IntervalSeconds = ParseDouble(IntervalText, 3.0),
             FatorGanhoAeracao = ParseDouble(FatorGanhoAeracaoText, 1.43),
             HabilitarGainScheduling = HabilitarGainScheduling,

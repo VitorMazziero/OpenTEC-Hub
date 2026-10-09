@@ -8,7 +8,7 @@ using Xunit;
 
 namespace OpenTECHub.Tests;
 
-/// <summary>D-068: the author's bench values are the defaults of the O₂ cascade, in the settings, the page and the recipe block.</summary>
+/// <summary>D-068/D-071: the author's tuning is the default of the O₂ cascade, in the settings, the page and the recipe block.</summary>
 public sealed class CascadeBenchDefaultsTests
 {
     [Fact]
@@ -17,8 +17,10 @@ public sealed class CascadeBenchDefaultsTests
         var cascade = new CascadeSettings();
         var pid = cascade.CascadePid;
 
-        Assert.Equal((0.075, 90.0, 0.035, 0.0010, 1.5, 25.0), (pid.KDot, pid.TPred, pid.Kp, pid.Ki, pid.Kd, pid.TauD));
-        Assert.Equal((-1.0, 1.0, 2400, 8, 20, 3.0), (pid.IMin, pid.IMax, pid.MWindow, pid.JAvg, pid.NPred, pid.IntervalSeconds));
+        Assert.Equal((0.075, 60.0, 0.035, 0.0010, 3.5, 30.0), (pid.KDot, pid.TPred, pid.Kp, pid.Ki, pid.Kd, pid.TauD));
+        Assert.Equal((-2.5, 2.5, 2400, 20, 15, 3.0), (pid.IMin, pid.IMax, pid.MWindow, pid.JAvg, pid.NPred, pid.IntervalSeconds));
+        Assert.False(pid.HabilitarGainScheduling);
+        Assert.Equal(new ModePidSettings(), pid); // a blank mode starts from the same tuning
         Assert.Equal((50.0, 800.0, 0.5, 12.0), (cascade.AgitationMinRpm, cascade.AgitationMaxRpm, cascade.AerationMinLpm, cascade.AerationMaxLpm));
         Assert.Equal((0.0, 90.0, 10.0, 100.0), (cascade.AgitationEffortStart, cascade.AgitationEffortEnd, cascade.AerationEffortStart, cascade.AerationEffortEnd));
         Assert.Equal(0.2, cascade.AerationStepLpm);
@@ -33,9 +35,9 @@ public sealed class CascadeBenchDefaultsTests
     {
         var node = RecipeNode.Create(NodeType.CascadeControl);
 
-        Assert.Equal((0.075, 0.035, 0.001, 1.5), (node.Number("kDot"), node.Number("kp"), node.Number("ki"), node.Number("kd")));
-        Assert.Equal((-1.0, 1.0, 2400.0), (node.Number("iMin"), node.Number("iMax"), node.Number("janelaIntegradorS")));
-        Assert.Equal((90.0, 20.0, 25.0, 8.0), (node.Number("horizonteTPredS"), node.Number("janelaPreditorAmostras"),
+        Assert.Equal((0.075, 0.035, 0.001, 3.5), (node.Number("kDot"), node.Number("kp"), node.Number("ki"), node.Number("kd")));
+        Assert.Equal((-2.5, 2.5, 2400.0), (node.Number("iMin"), node.Number("iMax"), node.Number("janelaIntegradorS")));
+        Assert.Equal((60.0, 15.0, 30.0, 20.0), (node.Number("horizonteTPredS"), node.Number("janelaPreditorAmostras"),
             node.Number("tauDFiltroS"), node.Number("janelaMediaAmostras")));
         Assert.Equal((50.0, 800.0, 0.5, 12.0), (node.Number("nMinRpm"), node.Number("nMaxRpm"), node.Number("qMinVvm"), node.Number("qMaxVvm")));
         Assert.Equal((0.0, 90.0, 10.0, 100.0), (node.Number("agitacaoOutMin"), node.Number("agitacaoOutMax"),
@@ -52,8 +54,8 @@ public sealed class CascadeBenchDefaultsTests
         using var service = new CascadeService(arbiter, arbiter, settings, new FakeKlaProfileStore(), clock);
         using var vm = new OxygenConfigViewModel(service, settings, new FakeKlaProfileStore());
 
-        Assert.Equal(("0.075", "0.035", "1.500", "90.0", "25.0"), (vm.KDotText, vm.KpText, vm.KdText, vm.TPredText, vm.TauDText));
-        Assert.Equal(("-1.0", "1.0", "2400", "8", "20"), (vm.IMinText, vm.IMaxText, vm.MWindowText, vm.JAvgText, vm.NPredText));
+        Assert.Equal(("0.075", "0.035", "3.500", "60.0", "30.0"), (vm.KDotText, vm.KpText, vm.KdText, vm.TPredText, vm.TauDText));
+        Assert.Equal(("-2.5", "2.5", "2400", "20", "15"), (vm.IMinText, vm.IMaxText, vm.MWindowText, vm.JAvgText, vm.NPredText));
         Assert.Equal(("50", "800", "0.50", "12.00"), (vm.AgitationMinRpmText, vm.AgitationMaxRpmText, vm.AerationMinLpmText, vm.AerationMaxLpmText));
         Assert.Equal(("0", "90", "10", "100"), (vm.AgitationEffortStartText, vm.AgitationEffortEndText, vm.AerationEffortStartText, vm.AerationEffortEndText));
         Assert.Equal("0.2", vm.AerationStepLpmText);

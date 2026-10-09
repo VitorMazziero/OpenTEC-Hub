@@ -1750,6 +1750,25 @@ grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, 
 Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
 preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
 
+### D-071 · Ajuste do cultivo de A. oryzae como padrão do Controle de O₂ e PIDs que sobrevivem ao reabrir
+
+**Status:** Accepted and implemented · 2026-10-09 · substitui o item 3 de D-068 nos ganhos
+
+1. **Novos padrões da cascata** (configuração, página e bloco de receita), iguais ao ajuste que segurou o cultivo de
+   *A. oryzae* de 06/10/2026: K_DOT 0,075; Kp 0,035; Ki 0,0010; **Kd 3,5**; **T_pred 60 s**; **τ_D 30 s**;
+   **integral −2,5…2,5**; janela do integrador 2400; **J_AVG 20**; **N_PRED 15**; período 3 s; escalonamento de ganho
+   por janela desligado. Limites físicos e janelas de esforço seguem os de D-068. O que já está salvo no workspace
+   não é sobrescrito.
+2. **Aplicar já salvava** (o `settings.json` é gravado ~0,75 s depois, e a malha engatada é reativada com os novos
+   valores), mas o arquivo levava, depois dos blocos por modo, uma cópia "achatada" dos ganhos da cascata (`Kp`, `Ki`,
+   `Kd`, `IntegralMin`, `IntegralMax`, `PredictionHorizonSeconds`, `IntervalSeconds`). Ao abrir o app, essa cópia
+   sobrescrevia os PIDs de **Agitação, Aeração e Mapa** com os da cascata. Agora esses campos só são lidos (de
+   arquivos antigos) e migram apenas para a cascata; não são mais gravados. Os PIDs desses modos que já foram
+   sobrescritos no arquivo ficam como estão: revise-os na página se for usá-los.
+3. **A página não arredonda mais o que foi salvo.** Os campos mostravam Kp/Kd com 3 casas, Ki com 4 e T_pred, τ_D e
+   I_min/I_max com 1; reabrir e aplicar regravava o valor arredondado (Ki 0,00005 virava 0,0001). Os campos mantêm as
+   casas usuais e mostram os dígitos a mais quando existem.
+
 ### D-070 · Passo da vazão enviada ao fluxômetro configurável (padrão 0,2 L/min)
 
 **Status:** Accepted and implemented · 2026-10-09

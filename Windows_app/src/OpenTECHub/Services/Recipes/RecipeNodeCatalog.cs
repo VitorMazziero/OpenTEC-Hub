@@ -590,18 +590,18 @@ public static class RecipeNodeCatalog
             Num("kDot", "K_DOT (laço externo)", 0.075, group: "Ganhos"),
             Num("kp", "Kp", 0.035, group: "Ganhos"),
             Num("ki", "Ki", 0.0010, group: "Ganhos"),
-            Num("kd", "Kd", 1.50, group: "Ganhos"),
+            Num("kd", "Kd", 3.50, group: "Ganhos"),
 
-            Num("iMin", "I_min", -1, group: "Anti-windup"),
-            Num("iMax", "I_max", 1, group: "Anti-windup"),
+            Num("iMin", "I_min", -2.5, group: "Anti-windup"),
+            Num("iMax", "I_max", 2.5, group: "Anti-windup"),
             Num("janelaIntegradorS", "Janela do integrador", 2400, min: 0, unit: "s", group: "Anti-windup"),
 
-            Num("horizonteTPredS", "Horizonte t_pred", 90, min: 0, unit: "s", group: "Predição"),
-            Int("janelaPreditorAmostras", "Janela do preditor", 20, min: 2, unit: "amostras", group: "Predição"),
-            Num("tauDFiltroS", "τ_D do filtro", 25, min: 0, unit: "s", group: "Predição"),
+            Num("horizonteTPredS", "Horizonte t_pred", 60, min: 0, unit: "s", group: "Predição"),
+            Int("janelaPreditorAmostras", "Janela do preditor", 15, min: 2, unit: "amostras", group: "Predição"),
+            Num("tauDFiltroS", "τ_D do filtro", 30, min: 0, unit: "s", group: "Predição"),
 
             EnumP("metodoTaxa", "Método", "LeastSquares", RateMethods, group: "Estimativa de taxa"),
-            Int("janelaMediaAmostras", "Janela da média", 8, min: 2, unit: "amostras", group: "Estimativa de taxa"),
+            Int("janelaMediaAmostras", "Janela da média", 20, min: 2, unit: "amostras", group: "Estimativa de taxa"),
             Num("intervaloPidS", "Intervalo de cálculo do PID", 3.0, min: 0.1, max: 60, unit: "s", group: "Temporização"),
 
             EnumP("modo", "Modo de atuação", "DualCascade", new RecipeOption[]

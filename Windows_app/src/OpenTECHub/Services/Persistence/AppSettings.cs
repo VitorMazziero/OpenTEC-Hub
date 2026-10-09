@@ -779,23 +779,7 @@ public sealed record SetpointPreset
             AerationMaxLpm = 12.0,
             AerationEffortStart = 10,
             AerationEffortEnd = 100,
-            CascadePid = new ModePidSettings
-            {
-                KDot = 0.075,
-                Kp = 0.035,
-                Ki = 0.0010,
-                Kd = 1.500,
-                TPred = 90.0,
-                TauD = 25.0,
-                IMin = -1.0,
-                IMax = 1.0,
-                MWindow = 2400,
-                JAvg = 8,
-                NPred = 20,
-                IntervalSeconds = 3.0,
-                FatorGanhoAeracao = 1.43,
-                HabilitarGainScheduling = true,
-            }
+            // CascadePid keeps the CascadeSettings default (D-071), so the two never drift apart.
         }
     };
 
@@ -810,17 +794,17 @@ public sealed record ModePidSettings
     public double KDot { get; init; } = 0.075;
     public double Kp { get; init; } = 0.035;
     public double Ki { get; init; } = 0.001;
-    public double Kd { get; init; } = 1.50;
-    public double TPred { get; init; } = 90.0;
-    public double TauD { get; init; } = 25.0;
-    public double IMin { get; init; } = -1.0;
-    public double IMax { get; init; } = 1.0;
+    public double Kd { get; init; } = 3.50;
+    public double TPred { get; init; } = 60.0;
+    public double TauD { get; init; } = 30.0;
+    public double IMin { get; init; } = -2.5;
+    public double IMax { get; init; } = 2.5;
     public int MWindow { get; init; } = 2400;
-    public int JAvg { get; init; } = 8;
-    public int NPred { get; init; } = 20;
+    public int JAvg { get; init; } = 20;
+    public int NPred { get; init; } = 15;
     public double IntervalSeconds { get; init; } = 3.0;
     public double FatorGanhoAeracao { get; init; } = 1.43;
-    public bool HabilitarGainScheduling { get; init; } = true;
+    public bool HabilitarGainScheduling { get; init; }
 }
 
 /// <summary>
@@ -882,23 +866,23 @@ public sealed record CascadeSettings
         HabilitarGainScheduling = false,
     };
 
-    /// <summary>Author's bench defaults for the cascade mode (08/10/2026, D-068).</summary>
+    /// <summary>Author's tuning from the A. oryzae run of 06/10/2026 for the cascade mode (D-071, was D-068).</summary>
     public ModePidSettings CascadePid { get; init; } = new()
     {
         KDot = 0.075,
         Kp = 0.035,
         Ki = 0.0010,
-        Kd = 1.500,
-        TPred = 90.0,
-        TauD = 25.0,
-        IMin = -1.0,
-        IMax = 1.0,
+        Kd = 3.500,
+        TPred = 60.0,
+        TauD = 30.0,
+        IMin = -2.5,
+        IMax = 2.5,
         MWindow = 2400,
-        JAvg = 8,
-        NPred = 20,
+        JAvg = 20,
+        NPred = 15,
         IntervalSeconds = 3.0,
         FatorGanhoAeracao = 1.43,
-        HabilitarGainScheduling = true,
+        HabilitarGainScheduling = false,
     };
 
     public ModePidSettings MapPid { get; init; } = new()
@@ -918,82 +902,72 @@ public sealed record CascadeSettings
         HabilitarGainScheduling = false,
     };
 
-    // Legacy fields for backward compatibility
+    // Legacy flat fields of files written before the per-mode PIDs. They are read once into CascadePid
+    // and never written back (D-071): writing them made every load copy the cascade values over the
+    // agitation, aeration and map PIDs, since they come after those blocks in the file.
     [Obsolete("Migrated to CascadePid")]
-    public double Kp
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Kp
     {
-        get => CascadePid.Kp;
+        get => null;
         init
         {
-            CascadePid = CascadePid with { Kp = value };
-            MapPid = MapPid with { Kp = value };
-            AgitationPid = AgitationPid with { Kp = value };
-            AerationPid = AerationPid with { Kp = value };
+            if (value is { } v) CascadePid = CascadePid with { Kp = v };
         }
     }
 
     [Obsolete("Migrated to CascadePid")]
-    public double Ki
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Ki
     {
-        get => CascadePid.Ki;
+        get => null;
         init
         {
-            CascadePid = CascadePid with { Ki = value };
-            MapPid = MapPid with { Ki = value };
-            AgitationPid = AgitationPid with { Ki = value };
-            AerationPid = AerationPid with { Ki = value };
+            if (value is { } v) CascadePid = CascadePid with { Ki = v };
         }
     }
 
     [Obsolete("Migrated to CascadePid")]
-    public double Kd
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Kd
     {
-        get => CascadePid.Kd;
+        get => null;
         init
         {
-            CascadePid = CascadePid with { Kd = value };
-            MapPid = MapPid with { Kd = value };
-            AgitationPid = AgitationPid with { Kd = value };
-            AerationPid = AerationPid with { Kd = value };
+            if (value is { } v) CascadePid = CascadePid with { Kd = v };
         }
     }
 
     [Obsolete("Migrated to CascadePid")]
-    public double IntegralMin
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? IntegralMin
     {
-        get => CascadePid.IMin;
+        get => null;
         init
         {
-            CascadePid = CascadePid with { IMin = value };
-            MapPid = MapPid with { IMin = value };
-            AgitationPid = AgitationPid with { IMin = value };
-            AerationPid = AerationPid with { IMin = value };
+            if (value is { } v) CascadePid = CascadePid with { IMin = v };
         }
     }
 
     [Obsolete("Migrated to CascadePid")]
-    public double IntegralMax
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? IntegralMax
     {
-        get => CascadePid.IMax;
+        get => null;
         init
         {
-            CascadePid = CascadePid with { IMax = value };
-            MapPid = MapPid with { IMax = value };
-            AgitationPid = AgitationPid with { IMax = value };
-            AerationPid = AerationPid with { IMax = value };
+            if (value is { } v) CascadePid = CascadePid with { IMax = v };
         }
     }
 
     [Obsolete("Migrated to CascadePid")]
-    public double PredictionHorizonSeconds
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? PredictionHorizonSeconds
     {
-        get => CascadePid.TPred;
+        get => null;
         init
         {
-            CascadePid = CascadePid with { TPred = value };
-            MapPid = MapPid with { TPred = value };
-            AgitationPid = AgitationPid with { TPred = value };
-            AerationPid = AerationPid with { TPred = value };
+            if (value is { } v) CascadePid = CascadePid with { TPred = v };
         }
     }
 
@@ -1001,15 +975,13 @@ public sealed record CascadeSettings
     public double RateWindowSeconds { get; init; } = 25.0;
 
     [Obsolete("Migrated to CascadePid")]
-    public double IntervalSeconds
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? IntervalSeconds
     {
-        get => CascadePid.IntervalSeconds;
+        get => null;
         init
         {
-            CascadePid = CascadePid with { IntervalSeconds = value };
-            MapPid = MapPid with { IntervalSeconds = value };
-            AgitationPid = AgitationPid with { IntervalSeconds = value };
-            AerationPid = AerationPid with { IntervalSeconds = value };
+            if (value is { } v) CascadePid = CascadePid with { IntervalSeconds = v };
         }
     }
 }

@@ -53,8 +53,8 @@ public class OxygenConfigViewModelTests
         Assert.Equal("0.075", vm.KDotText);
         Assert.Equal("0.035", vm.KpText);
         Assert.Equal("0.0010", vm.KiText);
-        Assert.Equal("1.500", vm.KdText);
-        Assert.Equal("90.0", vm.TPredText);
+        Assert.Equal("3.500", vm.KdText);
+        Assert.Equal("60.0", vm.TPredText);
     }
 
     [Fact]

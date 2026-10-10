@@ -26,6 +26,9 @@ public static class CommandKeys
     public const string BathComm = "bathComm";
     public const string BathMode = "bathMode";
     public const string BathSync = "bathSync";
+
+    /// <summary>One-off C404 setpoint, accepted by Hub 10.8 only with the bath cascade stopped.</summary>
+    public const string BathSetpoint = "bathSetpoint";
     public const string BathAbort = "bathAbort";
     public const string BathCascadeReset = "bathCascadeReset";
     public const string BathCascadeKp = "bathCascadeKp";

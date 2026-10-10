@@ -1099,7 +1099,9 @@ public sealed class ConnectionManager : IAsyncDisposable
             }
         }
 
-        var json = payload.ToJson();
+        // The reactor setpoint leaves in the module probe's scale (D-073); payload itself stays
+        // in real temperature, so a requeue never shifts it twice.
+        var json = TemperatureCorrection.ToModule(payload, _parser.Config.TemperatureOffsetC).ToJson();
         var stopwatch = Stopwatch.StartNew();
 
         bool sent;

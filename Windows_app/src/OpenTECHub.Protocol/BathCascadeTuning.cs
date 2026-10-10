@@ -33,7 +33,7 @@ public sealed record BathCascadeTuning(
 
         if (!Finite(Kp) || Kp <= 0) return "Kp deve ser maior que zero.";
         if (!Finite(TiS) || TiS <= 0) return "Ti deve ser maior que zero.";
-        if (!Finite(BiasC)) return "Bias deve ser um número finito.";
+        if (!Finite(BiasC) || Math.Abs(BiasC) > 10) return "O delta inicial do banho deve estar entre −10 e +10 °C.";
         if (PeriodMs is < 100 or > 600_000) return "Período deve estar entre 100 e 600000 ms.";
         if (!Finite(FilterS) || FilterS <= 0 || FilterS > 3600) return "Filtro deve estar entre 0 e 3600 s.";
         if (CommandMinMs is < 0 or > 3_600_000) return "Comando mínimo deve estar entre 0 e 3600000 ms.";

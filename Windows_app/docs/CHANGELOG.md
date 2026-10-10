@@ -6,6 +6,16 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.30.0] - 2026-10-09
+
+- **Calibrações › Temperatura** (nova aba): correção de defasagem do sensor do reator, `real = lida + correção`, digitada ou calculada a partir de um termômetro de referência. Leituras, gráficos, registros, receitas e alarmes passam a usar a temperatura real; o setpoint do reator é em relação a ela e chega ao módulo como `setpoint − correção` (D-073);
+- **Cartão da temperatura do reator** reorganizado: via de aquecimento, quatro leituras (reator real, temperatura e setpoint do C404, estado da cascata), blocos "Cascata automática" e "Setpoint direto do banho", e diagnóstico e sintonia avançada recolhidos;
+- **Delta inicial do banho** (antes "Bias", 0,6 °C) em campo próprio, de −10 a +10 °C, com o valor em uso no Hub;
+- **Setpoint direto do banho**: envia um SP pontual ao C404 com a cascata parada (exige Hub 10.8);
+- corrigido: o atalho de calibração da biomassa abria a aba da bomba.
+
+---
+
 ## [0.29.1] - 2026-10-09
 
 - Corrigido: em tela cheia a barra de tarefas do Windows ficava por cima do rodapé do app (a janela era maximizada e o WindowChrome recorta a janela maximizada na área útil). Agora a tela cheia é uma janela sem borda do tamanho do monitor; o botão de restaurar também sai dela (D-072).

@@ -991,6 +991,16 @@ public static class CommandBuilders
         return OpenTECCommand.Create().Set(CommandKeys.BathSync, setpointC);
     }
 
+    /// <summary>
+    /// One-off C404 setpoint (Hub 10.8). The Hub refuses it while the bath cascade holds a
+    /// reactor reference: then the C404 setpoint belongs to the cascade.
+    /// </summary>
+    public static OpenTECCommand BathSetpoint(double setpointC)
+    {
+        ValidateFiniteRange(setpointC, 0.0, 100.0, nameof(setpointC));
+        return OpenTECCommand.Create().Set(CommandKeys.BathSetpoint, Math.Round(setpointC, 1));
+    }
+
     public static OpenTECCommand BathAbort()
         => OpenTECCommand.Create().Set(CommandKeys.BathAbort, 1);
 

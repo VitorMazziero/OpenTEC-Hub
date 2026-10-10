@@ -394,6 +394,14 @@ public static class WireCodec
             model.BathSetpoint = bathSync;
             model.BathTarget = bathSync;
         }
+        // Hub 10.8: a one-off C404 setpoint, only with the cascade stopped and the bath link on.
+        if (TryDouble(root, CommandKeys.BathSetpoint, out var bathDirect) && double.IsFinite(bathDirect) &&
+            bathDirect is >= 0 and <= 100 && !model.BathCascadeActive && model.BathCommEnabled &&
+            !root.TryGetProperty(CommandKeys.TempSetpoint, out _))
+        {
+            model.BathSetpoint = bathDirect;
+            model.BathTarget = bathDirect;
+        }
         if (root.TryGetProperty(CommandKeys.BathMode, out var bathMode) && bathMode.ValueKind == JsonValueKind.String)
         {
             model.BathModeAuto = string.Equals(bathMode.GetString(), "auto", StringComparison.OrdinalIgnoreCase);

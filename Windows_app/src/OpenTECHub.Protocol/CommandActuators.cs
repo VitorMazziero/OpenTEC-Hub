@@ -92,6 +92,7 @@ public static class CommandActuators
             [CommandKeys.BathComm] = ActuatorId.Temperature,
             [CommandKeys.BathMode] = ActuatorId.Temperature,
             [CommandKeys.BathSync] = ActuatorId.Temperature,
+            [CommandKeys.BathSetpoint] = ActuatorId.Temperature,
             [CommandKeys.BathAbort] = ActuatorId.Temperature,
             [CommandKeys.BathCascadeReset] = ActuatorId.Temperature,
             [CommandKeys.BathCascadeKp] = ActuatorId.Temperature,

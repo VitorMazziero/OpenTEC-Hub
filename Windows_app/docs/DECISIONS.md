@@ -1750,6 +1750,29 @@ grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, 
 Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
 preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
 
+### D-073 · Correção do sensor de temperatura, delta inicial e setpoint direto do banho
+
+**Status:** Accepted and implemented · 2026-10-09
+
+1. **Correção do sensor do reator** (Calibrações › Temperatura): `real = lida + correção`, de −5 a +5 °C,
+   digitada ou calculada como `referência − lida` a partir de um termômetro. O parser corrige `Tempval`, o eco
+   `TempSetpoint` e o PV filtrado da cascata (zero continua zero); a leitura bruta fica em
+   `SensorSnapshot.TemperatureRaw`. No único ponto de escrita (`ConnectionManager`), `tempSetpoint` sai como
+   `real − correção`, exceto `0` (desligar). Assim o laço da placa do módulo e a cascata do Hub, que comparam
+   contra a sonda sem correção, mantêm o reator no setpoint real, sem firmware novo. O log `TX` mostra o
+   valor na escala do módulo. Aplicar só salva a configuração.
+2. **Delta inicial do banho** (o antigo "Bias", padrão 0,6 °C): campo próprio no cartão, de −10 a +10 °C,
+   enviado ao Hub com a sintonia ("Enviar delta") e guardado na NVS dele. É de onde o SP do C404 parte na
+   aproximação (`referência + delta + I`); negativo quando o painel do C404 lê abaixo da água.
+3. **Setpoint direto do banho** (Hub 10.8, `bathSetpoint`): SP pontual ao C404 pelo mesmo caminho da cascata
+   (ACK e `done`). O Hub o recusa com a cascata ativa (referência na via externa), no mesmo quadro de um
+   `tempSetpoint` e com a comunicação do banho desligada; o app só libera o botão nessas condições e com Hub
+   ≥ 10.8.
+4. **Cartão reorganizado**: via de aquecimento; quatro leituras (reator real com a leitura bruta e a correção,
+   temperatura e setpoint do C404, estado da cascata em uma palavra) e uma linha de estado; dois blocos de ação
+   (cascata e setpoint direto); diagnóstico, sintonia avançada e sincronização do painel num expansor fechado.
+5. A aba de calibração aberta pelos atalhos segue a ordem das abas (a biomassa abria a bomba).
+
 ### D-072 · Tela cheia na barra superior
 
 **Status:** Accepted and implemented · 2026-10-09

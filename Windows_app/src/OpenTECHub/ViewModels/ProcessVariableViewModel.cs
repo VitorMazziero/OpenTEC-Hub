@@ -111,6 +111,7 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
     public string? CalibrationTarget => Channel switch
     {
         TelemetryChannel.PH => "ph",
+        TelemetryChannel.Temperature => "temperature",
         TelemetryChannel.Oxygen => "oxygen",
         TelemetryChannel.Flow => "flow",
         TelemetryChannel.Biomass => "biomass",

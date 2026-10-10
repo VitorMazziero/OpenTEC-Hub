@@ -128,6 +128,7 @@ public sealed record AppSettings
         OxygenCalibrationB = Calibration.OxygenB,
         PHSlope = Calibration.PHSlope,
         PHIntercept = Calibration.PHIntercept,
+        TemperatureOffsetC = Calibration.TemperatureOffsetC,
         PHFilter = new SpikeFilterConfig(
             Filters.PHAbsoluteThreshold, Filters.PHFollowTolerance, Filters.PHConfirmRuns),
         OxygenFilter = new SpikeFilterConfig(
@@ -189,6 +190,12 @@ public sealed record CalibrationSettings
     public double OxygenB { get; init; } = -25.09136520919;
     public double PHSlope { get; init; } = 0.0005012405704;
     public double PHIntercept { get; init; } = -0.600385955239;
+
+    /// <summary>
+    /// Reactor probe correction in °C: <c>real = read + offset</c> (D-073). The setpoint is the
+    /// real temperature; the app sends it to the module as <c>real − offset</c>.
+    /// </summary>
+    public double TemperatureOffsetC { get; init; }
 
     /// <summary>Accepted raw frames required before pH is considered stable.</summary>
     public int PHStabilityWindow { get; init; } = 20;

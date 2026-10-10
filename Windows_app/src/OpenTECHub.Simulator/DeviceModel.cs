@@ -434,7 +434,7 @@ public sealed class DeviceModel
     public bool PublishesNodeIdentity => Scenario != Scenario.LegacyHub;
 
     /// <summary>What the simulated Hub calls itself; the wire keys are absent under <see cref="Scenario.LegacyHub"/>.</summary>
-    public const string HubFirmwareVersion = "10.2.0-dev";
+    public const string HubFirmwareVersion = "10.8.0-dev";
     public const int HubProtocolVersion = 10;
 
     /// <summary>Enables every external-node route at once (bench dry runs).</summary>

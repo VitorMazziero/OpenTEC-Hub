@@ -39,7 +39,10 @@ public sealed class SensorReadings
            absorbance > BiomassBlankInvalidThreshold &&
            absorbance < BiomassDarkThreshold;
 
+    /// <summary>Reactor temperature, corrected by the probe offset (D-073).</summary>
     public double Temperature { get; set; } = NotReceived;
+    /// <summary>The module probe's own reading, before the offset correction.</summary>
+    public double TemperatureRaw { get; set; } = NotReceived;
     /// <summary>The current frame supplied a temperature accepted by the parser.</summary>
     public bool TemperatureUpdated { get; set; }
 
@@ -382,6 +385,7 @@ public sealed class SensorReadings
     public SensorSnapshot Snapshot() => new()
     {
         Temperature = Temperature,
+        TemperatureRaw = TemperatureRaw,
         TemperatureUpdated = TemperatureUpdated,
         OxygenRaw = OxygenRaw,
         OxygenUpdated = OxygenUpdated,
@@ -569,7 +573,10 @@ public sealed class SensorReadings
 /// </summary>
 public sealed record SensorSnapshot
 {
+    /// <summary>Reactor temperature, corrected by the probe offset (D-073).</summary>
     public double Temperature { get; init; }
+    /// <summary>The module probe's own reading, before the offset correction.</summary>
+    public double TemperatureRaw { get; init; }
     /// <summary>Whether this frame supplied an accepted temperature, rather than a retained prior value.</summary>
     public bool TemperatureUpdated { get; init; } = true;
     public double OxygenRaw { get; init; }

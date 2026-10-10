@@ -26,6 +26,9 @@ public sealed record ParserConfig
     /// <summary>pH calibration intercept.</summary>
     public double PHIntercept { get; init; } = -0.600385955239;
 
+    /// <summary>Reactor probe correction in °C: <c>real = read + offset</c> (D-073).</summary>
+    public double TemperatureOffsetC { get; init; }
+
     public SpikeFilterConfig PHFilter { get; init; } = SpikeFilterConfig.ForPH();
     public SpikeFilterConfig OxygenFilter { get; init; } = SpikeFilterConfig.ForOxygen();
 
@@ -153,6 +156,12 @@ public sealed class TelemetryParser
     /// </summary>
     public event Action<double>? PHCalibrationChanged;
 
+    /// <summary>The reactor probe correction in force, or zero when the configured one is unusable.</summary>
+    private double Offset => TemperatureCorrection.IsValidOffset(_config.TemperatureOffsetC) ? _config.TemperatureOffsetC : 0;
+
+    /// <summary>The calibration and filter tuning in force.</summary>
+    public ParserConfig Config => _config;
+
     /// <summary>Applies new calibration and filter tuning.</summary>
     public void Reconfigure(ParserConfig config)
     {
@@ -248,7 +257,8 @@ public sealed class TelemetryParser
         if (TryGetDouble(root, TelemetryKeys.Temperature, out var value) &&
             value is > 10.0 and < 100.0)
         {
-            Readings.Temperature = value;
+            Readings.TemperatureRaw = value;
+            Readings.Temperature = TemperatureCorrection.ToReal(value, Offset);
             Readings.TemperatureUpdated = true;
         }
     }
@@ -849,7 +859,10 @@ public sealed class TelemetryParser
         AssignLong(root, TelemetryKeys.BathCommandLastDoneId, v => Readings.BathCommandLastDoneId = v);
         AssignInt(root, TelemetryKeys.BathCommandCompletionAgeMs, v => Readings.BathCommandCompletionAgeMs = v);
 
-        Readings.TempSetpoint = ReadNullableDouble(root, TelemetryKeys.TempSetpoint);
+        // The Hub echoes the reference in the module's scale; 0 is "off" and is not shifted.
+        Readings.TempSetpoint = ReadNullableDouble(root, TelemetryKeys.TempSetpoint) is { } reference && reference > 0
+            ? TemperatureCorrection.ToReal(reference, Offset)
+            : ReadNullableDouble(root, TelemetryKeys.TempSetpoint);
         Readings.BathSp = ReadNullableDouble(root, TelemetryKeys.BathSp);
         Readings.BathTarget = ReadNullableDouble(root, TelemetryKeys.BathTarget);
         Readings.BathPv = ReadNullableDouble(root, TelemetryKeys.BathPv);
@@ -858,7 +871,10 @@ public sealed class TelemetryParser
         Readings.BathCommandSetpoint = ReadNullableDouble(root, TelemetryKeys.BathCommandSetpoint);
         Readings.BathCommandConfirmed = ReadNullableDouble(root, TelemetryKeys.BathCommandConfirmed);
         Readings.BathCascadeError = ReadNullableDouble(root, TelemetryKeys.BathCascadeError);
-        Readings.BathCascadePvFiltered = ReadNullableDouble(root, TelemetryKeys.BathCascadePvFiltered);
+        // Zero is the Hub's "no filtered PV yet" (cascade off), not a temperature.
+        Readings.BathCascadePvFiltered = ReadNullableDouble(root, TelemetryKeys.BathCascadePvFiltered) is { } filtered && filtered > 0
+            ? TemperatureCorrection.ToReal(filtered, Offset)
+            : ReadNullableDouble(root, TelemetryKeys.BathCascadePvFiltered);
         Readings.BathCascadeP = ReadNullableDouble(root, TelemetryKeys.BathCascadeP);
         Readings.BathCascadeI = ReadNullableDouble(root, TelemetryKeys.BathCascadeI);
         Readings.BathCascadeFine = TryGetBool(root, TelemetryKeys.BathCascadeFine, out var fine) ? fine : null;

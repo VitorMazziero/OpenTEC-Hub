@@ -90,6 +90,72 @@
             <TabItem Header="Oxigênio" Style="{StaticResource SegmentedItemStyle}">
                 <views:SensorCalibrationView DataContext="{Binding Oxygen}" />
             </TabItem>
+            <!-- Reactor probe offset (D-073): real = read + correction. -->
+            <TabItem Header="Temperatura" Style="{StaticResource SegmentedItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,12,0,0" MaxWidth="900" HorizontalAlignment="Left" DataContext="{Binding Temperature}">
+                        <Border Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StrokeSubtleBrush}"
+                                BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="12" Margin="0,0,0,12">
+                            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="Correção de defasagem do sensor de temperatura do reator: temperatura real = temperatura lida + correção. Com ela aplicada, o painel, os gráficos, os registros e as receitas usam a temperatura real, e o setpoint do reator passa a ser em relação a ela (o aplicativo envia ao módulo o setpoint menos a correção). Aplicar só salva a configuração; nada é enviado ao equipamento." />
+                        </Border>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CalibrationCard}" Margin="0,0,6,0">
+                                <StackPanel>
+                                    <TextBlock Text="Leitura ao vivo" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,0,0,12" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Lida pelo módulo (°C)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding RawText}" Style="{StaticResource NumericTextStyle}" FontSize="{DynamicResource FontSizeTitle}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Real (corrigida, °C)" Style="{StaticResource CalibrationLabel}" />
+                                            <TextBlock Text="{Binding CorrectedText}" Style="{StaticResource NumericTextStyle}" FontSize="{DynamicResource FontSizeTitle}" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{Binding CurrentOffsetText}" Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource CalibrationCard}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Correção" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="SemiBold" Margin="0,0,0,12" />
+
+                                    <TextBlock Text="Pela referência: temperatura medida agora por um termômetro de referência (°C)" Style="{StaticResource CalibrationLabel}" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <TextBox Width="110" Text="{Binding ReferenceText, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="Leia o termômetro de referência no mesmo instante; a correção é referência − lida." />
+                                        <Button Content="Calcular correção" Command="{Binding ComputeFromReferenceCommand}" Margin="8,0,0,0" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="Correção (°C) — positiva quando o sensor lê abaixo da temperatura real" Style="{StaticResource CalibrationLabel}" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBox Width="110" Text="{Binding OffsetText, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="Entre −5 e +5 °C. Ex.: +0,2 se o sensor marca 29,8 °C com o reator a 30,0 °C." />
+                                        <Button Content="Aplicar" Style="{StaticResource AccentButtonStyle}" Command="{Binding ApplyCommand}" Margin="8,0,0,0" />
+                                        <Button Content="Remover correção" Command="{Binding ClearCommand}" Margin="6,0,0,0" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding CorrectedPreviewText}" Style="{StaticResource CaptionTextStyle}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,6,0,0" />
+                                    <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}"
+                                               TextWrapping="Wrap" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <!-- Airflow calibration -->
             <TabItem x:Name="AirflowTab" Header="Vazão de ar" Style="{StaticResource SegmentedItemStyle}">
                 <Grid Margin="0,12,0,0" DataContext="{Binding Flow}">

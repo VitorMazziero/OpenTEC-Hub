@@ -19,6 +19,7 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
     {
         PH = new PHCalibrationViewModel(device, settings, phControl);
         Oxygen = new OxygenCalibrationViewModel(device, settings);
+        Temperature = new TemperatureCalibrationViewModel(device, settings);
         Flow = new FlowCalibrationViewModel(device, settings);
         Biomass = new BiomassCalibrationViewModel(device, settings);
         Pump = new PumpCalibrationViewModel(device, settings, profileStore: pumpProfileStore, dialogs: dialogs);
@@ -27,6 +28,9 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
     public PHCalibrationViewModel PH { get; }
 
     public OxygenCalibrationViewModel Oxygen { get; }
+
+    /// <summary>Reactor probe offset correction (D-073).</summary>
+    public TemperatureCalibrationViewModel Temperature { get; }
 
     public FlowCalibrationViewModel Flow { get; }
 
@@ -43,11 +47,13 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
     {
         SelectedTabIndex = target switch
         {
+            // Tab order in CalibrationView.xaml. Biomass and pump used to be swapped here.
             "ph" => 0,
             "oxygen" => 1,
-            "flow" => 2,
-            "pump" => 3,
+            "temperature" => 2,
+            "flow" => 3,
             "biomass" => 4,
+            "pump" => 5,
             _ => SelectedTabIndex,
         };
     }
@@ -56,6 +62,7 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
     {
         PH.Dispose();
         Oxygen.Dispose();
+        Temperature.Dispose();
         Flow.Dispose();
         Biomass.Dispose();
         Pump.Dispose();

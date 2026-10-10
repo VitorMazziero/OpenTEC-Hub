@@ -125,6 +125,16 @@ correspondente.
 Este manual em PDF/Markdown continua sendo a referência de instalação, procedimentos e diagnóstico;
 a documentação interna é a referência de *tela*, para consulta durante a operação.
 
+**Temperatura real do reator.** Se o sensor do módulo lê fora da temperatura real (confirmada com outros
+termômetros), abra **Calibrações › Temperatura**, digite a correção (ex.: +0,2 °C quando o sensor marca 29,8 °C
+com o reator a 30,0 °C) ou leia um termômetro de referência e use **Calcular correção**, e aplique. A partir daí
+a temperatura mostrada, registrada e controlada é a real, e o setpoint do reator é em relação a ela.
+
+**Banho externo C404.** No cartão da temperatura (Controle › Temperatura), o **delta inicial do banho** é de onde
+o SP do C404 parte antes de a cascata corrigir (ex.: −1,2 °C se o painel do C404 lê abaixo da água); edite e
+use **Enviar delta**. Com a cascata parada (**Parar banho**), **Setpoint direto do banho** envia um SP pontual ao
+C404 (exige Hub 10.8).
+
 **Tela cheia.** O botão com quatro cantos, à direita do botão de tema na barra superior (ou **F11**), põe o
 OpenTEC-Hub em tela cheia, por cima da barra de tarefas do Windows. Clique de novo (ícone com os cantos para dentro),
 tecle **F11** ou **Esc** para voltar à janela como estava.

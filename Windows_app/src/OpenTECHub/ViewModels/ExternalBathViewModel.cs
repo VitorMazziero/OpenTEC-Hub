@@ -33,6 +33,11 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     private bool _syncingTelemetry;
     private bool? _routeEnabledOnHub;
     private string _cascadeState = "";
+    private bool? _cascadeActiveOnHub;
+    private bool _hubSupportsDirectSetpoint;
+
+    /// <summary>First Hub firmware that accepts <c>bathSetpoint</c>.</summary>
+    private static readonly Version DirectSetpointFirmware = new(10, 8, 0);
     private (bool Value, DateTimeOffset At)? _routeRequest;
     private (bool Value, DateTimeOffset At)? _commRequest;
     private (bool Value, DateTimeOffset At)? _modeRequest;
@@ -100,6 +105,22 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
 
     [ObservableProperty]
     public partial string BathSyncText { get; set; } = "30.0";
+
+    /// <summary>One-off C404 setpoint, sent only while the cascade is stopped (Hub 10.8).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSendDirectSetpoint))]
+    [NotifyPropertyChangedFor(nameof(DirectSetpointHint))]
+    [NotifyCanExecuteChangedFor(nameof(SendDirectSetpointCommand))]
+    public partial string DirectSetpointText { get; set; } = 30.0.ToString("0.0", CultureInfo.CurrentCulture);
+
+    /// <summary>One-word state of the cascade for the summary tile.</summary>
+    [ObservableProperty] public partial string CascadeHeadline { get; set; } = "—";
+
+    /// <summary>The start delta the Hub is using now, from its tuning echo.</summary>
+    [ObservableProperty] public partial string BiasEchoText { get; set; } = "";
+
+    /// <summary>Probe reading and correction behind the reactor value, when a correction is set.</summary>
+    [ObservableProperty] public partial string ReactorCorrectionText { get; set; } = "";
 
     [ObservableProperty] public partial string ReactorPvText { get; set; } = "—";
     [ObservableProperty] public partial string BathPvText { get; set; } = "—";
@@ -180,8 +201,28 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
                 ? "Banho original: o Hub envia o setpoint à placa do módulo por UART. O banho externo está online; a troca de via assume a cascata térmica."
                 : "Banho original: o Hub envia o setpoint à placa do módulo por UART. Ao selecionar banho externo, o Hub habilita a comunicação e a cascata térmica.";
 
-    /// <summary>Show the C404/cascade details only while the Hub routes temperature to the bath.</summary>
+    /// <summary>Show the cascade controls only while the Hub routes temperature to the bath.</summary>
     public bool ShowBathDetails => _routeEnabledOnHub == true;
+
+    /// <summary>The C404 readings and the direct setpoint make sense whenever the Hub talks to the bath.</summary>
+    public bool ShowBathReadouts => Status.HasTelemetry && (_routeEnabledOnHub == true || Status.CommEnabledOnHub == true);
+
+    public bool CanSendDirectSetpoint => DirectSetpointBlocker() is null;
+
+    /// <summary>Why the direct setpoint is unavailable, or how it behaves when it is.</summary>
+    public string DirectSetpointHint => DirectSetpointBlocker() ??
+        "Envia o SP ao C404 uma vez. Com a guarda automática, o banho passa a manter este SP.";
+
+    private string? DirectSetpointBlocker()
+    {
+        if (!Status.HasTelemetry) return "Sem telemetria do Hub.";
+        if (!_hubSupportsDirectSetpoint) return "Requer Hub 10.8 ou mais recente (grave o firmware novo).";
+        if (Status.CommEnabledOnHub != true) return "Ative a comunicação com o banho.";
+        if (!Status.IsOnline) return "Banho C404 offline.";
+        if (_cascadeActiveOnHub == true) return "A cascata está controlando o banho. Use Parar banho para enviar um SP direto.";
+        if (!TryParse(DirectSetpointText, out var sp) || sp is < 0 or > 100) return "O SP do banho deve estar entre 0 e 100 °C.";
+        return null;
+    }
 
     partial void OnIsTempControlViaBathChanged(bool value)
     {
@@ -328,6 +369,18 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
         Dispatch(CommandBuilders.BathSynchronize(value), "Setpoint do C404 sincronizado.");
     }
 
+    [RelayCommand(CanExecute = nameof(CanSendDirectSetpoint))]
+    private void SendDirectSetpoint()
+    {
+        if (DirectSetpointBlocker() is not null || !TryParse(DirectSetpointText, out var sp))
+        {
+            LastActionText = DirectSetpointBlocker() ?? "Revise o SP do banho.";
+            return;
+        }
+        Dispatch(CommandBuilders.BathSetpoint(sp),
+            string.Create(CultureInfo.CurrentCulture, $"SP {sp:0.0} °C enviado ao C404; acompanhe SP e alvo do nó."));
+    }
+
     /// <summary>Bath stop (Hub 10.6): cascade off, node aborted and left in manual.</summary>
     [RelayCommand(CanExecute = nameof(CanStop))]
     private void Stop() => Dispatch(CommandBuilders.BathAbort(),
@@ -461,6 +514,8 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
             snapshot.BathCommEnabled, snapshot.BathNode);
         _routeEnabledOnHub = snapshot.TempControlViaBath;
         _cascadeState = snapshot.BathCascadeState;
+        _cascadeActiveOnHub = snapshot.BathCascadeActive;
+        _hubSupportsDirectSetpoint = HubAtLeast(snapshot.HubFirmwareVersion, DirectSetpointFirmware);
 
         _syncingTelemetry = true;
         var routeMismatchResolved = false;
@@ -493,6 +548,11 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
             : "";
 
         ReactorPvText = snapshot.TemperatureValid == false ? "—" : Format(snapshot.Temperature);
+        var correction = snapshot.Temperature - snapshot.TemperatureRaw;
+        ReactorCorrectionText = snapshot.TemperatureValid != false && Math.Abs(correction) > 0.005 &&
+                                snapshot.TemperatureRaw > SensorReadings.NotReceived
+            ? string.Create(CultureInfo.CurrentCulture, $"lida {snapshot.TemperatureRaw:F2} · correção {correction:+0.0#;−0.0#}")
+            : "";
         BathPvText = Format(snapshot.BathPv);
         BathSpText = Format(snapshot.BathSp);
         BathTargetText = Format(snapshot.BathTarget);
@@ -516,9 +576,19 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
         OwnershipText = snapshot.BathOwned switch
         {
             true => "Hub controla o banho: comandos locais (celular, /ui) ficam bloqueados; só Abortar.",
-            false when snapshot.TempControlViaBath == true =>
-                "Cascata desligada: o banho está livre; envie um setpoint do reator para retomar.",
             _ => "",
+        };
+        CascadeHeadline = snapshot.BathCascadeState switch
+        {
+            "controlling" => "Controlando (PI)",
+            "approaching" => "Aproximação",
+            "actuator_busy" => "Aguardando C404",
+            "waiting_inputs" => "Aguardando",
+            "paused" => "Pausada",
+            "fault" => "Falha",
+            "initializing" => "Iniciando",
+            "off" => "Parada",
+            _ => "—",
         };
         StatusText = snapshot.BathCascadeState switch
         {
@@ -526,10 +596,11 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
             "paused" => $"Cascata pausada: {DescribeReason(snapshot.BathCascadePausedReason)}.",
             "fault" => "Cascata em falha.",
             "controlling" => "Cascata controlando o reator.",
-            "approaching" => "Cascata em aproximação: banho em referência + bias; o PI entra perto da " +
+            "approaching" => "Cascata em aproximação: banho em referência + delta inicial; o PI entra perto da " +
                              $"referência com o reator estável{DescribeSlope(snapshot.BathCascadeSlopeCMin)}.",
             "actuator_busy" => "Cascata aguardando o C404 concluir o comando.",
-            "off" when snapshot.TempControlViaBath == true => "Cascata desligada (sem referência do reator).",
+            "off" when snapshot.TempControlViaBath == true =>
+                "Sem referência do reator: o C404 fica no último SP. Envie um setpoint do reator para a cascata assumir, ou use o SP direto.",
             _ => Status.StatusText,
         };
 
@@ -541,6 +612,11 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
     {
         _tuningConfigError = snapshot.BathCascadeConfigError ?? "";
         var echo = snapshot.BathCascadeConfig;
+        BiasEchoText = echo is null
+            ? "Hub sem eco da sintonia."
+            : TryParse(CascadeBiasText, out var draftBias) && Math.Abs(draftBias - echo.BiasC) < 0.005
+                ? "Em uso no Hub."
+                : string.Create(CultureInfo.CurrentCulture, $"Hub usa {echo.BiasC:+0.0#;−0.0#;0.0} °C — clique Enviar delta.");
         if (echo is not null && !echo.SameAs(_tuningEcho))
         {
             // The Hub's values are the truth: follow them unless the operator is editing a
@@ -583,6 +659,14 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
                     : "Rascunho diferente da sintonia vigente no Hub.";
     }
 
+    /// <summary>True when the Hub's version string (e.g. <c>10.8.0-dev</c>) is at least <paramref name="minimum"/>.</summary>
+    internal static bool HubAtLeast(string? firmware, Version minimum)
+    {
+        if (string.IsNullOrWhiteSpace(firmware)) return false;
+        var core = firmware.Trim().TrimStart('v', 'V').Split('-', '+')[0];
+        return Version.TryParse(core, out var version) && version >= minimum;
+    }
+
     private static string FirstNonEmpty(string? a, string? b) => string.IsNullOrWhiteSpace(a) ? b ?? "" : a;
 
     /// <summary>pt-BR text for the Hub's reason codes; see <see cref="BathReasons"/>.</summary>
@@ -606,6 +690,10 @@ public sealed partial class ExternalBathViewModel : ObservableObject, IDisposabl
         StopCommand.NotifyCanExecuteChanged();
         ResetFaultCommand.NotifyCanExecuteChanged();
         ApplyTuningCommand.NotifyCanExecuteChanged();
+        SendDirectSetpointCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanSendDirectSetpoint));
+        OnPropertyChanged(nameof(DirectSetpointHint));
+        OnPropertyChanged(nameof(ShowBathReadouts));
         OnPropertyChanged(nameof(CanApplyNow));
         OnPropertyChanged(nameof(CanChangeRoute));
         OnPropertyChanged(nameof(CanChangeCommunication));

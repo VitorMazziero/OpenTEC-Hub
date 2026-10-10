@@ -1,5 +1,13 @@
 # Changelog do Hub
 
+## 10.8.0-dev — setpoint direto do banho
+
+- Novo comando `bathSetpoint` (0–100 °C): envia um SP pontual ao C404 pelo mesmo caminho da
+  cascata (`BathCommandCoordinator`, ACK e `done`). Só é aceito com a cascata parada (sem
+  referência ativa na via externa) e com `bathComm` ligado; no mesmo quadro de um
+  `tempSetpoint` é recusado. Funciona com o nó em manual ou automático (na guarda automática o
+  novo SP passa a ser o que ela preserva). Inclui a correção da 10.7.1.
+
 ## 10.7.1-dev — o PI do banho nunca entrava
 
 - **Leitura do reator tida como velha a cada leitura:** o loop lê `now = millis()` no início da

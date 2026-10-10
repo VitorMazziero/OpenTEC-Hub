@@ -573,6 +573,25 @@ void processJsonCommand(const String &json) {
     }
   }
 
+  // Setpoint direto do C404 (10.8): so com a cascata parada. Com a cascata ativa o SP do
+  // banho e dela; um comando direto seria desfeito no proximo calculo e confundiria a guarda.
+  if (json.indexOf("\"bathSetpoint\"") != -1) {
+    String raw;
+    float direct = 0.0f;
+    const bool cascadeActive = tempReferenceCommanded &&
+                               tempControlRoute == TempControlRoute::ExternalBath;
+    if (!JsonUtils::getRaw(json, "bathSetpoint", raw) ||
+        !JsonUtils::parseFiniteFloat(raw, direct) || direct < 0.0f || direct > 100.0f) {
+      ESP32_AVISO("bathSetpoint rejeitado: faixa 0..100 e valor finito");
+    } else if (cascadeActive || json.indexOf("\"tempSetpoint\"") != -1) {
+      ESP32_AVISO("bathSetpoint rejeitado: cascata do banho ativa; pare o banho antes");
+    } else if (!bathCommOn) {
+      ESP32_AVISO("bathSetpoint rejeitado: comunicacao do banho desligada");
+    } else {
+      bathQueueSetpoint(direct);
+    }
+  }
+
   bool bathStopRequested = false;
   if (json.indexOf("\"bathAbort\"") != -1) {
     String raw;

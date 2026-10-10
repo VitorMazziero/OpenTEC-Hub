@@ -15,7 +15,7 @@ class BathTelemetryTests(unittest.TestCase):
         config = self.read("Config.h")
         telemetry = self.read("src/sensor/Telemetry.h")
         context = self.read("src/core/AppContext.h")
-        self.assertIn('#define HUB_FIRMWARE_VERSION "10.7.0-dev"', config)
+        self.assertIn('#define HUB_FIRMWARE_VERSION "10.8.0-dev"', config)
         fields = [
             "TempSetpoint", "BathSp", "BathTarget", "BathPv", "BathDisplaySp",
             "BathState", "BathPhase", "BathError", "BathMode", "BathGuard",

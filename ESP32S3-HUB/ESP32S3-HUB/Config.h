@@ -13,7 +13,8 @@
 // 10.5.0: telemetria completa e diagnostico da cascata termica externa.
 // 10.7.0: PI do banho restrito ao ajuste fino (estado `approaching`); chaves aditivas.
 // 10.7.1: idade das leituras sem estouro (o PI do banho nunca entrava).
-#define HUB_FIRMWARE_VERSION "10.7.1-dev"
+// 10.8.0: `bathSetpoint`, SP direto do C404 com a cascata parada; chave aditiva.
+#define HUB_FIRMWARE_VERSION "10.8.0-dev"
 #define HUB_PROTOCOL_VERSION 10
 
 // ===================================================================

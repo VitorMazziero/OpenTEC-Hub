@@ -45,6 +45,16 @@ class BathRoutingTests(unittest.TestCase):
         self.assertNotIn("bathCascadeConfig = ExternalBathCascade::defaults()", reset)
         self.assertIn('requestBathStop("bathAbort/tempSetpoint=0")', commands)
 
+    def test_direct_bath_setpoint_only_with_the_cascade_stopped(self):
+        commands = self.read("src/protocol/Commands.h")
+        direct = commands[commands.index('if (json.indexOf("\\"bathSetpoint\\"")'):commands.index("bool bathStopRequested")]
+        self.assertIn("tempReferenceCommanded &&", direct)
+        self.assertIn("tempControlRoute == TempControlRoute::ExternalBath", direct)
+        self.assertIn('json.indexOf("\\"tempSetpoint\\"") != -1', direct)
+        self.assertIn("!bathCommOn", direct)
+        self.assertIn("direct < 0.0f || direct > 100.0f", direct)
+        self.assertIn("bathQueueSetpoint(direct)", direct)
+
     def test_reset_clears_completion_and_rearms_edges(self):
         commands = self.read("src/protocol/Commands.h")
         reset = commands[commands.index('"bathCascadeReset", rawReset'):commands.index("// ============ SYSTEM COMMANDS")]

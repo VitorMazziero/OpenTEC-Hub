@@ -135,6 +135,11 @@ o SP do C404 parte antes de a cascata corrigir (ex.: −1,2 °C se o painel do C
 use **Enviar delta**. Com a cascata parada (**Parar banho**), **Setpoint direto do banho** envia um SP pontual ao
 C404 (exige Hub 10.8).
 
+**Reativar o controle de O₂ no meio do cultivo.** Em Controle › Oxigênio › configurações (engrenagem), marque
+**Ao ativar, partir de um esforço definido** e informe o esforço (ou use **Usar último esforço**, registrado ao
+desativar). A prévia mostra a agitação e a vazão de partida. Desmarque ao começar um cultivo novo, que deve
+partir de 0 %.
+
 **Tela cheia.** O botão com quatro cantos, à direita do botão de tema na barra superior (ou **F11**), põe o
 OpenTEC-Hub em tela cheia, por cima da barra de tarefas do Windows. Clique de novo (ícone com os cantos para dentro),
 tecle **F11** ou **Esc** para voltar à janela como estava.

@@ -1750,6 +1750,20 @@ grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, 
 Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
 preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
 
+### D-074 · Esforço de reinício do controle de O₂
+
+**Status:** Accepted and implemented · 2026-10-10
+
+Ao ativar, a cascata de O₂ parte do esforço que reproduz os setpoints manuais de agitação e vazão (sem salto).
+No início do cultivo isso é ~0 % e está certo; num **reinício no meio do cultivo** os setpoints manuais costumam
+estar no mínimo e a malha recomeçaria em ~0 %, derrubando a agitação e a vazão. Nas configurações do controle de
+O₂ há agora **"Ao ativar, partir de um esforço definido"** (`CascadeSettings.UseRestartEffort`,
+`RestartEffortPercent`, 0–100 %), com prévia de rpm e L/min para o modo e os limites em edição. Vale só para a
+ativação pelo operador (botão Ativo); a reconfiguração com a malha rodando e o retorno do ensaio kLa continuam
+sem salto. Ao desativar, o esforço da malha é registrado (`LastEffortPercent`, `LastEffortAt`) e oferecido por
+**Usar último esforço**. A ativação a partir do esforço configurado entra no diário de eventos. Desligado por
+padrão; desmarque ao iniciar um cultivo novo.
+
 ### D-073 · Correção do sensor de temperatura, delta inicial e setpoint direto do banho
 
 **Status:** Accepted and implemented · 2026-10-09

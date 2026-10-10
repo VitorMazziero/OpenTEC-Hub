@@ -978,8 +978,12 @@ public sealed partial class ControlViewModel : ObservableObject, IDisposable
             }
 
             var setpoints = _settings.Current.Setpoints;
-            _cascade.Engage(setpoints.MotorRpm, setpoints.FlowLitresPerMinute);
-            StatusText = "Controle de oxigênio ativado; a malha de O₂ assumiu agitação e aeração.";
+            var cascade = _settings.Current.Cascade;
+            double? restart = cascade.UseRestartEffort ? cascade.RestartEffortPercent : null;
+            _cascade.Engage(setpoints.MotorRpm, setpoints.FlowLitresPerMinute, restart);
+            StatusText = restart is { } effort
+                ? $"Controle de oxigênio ativado a partir de {effort.ToString("F1", System.Globalization.CultureInfo.CurrentCulture)} % de esforço; a malha de O₂ assumiu agitação e aeração."
+                : "Controle de oxigênio ativado; a malha de O₂ assumiu agitação e aeração.";
         }
         else
         {

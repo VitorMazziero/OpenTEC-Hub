@@ -839,6 +839,22 @@ public sealed record CascadeSettings
     public double AerationEffortStart { get; init; } = 10;
     public double AerationEffortEnd { get; init; } = 100;
 
+    /// <summary>
+    /// Engage from <see cref="RestartEffortPercent"/> instead of the effort that reproduces the
+    /// manual setpoints (D-074). For a restart in the middle of a run, where the manual agitation
+    /// (often the minimum) would put the loop back at ~0 % and drop the oxygen supply.
+    /// </summary>
+    public bool UseRestartEffort { get; init; }
+
+    /// <summary>Control effort (0–100 %) the loop starts from when <see cref="UseRestartEffort"/> is on.</summary>
+    public double RestartEffortPercent { get; init; }
+
+    /// <summary>Effort the loop held when it was last disengaged, offered as a restart value.</summary>
+    public double? LastEffortPercent { get; init; }
+
+    /// <summary>When <see cref="LastEffortPercent"/> was recorded.</summary>
+    public DateTimeOffset? LastEffortAt { get; init; }
+
     public ModePidSettings AgitationPid { get; init; } = new()
     {
         KDot = 0.10,

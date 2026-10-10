@@ -48,6 +48,15 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
         AerationMaxLpmText = cfg.AerationMaxLpm.ToString("F2", CultureInfo.InvariantCulture);
         AerationStepLpmText = cfg.AerationStepLpm.ToString("0.0###", CultureInfo.InvariantCulture);
 
+        // Restart effort (D-074)
+        UseRestartEffort = cfg.UseRestartEffort;
+        RestartEffortText = cfg.RestartEffortPercent.ToString("0.0", CultureInfo.InvariantCulture);
+        _lastEffort = cfg.LastEffortPercent;
+        LastEffortText = cfg.LastEffortPercent is { } last
+            ? $"Último esforço registrado: {last.ToString("0.0", CultureInfo.CurrentCulture)} %" +
+              (cfg.LastEffortAt is { } at ? $" ({at.ToLocalTime():dd/MM HH:mm})" : "")
+            : "Nenhum esforço registrado ainda (fica salvo ao desativar o controle).";
+
         // Cascata effort windows
         AgitationEffortStartText = cfg.AgitationEffortStart.ToString("F0", CultureInfo.InvariantCulture);
         AgitationEffortEndText = cfg.AgitationEffortEnd.ToString("F0", CultureInfo.InvariantCulture);
@@ -82,6 +91,7 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
     [NotifyPropertyChangedFor(nameof(ShowAdvancedGains))]
     [NotifyPropertyChangedFor(nameof(ShowKlaPathSelector))]
     [NotifyPropertyChangedFor(nameof(ModeExplanation))]
+    [NotifyPropertyChangedFor(nameof(RestartPreviewText))]
     public partial CascadeModeOption SelectedMode { get; set; }
 
     public bool ShowAgitationLimits => SelectedMode.Mode is CascadeMode.AgitationOnly or CascadeMode.DualCascade;
@@ -127,20 +137,77 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
 
     // ── Physical Limits ──
 
-    [ObservableProperty] public partial string AgitationMinRpmText { get; set; } = "50";
-    [ObservableProperty] public partial string AgitationMaxRpmText { get; set; } = "800";
-    [ObservableProperty] public partial string AerationMinLpmText { get; set; } = "0.50";
-    [ObservableProperty] public partial string AerationMaxLpmText { get; set; } = "12.00";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(RestartPreviewText))] public partial string AgitationMinRpmText { get; set; } = "50";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(RestartPreviewText))] public partial string AgitationMaxRpmText { get; set; } = "800";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(RestartPreviewText))] public partial string AerationMinLpmText { get; set; } = "0.50";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(RestartPreviewText))] public partial string AerationMaxLpmText { get; set; } = "12.00";
 
     /// <summary>Grid of the aeration setpoint sent to the flowmeter, in L/min (D-070).</summary>
     [ObservableProperty] public partial string AerationStepLpmText { get; set; } = "0.2";
 
     // ── Effort Windows (Cascata) ──
 
-    [ObservableProperty] public partial string AgitationEffortStartText { get; set; } = "0";
-    [ObservableProperty] public partial string AgitationEffortEndText { get; set; } = "90";
-    [ObservableProperty] public partial string AerationEffortStartText { get; set; } = "10";
-    [ObservableProperty] public partial string AerationEffortEndText { get; set; } = "100";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(RestartPreviewText))] public partial string AgitationEffortStartText { get; set; } = "0";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(RestartPreviewText))] public partial string AgitationEffortEndText { get; set; } = "90";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(RestartPreviewText))] public partial string AerationEffortStartText { get; set; } = "10";
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(RestartPreviewText))] public partial string AerationEffortEndText { get; set; } = "100";
+
+    // ── Restart during a run (D-074) ──
+
+    private readonly double? _lastEffort;
+
+    /// <summary>Engage from <see cref="RestartEffortText"/> instead of the manual setpoints.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RestartPreviewText))]
+    public partial bool UseRestartEffort { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RestartPreviewText))]
+    public partial string RestartEffortText { get; set; } = "0.0";
+
+    [ObservableProperty] public partial string LastEffortText { get; set; } = "";
+
+    public bool HasLastEffort => _lastEffort is not null;
+
+    /// <summary>What the actuators start at for the restart effort, with the limits being edited.</summary>
+    public string RestartPreviewText
+    {
+        get
+        {
+            if (!UseRestartEffort) return "Desligado: ao ativar, o esforço parte dos setpoints manuais de agitação e vazão (sem salto).";
+            var effort = ParseDouble(RestartEffortText, -1);
+            if (effort is < 0 or > 100) return "O esforço deve estar entre 0 e 100 %.";
+            if (SelectedMode.Mode == CascadeMode.KlaPath) return "No modo Mapa, agitação e vazão seguem o mapa kLa publicado a partir deste esforço.";
+            var agitation = new ActuatorWindow(CascadeController.AgitationActuator,
+                ParseDouble(AgitationMinRpmText, 0), ParseDouble(AgitationMaxRpmText, 0),
+                ParseDouble(AgitationEffortStartText, 0), ParseDouble(AgitationEffortEndText, 100));
+            var aeration = new ActuatorWindow(CascadeController.AerationActuator,
+                ParseDouble(AerationMinLpmText, 0), ParseDouble(AerationMaxLpmText, 0),
+                ParseDouble(AerationEffortStartText, 0), ParseDouble(AerationEffortEndText, 100));
+            CascadeAllocation allocation = SelectedMode.Mode switch
+            {
+                CascadeMode.AgitationOnly => SingleActuatorAllocation.Agitation(agitation.Min, agitation.Max, 0),
+                CascadeMode.AerationOnly => SingleActuatorAllocation.Aeration(aeration.Min, aeration.Max, 0),
+                _ => new WindowAllocation(agitation, aeration),
+            };
+            var (rpm, lpm) = allocation.Allocate(effort);
+            var c = CultureInfo.CurrentCulture;
+            return SelectedMode.Mode switch
+            {
+                CascadeMode.AgitationOnly => $"Ao ativar: agitação {rpm.ToString("F0", c)} rpm (a vazão fica onde está).",
+                CascadeMode.AerationOnly => $"Ao ativar: aeração {lpm.ToString("F2", c)} L/min (a agitação fica onde está).",
+                _ => $"Ao ativar: agitação {rpm.ToString("F0", c)} rpm e aeração {lpm.ToString("F2", c)} L/min.",
+            };
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(HasLastEffort))]
+    private void UseLastEffort()
+    {
+        if (_lastEffort is not { } last) return;
+        RestartEffortText = last.ToString("0.0", CultureInfo.InvariantCulture);
+        UseRestartEffort = true;
+    }
 
     // ── Advanced Gains (Cascata) ──
 
@@ -320,6 +387,12 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
             }
         }
 
+        if (UseRestartEffort && ParseDouble(RestartEffortText, -1) is < 0 or > 100)
+        {
+            ValidationError = "O esforço de reinício deve estar entre 0 e 100 %.";
+            return false;
+        }
+
         // PID parameters
         var kDot = ParseDouble(KDotText, -1);
         if (kDot < 0)
@@ -428,6 +501,9 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
             AerationEffortStart = ParseDouble(AerationEffortStartText, currentCfg.AerationEffortStart),
             AerationEffortEnd = ParseDouble(AerationEffortEndText, currentCfg.AerationEffortEnd),
 
+            UseRestartEffort = UseRestartEffort,
+            RestartEffortPercent = Math.Clamp(ParseDouble(RestartEffortText, currentCfg.RestartEffortPercent), 0, 100),
+
             AgitationPid = _modePids[CascadeMode.AgitationOnly],
             AerationPid = _modePids[CascadeMode.AerationOnly],
             CascadePid = _modePids[CascadeMode.DualCascade],
@@ -453,7 +529,10 @@ public sealed partial class OxygenConfigViewModel : ObservableObject, IDisposabl
             _cascade.Disengage("reconfiguração do controle de oxigênio");
         }
 
-        _settings.Update(s => s with { Cascade = updated });
+        _settings.Update(s => s with
+        {
+            Cascade = updated with { LastEffortPercent = s.Cascade.LastEffortPercent, LastEffortAt = s.Cascade.LastEffortAt },
+        });
         _cascade.Configure(updated);
         _cascade.SelectMode(SelectedMode.Mode);
 

@@ -6,6 +6,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.31.0] - 2026-10-10
+
+- Controle de O₂: opção **"Reinício durante o cultivo"** nas configurações: ao ativar, a malha parte de um esforço definido (0–100 %) em vez dos setpoints manuais, com prévia de agitação e vazão e o botão **Usar último esforço** (o esforço é registrado ao desativar). Desligada por padrão: o início continua em 0 % (D-074).
+
+---
+
 ## [0.30.0] - 2026-10-09
 
 - **Calibrações › Temperatura** (nova aba): correção de defasagem do sensor do reator, `real = lida + correção`, digitada ou calculada a partir de um termômetro de referência. Leituras, gráficos, registros, receitas e alarmes passam a usar a temperatura real; o setpoint do reator é em relação a ela e chega ao módulo como `setpoint − correção` (D-073);

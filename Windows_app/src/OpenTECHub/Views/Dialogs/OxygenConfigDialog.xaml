@@ -295,6 +295,41 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Restart during a run (D-074): every mode. -->
+                <Border Background="{DynamicResource SurfaceCardBrush}"
+                        BorderBrush="{DynamicResource StrokeDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource RadiusMedium}"
+                        Padding="16"
+                        Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Reinício durante o cultivo" Style="{StaticResource SectionHeader}" />
+                        <TextBlock Text="No início do cultivo o esforço parte de 0 %. Se o controle for reativado no meio do cultivo, defina de que esforço ele parte, para não derrubar a agitação e a vazão."
+                                   Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,8" />
+                        <CheckBox Content="Ao ativar, partir de um esforço definido"
+                                  IsChecked="{Binding UseRestartEffort, Mode=TwoWay}" Margin="0,0,0,8" />
+                        <StackPanel Orientation="Horizontal" IsEnabled="{Binding UseRestartEffort}">
+                            <StackPanel>
+                                <TextBlock Text="Esforço inicial (%)" Style="{StaticResource FieldLabel}" />
+                                <TextBox Width="90" HorizontalAlignment="Left"
+                                         Text="{Binding RestartEffortText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Saída do PID (0–100 %) em que a malha começa ao ser ativada." />
+                            </StackPanel>
+                            <Button Content="Usar último esforço" Command="{Binding UseLastEffortCommand}"
+                                    VerticalAlignment="Bottom" Margin="8,0,0,0"
+                                    ToolTip="Preenche com o esforço que a malha tinha quando foi desativada pela última vez." />
+                        </StackPanel>
+                        <TextBlock Text="{Binding RestartPreviewText}" Style="{StaticResource CaptionTextStyle}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding LastEffortText}" Style="{StaticResource CaptionTextStyle}"
+                                   Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        <TextBlock Text="Vale para a próxima ativação pelo botão Ativo. Desmarque ao iniciar um cultivo novo."
+                                   Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                </Border>
+
                 <!-- Card 3: Effort Windows (Cascata only) -->
                 <Border Background="{DynamicResource SurfaceCardBrush}"
                         BorderBrush="{DynamicResource StrokeDefaultBrush}"

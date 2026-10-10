@@ -100,6 +100,13 @@ public interface ICascadeService
     /// </summary>
     void Engage(double currentAgitationRpm, double currentAerationLpm);
 
+    /// <summary>
+    /// Engages from <paramref name="startEffortPercent"/> when given (the operator's restart value,
+    /// D-074), otherwise bumplessly from the current actuators.
+    /// </summary>
+    void Engage(double currentAgitationRpm, double currentAerationLpm, double? startEffortPercent)
+        => Engage(currentAgitationRpm, currentAerationLpm);
+
     /// <summary>Releases ownership and stops actuation.</summary>
     void Disengage(string reason);
 
@@ -173,6 +180,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
     private readonly IDeviceService _device;
     private readonly ICommandArbiter _arbiter;
+    private readonly ISettingsService _settings;
 
     /// <summary>The A/B/C wiring, read at each actuation so a Configurações change applies live.</summary>
     private readonly Func<GasRigConfiguration> _rig;
@@ -210,6 +218,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
         _device = device;
         _arbiter = arbiter;
+        _settings = settings;
         _store = store;
         _history = history;
         _journal = journal;
@@ -477,6 +486,9 @@ public sealed class CascadeService : ICascadeService, IDisposable
     }
 
     public void Engage(double currentAgitationRpm, double currentAerationLpm)
+        => Engage(currentAgitationRpm, currentAerationLpm, null);
+
+    public void Engage(double currentAgitationRpm, double currentAerationLpm, double? startEffortPercent)
     {
         if (IsEngaged || !CanEngage(out _))
         {
@@ -495,10 +507,23 @@ public sealed class CascadeService : ICascadeService, IDisposable
 
         // Bumpless: place the loop at the effort that reproduces the actuator the operator
         // left running, so the first automatic frame nudges from there rather than jumping.
-        var effort = Mode == CascadeMode.AerationOnly
-            ? allocation.EffortForAeration(currentAerationLpm)
-            : allocation.EffortForAgitation(currentAgitationRpm);
+        // A restart value set by the operator (D-074) wins: mid-run the manual setpoints are often
+        // the minimum and would restart the loop near 0 %.
+        var restart = startEffortPercent is { } chosen && double.IsFinite(chosen);
+        var effort = restart
+            ? Math.Clamp(startEffortPercent!.Value, 0, 100)
+            : Mode == CascadeMode.AerationOnly
+                ? allocation.EffortForAeration(currentAerationLpm)
+                : allocation.EffortForAgitation(currentAgitationRpm);
         _controller.Preload(effort);
+        if (restart)
+        {
+            var start = allocation.Allocate(effort);
+            var c = CultureInfo.CurrentCulture;
+            _journal?.Add(AuditSource.Application, AuditSeverity.Information,
+                $"Controle de O₂ ativado a partir do esforço configurado de {effort.ToString("F1", c)} %.",
+                $"Agitação {start.AgitationRpm.ToString("F0", c)} rpm, aeração {start.AerationLpm.ToString("F2", c)} L/min.");
+        }
 
         _arbiter.Claim(CommandOwner.Automatic, CascadeActuators, $"cascata O₂ · {ModeLabel(Mode)}");
         _routeCoordinator.EnsurePrimaryRoute(out var routeMsg);
@@ -518,6 +543,8 @@ public sealed class CascadeService : ICascadeService, IDisposable
             return;
         }
 
+        RememberLastEffort();
+
         // Clear the flag first, so the ownership-change event this Release raises is not
         // mistaken for an external takeover.
         IsEngaged = false;
@@ -526,6 +553,18 @@ public sealed class CascadeService : ICascadeService, IDisposable
         _arbiter.Release(CommandOwner.Automatic, reason);
         _controller.SetAllocation(BuildWindowAllocation());
         Updated?.Invoke();
+    }
+
+    /// <summary>Saves the effort the loop held, so a restart can start from it (D-074).</summary>
+    private void RememberLastEffort()
+    {
+        var effort = _controller.Effort;
+        if (!double.IsFinite(effort)) return;
+        var at = _time.GetUtcNow();
+        _settings.Update(s => s with
+        {
+            Cascade = s.Cascade with { LastEffortPercent = Math.Round(effort, 1), LastEffortAt = at },
+        });
     }
 
     public void ResetIntegral()

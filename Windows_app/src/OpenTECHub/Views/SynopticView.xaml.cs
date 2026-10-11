@@ -334,14 +334,13 @@ public partial class SynopticView : UserControl
             drewData = true;
         }
 
-        foreach (var (limit, label) in new[] { (phBand.Lower, "Histerese inferior"), (phBand.Upper, "Histerese superior") })
+        foreach (var limit in new[] { phBand.Lower, phBand.Upper })
         {
             if (!HasFinite(limit)) continue;
             var line = host.Plot.Add.Scatter(limit.Minutes, limit.Values);
             line.MarkerSize = 0;
             line.LineWidth = 1.2f;
             line.LinePattern = LinePattern.Dotted;
-            line.LegendText = label;
             line.Color = ToPlotColor(TryBrush(spec.SeriesBrushKey), MediaColors.SteelBlue).WithAlpha(0.45f);
             drewData = true;
         }

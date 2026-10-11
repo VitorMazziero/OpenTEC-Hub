@@ -133,3 +133,8 @@ release-assets/
 **/GeneratedPluginRegistrant.*
 **/ios/Flutter/Generated.xcconfig
 **/ios/Flutter/flutter_export_environment.sh
+
+# OneDrive conflict copies (<name>-<COMPUTER>.<ext>)
+*-DESKTOP-J4OP7IO*
+*-NOTEBOOK-ACER-ASPIRE*
+Screenshot 20*.png

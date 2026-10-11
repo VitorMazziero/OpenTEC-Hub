@@ -736,9 +736,9 @@ void startWiFi() {
           unsigned long lastSeen = e.lastDataMs > e.lastHelloMs ? e.lastDataMs : e.lastHelloMs;
           unsigned long ageMs = lastSeen > 0 ? (now - lastSeen) : 999999;
           bool isOnline = false;
-          if (i == DEV_DISTANCE) isOnline = (distanceSensorCommOn && (now - distanceSensorLastUpdate <= distancePresenceWindowMs(distanceSendPeriodMs)));
+          if (i == DEV_DISTANCE) isOnline = (distanceSensorLastUpdate > 0 && (now - distanceSensorLastUpdate <= distancePresenceWindowMs(distanceSendPeriodMs)));
           else if (i == DEV_AGITATOR) isOnline = (agitatorLastUpdate > 0 && (now - agitatorLastUpdate <= AGITATOR_TIMEOUT));
-          else if (i == DEV_PUMP) isOnline = (pumpCommOn && pumpLastUpdate > 0 && (now - pumpLastUpdate <= PUMP_TIMEOUT));
+          else if (i == DEV_PUMP) isOnline = (pumpLastUpdate > 0 && (now - pumpLastUpdate <= PUMP_TIMEOUT));
           else if (i == DEV_FLOWMETER) isOnline = (flowmeterCommOn && (now - flowmeterLastUpdate <= FLOWMETER_TIMEOUT));
           else if (i == DEV_BIOMASS) isOnline = (biomassLastUpdate > 0 && (now - biomassLastUpdate <= biomassPresenceWindowMs(biomassProbePeriodMs)));
           else if (i == DEV_BATH) isOnline = (bathLastUpdate > 0 && (now - bathLastUpdate <= 5000));

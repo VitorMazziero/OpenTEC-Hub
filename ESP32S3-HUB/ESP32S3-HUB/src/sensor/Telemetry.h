@@ -210,13 +210,20 @@ void readAndBroadcastSensorData() {
   // falha). Um nó com sensor em falha continua online e ecoando a sua configuração,
   // apenas sem valor publicável. Amarrar a presença à leitura fazia o PC acusar "nó não
   // responde" com o nó respondendo a cada segundo.
-  bool distanceOnline = snapDistanceComm &&
+  //
+  // Presença (Online) é independente do roteamento (Comm), como na biomassa e no servo
+  // (10.8.1). Amarrar a presença ao roteamento travava o PC: ele só libera o interruptor
+  // de um nó presente, e o nó só aparecia presente com o interruptor já ligado. Valores e
+  // ecos continuam publicados apenas com o roteamento ligado.
+  bool distanceOnline = snapDistanceUpdate > 0 &&
                         (millis() - snapDistanceUpdate <= distancePresenceWindowMs(snapDistanceSendPeriodMs));
-  bool validDistance = distanceOnline && snapDistanceValue >= 0.0f;
+  bool distanceRouted = distanceOnline && snapDistanceComm;
+  bool validDistance = distanceRouted && snapDistanceValue >= 0.0f;
 
   // Validação da Bomba e do Agitador
-  bool pumpOnline = snapPumpComm && snapPumpUpdate > 0 &&
+  bool pumpOnline = snapPumpUpdate > 0 &&
                     (millis() - snapPumpUpdate <= PUMP_TIMEOUT);
+  bool pumpRouted = pumpOnline && snapPumpComm;
   bool agitatorOnline = snapAgitatorUpdate > 0 &&
                         (millis() - snapAgitatorUpdate <= AGITATOR_TIMEOUT);
 
@@ -415,7 +422,7 @@ void readAndBroadcastSensorData() {
   }
   // Ecos seguem a presença, não a leitura: o offset aplicado não deixa de valer porque o
   // sensor óptico está em falha.
-  if (distanceOnline && snapDistanceEchoSeen) {
+  if (distanceRouted && snapDistanceEchoSeen) {
     jsonResponse += ",\"DistanceOffsetMm\":" + String(snapDistanceOffsetMm, 2);
     jsonResponse += ",\"DistanceSamplePeriodMs\":" + String(snapDistanceSamplePeriodMs);
     jsonResponse += ",\"DistanceSendPeriodMs\":" + String(snapDistanceSendPeriodMs);
@@ -424,7 +431,7 @@ void readAndBroadcastSensorData() {
   jsonResponse += ",\"PumpOnline\":" + String(pumpOnline ? "true" : "false");
   jsonResponse += ",\"PumpCommEnabled\":" + String(snapPumpComm ? "true" : "false");
   jsonResponse += ",\"PumpCommandPending\":" + String(pumpPending ? "true" : "false");
-  if (pumpOnline) {
+  if (pumpRouted) {
     jsonResponse += ",\"PumpMode\":" + String(snapPumpMode);
     jsonResponse += ",\"PumpPWM\":" + String(snapPumpPwm);
     jsonResponse += ",\"PumpSpeed\":" + String(snapPumpSpeed, 1);

@@ -1,5 +1,10 @@
 # Changelog do Hub
 
+## 10.8.1-dev — presença da bomba e da distância sem depender do roteamento
+
+- `PumpOnline`, `DistanceOnline` e `/nodes` passam a refletir só a chegada de dados do nó, como já era na biomassa e no servo. Antes exigiam `pumpComm`/`distanceComm` ligados, e o PC só libera o interruptor de um nó presente: com a comunicação desligada no Hub, o interruptor ficava travado para sempre.
+- Valores e ecos (`Distance`, `DistanceOffsetMm`…, `PumpMode`…) continuam publicados só com o roteamento ligado.
+
 ## 10.8.0-dev — setpoint direto do banho
 
 - Novo comando `bathSetpoint` (0–100 °C): envia um SP pontual ao C404 pelo mesmo caminho da

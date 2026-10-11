@@ -297,17 +297,18 @@ class DistanceHubSourceContractTests(unittest.TestCase):
         # Distance depende da leitura declarada válida pelo nó (distanceSensorValue >= 0).
         tel = self.read("src/sensor/Telemetry.h")
         self.assertIn(
-            "bool distanceOnline = snapDistanceComm &&" + chr(10) +
+            "bool distanceOnline = snapDistanceUpdate > 0 &&" + chr(10) +
             "                        (millis() - snapDistanceUpdate <= distancePresenceWindowMs(snapDistanceSendPeriodMs));",
             tel,
         )
-        self.assertIn("bool validDistance = distanceOnline && snapDistanceValue >= 0.0f;", tel)
+        self.assertIn("bool distanceRouted = distanceOnline && snapDistanceComm;", tel)
+        self.assertIn("bool validDistance = distanceRouted && snapDistanceValue >= 0.0f;", tel)
 
         self.assertIn('\\"DistanceOnline\\":" + String(distanceOnline ? "true" : "false")', tel)
-        self.assertIn("if (distanceOnline && snapDistanceEchoSeen) {", tel)
+        self.assertIn("if (distanceRouted && snapDistanceEchoSeen) {", tel)
         # A chave Distance continua condicionada à leitura válida, e os ecos não ficam
         # aninhados dentro desse bloco.
-        distance_block = tel[tel.index("if (validDistance) {"):tel.index("if (distanceOnline && snapDistanceEchoSeen) {")]
+        distance_block = tel[tel.index("if (validDistance) {"):tel.index("if (distanceRouted && snapDistanceEchoSeen) {")]
         self.assertIn('\\"Distance\\":', distance_block)
         self.assertNotIn("DistanceOffsetMm", distance_block)
 

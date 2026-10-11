@@ -2,6 +2,7 @@ void firmwareSetup() {
     Serial.begin(115200);
     delay(100);
     Serial.println("--- Peristaltic Pump Controller v3.12 (quartic/quadratic calibration) ---");
+    Serial.println("Build " PUMP_FW_BUILD " (pulse dosing)");
 
     g_prefs.begin(NVS_NAMESPACE, false);
     loadConfig();
@@ -64,6 +65,7 @@ void firmwareSetup() {
     Serial.println("Core 0 (PWM & Volume Task) started.");
 
     checkAndRecoverState();
+    doseRestore();
 
     g_wifiNextActionMs = millis();
 }
@@ -154,6 +156,7 @@ void firmwareLoop() {
     }
 
     updateOperationState();
+    doseService(now);
 
     float requestedSpeed = 0.0f;
     if (g_opState == OP_RUNNING) {
@@ -161,8 +164,15 @@ void firmwareLoop() {
         requestedSpeed = mlminToSpeedUnits(g_currentFlowRateMlMin);
         if (requestedSpeed < 0.0f) requestedSpeed = 0.0f;
     } else if (g_opState == OP_IDLE) {
-        requestedSpeed = hasUsbSpeed ? usbSpeedSteps : potSpeed;
-        g_currentFlowRateMlMin = speedUnitsToMlmin(requestedSpeed);
+        if (g_doseActive) {
+            // Dosagem manda no motor: entre pulsos fica parado, sem deixar o potenciometro
+            // ou um `speed` antigo girar a bomba.
+            requestedSpeed = g_dosePulseOn ? g_dose.speed : 0.0f;
+            g_currentFlowRateMlMin = g_dosePulseOn ? g_dose.rateMlMin : 0.0f;
+        } else {
+            requestedSpeed = hasUsbSpeed ? usbSpeedSteps : potSpeed;
+            g_currentFlowRateMlMin = speedUnitsToMlmin(requestedSpeed);
+        }
     }
 
     updateSensorGate();

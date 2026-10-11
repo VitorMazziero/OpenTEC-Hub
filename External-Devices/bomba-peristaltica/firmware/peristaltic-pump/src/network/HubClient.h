@@ -90,6 +90,8 @@ void handleOtaChunk() {
         Serial.printf("[OTA] Upload start: %s\n", upload.filename.c_str());
         // Intertravamento de seguranca: parar a bomba imediatamente
         g_opState = OP_IDLE;
+        g_dosePulseOn = false;
+        g_doseCutoffMs = 0;
         g_driverEnabled = false;
         g_cmdSpeed = 0.0f;
         g_actualPwmDuty = 0;

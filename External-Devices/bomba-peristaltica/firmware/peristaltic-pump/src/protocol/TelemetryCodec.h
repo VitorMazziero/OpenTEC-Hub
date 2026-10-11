@@ -46,6 +46,28 @@ void buildDataJson(bool includeArrays) {
     );
 
     String json = String(jsonBuffer);
+
+    // Dosagem por pulsos (3.12+dose1), em buffer proprio para nao apertar o quadro acima.
+    char doseBuffer[352];
+    const unsigned long nowMs = millis();
+    unsigned long nextS = 0;
+    if (g_doseActive && !g_dosePulseOn && static_cast<long>(g_doseNextPulseMs - nowMs) > 0) {
+        nextS = (g_doseNextPulseMs - nowMs + 999UL) / 1000UL;
+    }
+    snprintf(doseBuffer, sizeof(doseBuffer),
+        ",\"dose_active\":%s,\"dose_pulse\":%s,\"dose_ml\":%.3f,\"dose_period_s\":%.1f,"
+        "\"dose_speed\":%.1f,\"dose_rate_mlmin\":%.3f,\"dose_total_ml\":%.3f,"
+        "\"dose_delivered_ml\":%.3f,\"dose_pulses\":%lu,\"dose_next_s\":%lu,\"fw_build\":\"%s\"",
+        g_doseActive ? "true" : "false",
+        g_dosePulseOn ? "true" : "false",
+        (double)g_dose.volumeMl, (double)g_dose.periodS,
+        (double)g_dose.speed, (double)g_dose.rateMlMin, (double)g_dose.totalMl,
+        (double)doseDeliveredNow(),
+        static_cast<unsigned long>(g_dosePulses),
+        nextS,
+        PUMP_FW_BUILD);
+    json += doseBuffer;
+
     if (includeArrays) {
         json.reserve(1024);
         char tempBuffer[64];

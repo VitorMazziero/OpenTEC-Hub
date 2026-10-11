@@ -240,6 +240,7 @@ void processJsonCommand(String json) {
 
     if (cmd.length() > 0) {
         if (cmd.equals("start")) {
+            doseCancel("start");
             Serial.println("[CMD] Manual start.");
             g_config.init_t_min  = 0.0f;
             g_config.final_t_min = 0.0f;
@@ -249,6 +250,7 @@ void processJsonCommand(String json) {
             startCycle();
             clearRuntimeState(); // New start means clear old recovery
         } else if (cmd.equals("stop")) {
+            doseCancel("stop");
             Serial.println("[CMD] Manual stop (session volume kept).");
             g_opState = OP_IDLE;
             g_config.mode = 0;
@@ -278,6 +280,7 @@ void processJsonCommand(String json) {
     if (!isnan(fval)) {
         int newMode = (int)fval;
         if (newMode >= 0 && newMode <= 5) {
+            doseCancel("mode");
             // Even if mode is same, receiving it via command implies a "Set" action
             if (newMode != g_config.mode) {
                 g_config.mode = newMode;
@@ -297,6 +300,7 @@ void processJsonCommand(String json) {
 
     fval = getJsonFloatValue(json, "speed");
     if (!isnan(fval)) {
+        doseCancel("speed");
         usbSpeedSteps = constrain(fval, -V_MAX, V_MAX);
         hasUsbSpeed   = true;
         g_opState = OP_IDLE;
@@ -493,5 +497,9 @@ void processJsonCommand(String json) {
     } else if (paramChanged && !cmd.isEmpty()) {
         // Handled within specific commands (start/stop)
     }
+
+    // Ultimo de proposito: um quadro com mode/speed/stop cancela a dosagem antes, e um
+    // "dose":1 no mesmo quadro ainda consegue iniciar depois.
+    doseHandleCommand(json.c_str());
 }
 

@@ -184,3 +184,23 @@ O nó executa um servidor Web assíncrono na porta 80:
   "vol": 12.300
 }
 ```
+
+---
+
+## Dosagem por pulsos (build `3.12+dose2`)
+
+Para vazões abaixo da faixa estável do motor (ex.: 50 mL em 12 h = 0,069 mL/min). A vazão **não** vem da calibração polinomial: é o valor medido pelo operador na velocidade fixa `dose_speed`.
+
+| Chave | Faixa | Descrição |
+| :--- | :--- | :--- |
+| `dose_ml` | (0, 100] mL | Volume por pulso |
+| `dose_period_s` | [2, 86400] s | Intervalo entre inícios de pulso |
+| `dose_speed` | [1, 1000] | Velocidade do motor durante o pulso (mesma unidade de `speed`) |
+| `dose_rate_mlmin` | > 0 | Vazão medida nessa velocidade |
+| `dose_total_ml` | >= 0 | Volume total; 0 = sem limite. O último pulso é encurtado |
+| `dose` | 1 / 0 | Inicia (primeiro pulso imediato, zera o entregue) / para |
+
+- Duração do pulso: `dose_ml / dose_rate_mlmin * 60` s; deve ser >= 0,5 s e caber no período (com 1 s de folga). Parâmetros inválidos são recusados com `[DOSE] recusado: ...` na serial.
+- Os parâmetros ficam na NVS e podem vir no mesmo quadro de `"dose":1`. Com a dosagem ativa, parâmetros válidos valem a partir do próximo pulso.
+- `command` `start`/`stop`, `mode`, `speed` e a gravação OTA cancelam ou interrompem a dosagem. Após reinício a dosagem retoma 5 s depois do boot.
+- Telemetria (USB e `/readData`): `dose_active`, `dose_pulse`, `dose_ml`, `dose_period_s`, `dose_speed`, `dose_rate_mlmin`, `dose_total_ml`, `dose_delivered_ml`, `dose_pulses`, `dose_next_s`, `fw_build`. O push ao Hub não os inclui.

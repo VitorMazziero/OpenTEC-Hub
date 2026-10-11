@@ -4,6 +4,11 @@ void pwmTask(void* pv) {
     for (;;) {
         float s = g_cmdSpeed;
         bool enabled = g_driverEnabled;
+        // Prazo do pulso de dosagem: aqui, no core 0, o fim do pulso nao espera o loop.
+        const uint32_t cutoff = g_doseCutoffMs;
+        if (cutoff != 0 && static_cast<int32_t>(static_cast<uint32_t>(millis()) - cutoff) >= 0) {
+            enabled = false;
+        }
 
         uint32_t duty = 0;
         bool dirPos = true;
@@ -49,7 +54,9 @@ void pwmTask(void* pv) {
             q_actual_ml_per_sec = q_actual_mlmin / 60.0f;
         }
 
-        if (q_actual_ml_per_sec != 0.0f) {
+        // Em dosagem o volume vem da vazao medida pelo operador (DoseController.h), nao da
+        // calibracao polinomial: contar os dois somaria duas estimativas diferentes.
+        if (q_actual_ml_per_sec != 0.0f && !g_doseActive) {
             taskDISABLE_INTERRUPTS();
             g_cumulativeVolumeMl += (q_actual_ml_per_sec * (double)dt_sec);
             taskENABLE_INTERRUPTS();

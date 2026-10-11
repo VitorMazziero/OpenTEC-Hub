@@ -1,5 +1,13 @@
 # Changelog — Bomba peristáltica
 
+## 3.12+dose2 — 2026-10-11 (dosagem por pulsos, watchdog e timeout HTTP)
+
+- **Dosagem por pulsos** para volumes muito pequenos (ex.: 50 mL em 12 h), sem usar a calibração polinomial: o operador mede a vazão (mL/min) numa velocidade fixa e o nó liga o motor por `volume / vazão` a cada período. Comando: `{"dose_ml":0.35,"dose_period_s":300,"dose_speed":120,"dose_rate_mlmin":5.4,"dose_total_ml":50}` e `{"dose":1}` / `{"dose":0}`.
+- O fim do pulso é aplicado pela tarefa do motor no core 0, então o HTTP bloqueante do loop (Hub mudo) não alonga o pulso. O volume entregue conta o tempo em que o motor girou de fato (sensor de líquido seco não conta).
+- Estado em chaves NVS próprias (`d_*`); após reinício a dosagem retoma 5 s depois do boot, mantendo o volume já entregue. `start`, `stop`, `mode`, `speed` e a gravação OTA cancelam ou interrompem a dosagem.
+- Telemetria USB e `/readData`: `dose_active`, `dose_pulse`, `dose_ml`, `dose_period_s`, `dose_speed`, `dose_rate_mlmin`, `dose_total_ml`, `dose_delivered_ml`, `dose_pulses`, `dose_next_s` e `fw_build`. O push ao Hub e o contrato 3.12 não mudam (o Hub e o app ainda não repassam os comandos `dose_*`: use USB ou `POST /command` no AP `FeedPump`).
+- O volume dosado entra no contador de sessão (`vol` / `cum_volume_ml`), que o Hub republica como `PumpVol` e o app mostra; `cyc_vol` conta desde o início da dosagem. Soma-se por pulso (a integração pela calibração polinomial fica desligada durante a dosagem, para não contar duas estimativas) e `reset_volume` continua zerando só o contador de sessão.
+- Corrigido: o watchdog da tarefa principal valia 5 s (o core 3.x já inicia o TWDT e `esp_task_wdt_init` falhava), então hello + consulta + envio com o Hub lento reiniciavam a bomba. Agora o limite de 15 s é reaplicado com `esp_task_wdt_reconfigure` e a conexão HTTP tem limite de 1 s (`setConnectTimeout`).
 ## 3.12 — 2026-09-13 (calibração polinomial em duas faixas)
 
 - Novo registro NVS `pump_poly_cal` com os oito coeficientes, `St` e CRC32, sem alterar o layout `PumpConfig` 3.10.

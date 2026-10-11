@@ -10,6 +10,9 @@
 #include <Update.h>
 
 #define PUMP_FW_VERSION "3.12"
+// Contrato de fio 3.12 inalterado; a dosagem por pulsos e aditiva. O build aparece no boot e
+// no JSON USB/readData (fw_build) para distinguir a imagem gravada.
+#define PUMP_FW_BUILD "3.12+dose2"
 
 static const bool     DEBUG_ENABLE      = true;
 static const uint32_t DEBUG_INTERVAL_MS = 1000;
@@ -190,6 +193,31 @@ volatile bool  hasUsbSpeed   = false;
 // expires the motor is told 0; the potentiometers stay locked out until "pot":1.
 unsigned long  g_usbSpeedUntilMs = 0;
 
+// Dosagem por pulsos (build 3.12+dose1). A vazao nessa faixa nao passa pela calibracao
+// polinomial: o operador mede mL/min na velocidade fixa `speed` e o no liga o motor por
+// volume / vazao a cada periodo. O estado vive na NVS em chaves proprias (d_*), sem tocar
+// no PumpConfig.
+struct DoseConfig {
+    float volumeMl;   // por pulso
+    float periodS;    // entre inicios de pulso
+    float speed;      // unidades 1..1000, a mesma de "speed"
+    float rateMlMin;  // vazao medida nessa velocidade
+    float totalMl;    // 0 = sem limite
+};
+DoseConfig g_dose = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+volatile bool g_doseActive = false;
+bool g_dosePulseOn = false;
+unsigned long g_dosePulseStartMs = 0;
+unsigned long g_dosePulseOnMs = 0;
+unsigned long g_dosePulseRunMs = 0;
+unsigned long g_doseNextPulseMs = 0;
+unsigned long g_doseLastTickMs = 0;
+float g_doseDeliveredMl = 0.0f;
+uint32_t g_dosePulses = 0;
+// Fim do pulso aplicado pela tarefa do motor (core 0), que nao depende do loop: com o Hub
+// mudo o HTTP bloqueia o loop por ate ~1 s e o pulso passaria do volume. 0 = sem prazo.
+volatile uint32_t g_doseCutoffMs = 0;
+
 // Sensor gate
 volatile bool  sensorEnable          = false;
 volatile bool  sensorBypass          = false;
@@ -222,6 +250,13 @@ void updateSensorGate();
 void updateOperationState();
 void runOperationLogic();
 void buildDataJson(bool includeArrays = false); // Modified prototype
+
+// Dosagem por pulsos
+void doseHandleCommand(const char* json);
+void doseCancel(const char* reason);
+void doseRestore();
+void doseService(unsigned long now);
+float doseDeliveredNow();
 
 // Mode & PID
 void resetOperationState();
@@ -268,6 +303,7 @@ inline String getJsonStringValue(const String& json, const String& key) { return
 #include "../core/Lifecycle.h"
 #include "../storage/RuntimeStateStore.h"
 #include "../control/OperationController.h"
+#include "../control/DoseController.h"
 #include "../control/SensorAndConversion.h"
 #include "../storage/ConfigStore.h"
 #include "../protocol/TelemetryCodec.h"

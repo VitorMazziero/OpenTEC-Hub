@@ -51,7 +51,11 @@ void firmwareSetup() {
         .idle_core_mask = (1 << 0), // Watchdog can ignore Core 0
         .trigger_panic  = true
     };
-    esp_task_wdt_init(&twdt_config);
+    // O core 3.x ja inicializa o TWDT (5 s); init falha com "already initialized" e o
+    // limite de 15 s nunca valia. Reconfigurar aplica o limite pretendido.
+    if (esp_task_wdt_init(&twdt_config) != ESP_OK) {
+        esp_task_wdt_reconfigure(&twdt_config);
+    }
     esp_task_wdt_add(NULL); // Add loopTask to WDT
     Serial.println("Watchdog timer initialized for Core 1.");
 

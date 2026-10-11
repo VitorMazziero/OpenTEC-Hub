@@ -6,6 +6,13 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.31.1] - 2026-10-11
+
+- Corrigido: o interruptor da **bomba externa** e do **sensor de distância/espuma** ficava bloqueado depois que a comunicação era desligada no Hub. O Hub só dá esses nós como online com a comunicação ligada, e o app só liberava o interruptor com o nó online. Agora ele também fica livre quando o Hub informa a comunicação desligada.
+- Firmware da bomba peristáltica: o watchdog passa a valer 15 s (o core 3.x já o iniciava com 5 s) e a conexão HTTP com o Hub tem limite de 1 s; com o Hub lento, hello + consulta + envio na mesma volta reiniciavam a bomba.
+
+---
+
 ## [0.31.0] - 2026-10-10
 
 - Controle de O₂: opção **"Reinício durante o cultivo"** nas configurações: ao ativar, a malha parte de um esforço definido (0–100 %) em vez dos setpoints manuais, com prévia de agitação e vazão e o botão **Usar último esforço** (o esforço é registrado ao desativar). Desligada por padrão: o início continua em 0 % (D-074).

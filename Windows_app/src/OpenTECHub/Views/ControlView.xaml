@@ -28,7 +28,7 @@
             <Setter Property="IsEnabled" Value="{Binding DataContext.CanActuate, RelativeSource={RelativeSource AncestorType=UserControl}}" />
         </Style>
         <Style x:Key="ConnectedExternalDeviceToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource ExternalDeviceToggleStyle}">
-            <Setter Property="IsEnabled" Value="{Binding Status.IsOnline}" />
+            <Setter Property="IsEnabled" Value="{Binding Status.CanToggleRouting}" />
         </Style>
         <Style x:Key="ConnectedExternalDeviceEntryStyle" TargetType="TextBox" BasedOn="{StaticResource ExternalDeviceEntryStyle}">
             <Setter Property="IsEnabled" Value="{Binding Status.IsOnline}" />

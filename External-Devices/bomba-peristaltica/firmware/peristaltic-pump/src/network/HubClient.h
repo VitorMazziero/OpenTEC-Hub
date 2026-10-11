@@ -322,6 +322,9 @@ void checkWifi() {
 bool httpGet(const String& url, int& code, String& body) {
     http.begin(url);
     http.setReuse(false);
+    // setTimeout so cobre a leitura; o connect padrao e 5 s. Hello + poll + push no
+    // mesmo loop com o Hub mudo passavam do watchdog e reiniciavam a bomba.
+    http.setConnectTimeout(1000);
     http.setTimeout(1000);
     code = http.GET();
     if (code > 0) body = http.getString();

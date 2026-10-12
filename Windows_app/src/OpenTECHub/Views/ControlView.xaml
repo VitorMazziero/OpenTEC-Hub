@@ -18,9 +18,8 @@
         <conv:ActiveVariableStateConverter x:Key="ActiveVariableState" />
         <conv:InverseBoolConverter x:Key="InverseBool" />
 
-        <!-- An external device that is not on the wire cannot be commanded, so its
-             switch and its setpoint box stay dead rather than accepting an order that
-             goes nowhere. -->
+        <!-- Routing is a Hub-side switch: the operator must be able to turn it on before
+             the node can come online. Node commands and setpoints still require presence. -->
         <Style x:Key="ExternalDeviceToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource ToggleSwitchStyle}">
             <Setter Property="IsEnabled" Value="{Binding DataContext.CanActuate, RelativeSource={RelativeSource AncestorType=UserControl}}" />
         </Style>
@@ -28,7 +27,6 @@
             <Setter Property="IsEnabled" Value="{Binding DataContext.CanActuate, RelativeSource={RelativeSource AncestorType=UserControl}}" />
         </Style>
         <Style x:Key="ConnectedExternalDeviceToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource ExternalDeviceToggleStyle}">
-            <Setter Property="IsEnabled" Value="{Binding Status.CanToggleRouting}" />
         </Style>
         <Style x:Key="ConnectedExternalDeviceEntryStyle" TargetType="TextBox" BasedOn="{StaticResource ExternalDeviceEntryStyle}">
             <Setter Property="IsEnabled" Value="{Binding Status.IsOnline}" />

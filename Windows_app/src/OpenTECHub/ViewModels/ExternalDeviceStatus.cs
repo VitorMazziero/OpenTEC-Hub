@@ -145,7 +145,6 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasStatusAlert))]
     [NotifyPropertyChangedFor(nameof(PresenceText))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
-    [NotifyPropertyChangedFor(nameof(CanToggleRouting))]
     public partial bool IsOnline { get; set; }
 
     /// <summary>A command has left for the node and has not been confirmed yet.</summary>
@@ -167,7 +166,6 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowRoutingChipOnly))]
     [NotifyPropertyChangedFor(nameof(CommMismatchText))]
     [NotifyPropertyChangedFor(nameof(StatusText))]
-    [NotifyPropertyChangedFor(nameof(CanToggleRouting))]
     public partial bool? CommEnabledOnHub { get; set; }
 
     /// <summary>What the operator's own enable switch currently says.</summary>
@@ -190,15 +188,6 @@ public sealed partial class ExternalDeviceStatus : ObservableObject
     /// never press Start — the one command that would produce the telemetry.
     /// </remarks>
     public bool CanSend => !IsOffline && !IsAwaitingAck;
-
-    /// <summary>The enable switch may be operated.</summary>
-    /// <remarks>
-    /// The Hub only reports the pump (and other routed nodes) online while its routing flag is
-    /// on, so gating the switch on <see cref="IsOnline"/> alone locked it off for good once the
-    /// Hub's flag was cleared. A Hub that says routing is off must still let the operator turn
-    /// it on.
-    /// </remarks>
-    public bool CanToggleRouting => IsOnline || CommEnabledOnHub == false;
 
     public bool ShowPendingChip => !IsOffline && IsAwaitingAck;
 

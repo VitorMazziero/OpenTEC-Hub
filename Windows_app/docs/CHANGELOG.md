@@ -9,6 +9,7 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 ## [0.32.2] - 2026-10-12
 
 - O aviso de divergência de roteamento da bomba externa limpa quando o nó está desconectado e volta a comparar os estados após a reconexão.
+- Os toggles de comunicação dos dispositivos externos podem ser ligados antes de o nó aparecer online; os comandos do nó continuam condicionados à comunicação.
 
 ---
 

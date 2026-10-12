@@ -67,6 +67,19 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     private double _lastPumpVolumeMl;
     private double? _lastGasFlowSentLpm;
 
+    // ---- Pump 3.13 integration (drive, refusal, reboots) -------------------------
+    private long? _lastRejCmdId;
+    private string? _lastRejErr;
+    private long? _lastBootCount;
+
+    /// <summary>
+    /// Session volume before an unexplained drop (a reboot of an older pump, or one that lost
+    /// its NVS). While the reported volume stays below it, proportional gas holds its last
+    /// setpoint instead of falling back towards V₀·vvm.
+    /// </summary>
+    private double? _gasHoldVolumeMl;
+    private DateTime? _liquidBlockedSince;
+
     /// <summary>True when proportional gas was refused or overridden and needs automatic retry upon aeration release (AUD-004).</summary>
     private bool _gasRetryPending;
     private bool _aerationOverridden;
@@ -102,6 +115,10 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             new(PumpProfileMode.Polynomial, "Poli"),
             new(PumpProfileMode.Piecewise, "Segmentos"),
         ];
+
+        Dosing = new PumpDosingViewModel(settings, _dispatcher, Status, _timeProvider,
+            () => IsOwnedByOther, () => OwnerLockReason);
+        Dosing.PropertyChanged += OnDosingChanged;
 
         Load(_committed);
         _device.TelemetryReceived += OnTelemetryReceived;
@@ -252,7 +269,103 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
 
     public bool IsValid => ValidationError is null;
 
-    public bool CanApply => IsEnabled && IsValid && Status.CanSend && !IsOwnedByOther;
+    public bool CanApply => IsEnabled && IsValid && Status.CanSend && !IsOwnedByOther && !NoCurveOnNode;
+
+    // ---- Card layout (plan 2026-10-11, Phase 5) -------------------------------------
+
+    /// <summary>Continuous profiles (needs the polynomial curve on the node). The default.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPulseMode))]
+    public partial bool IsContinuousMode { get; set; } = true;
+
+    /// <summary>Pulse dosing (needs a dose point). Its panel arrives with Phase 6.</summary>
+    public bool IsPulseMode
+    {
+        get => !IsContinuousMode;
+        set
+        {
+            if (value)
+            {
+                IsContinuousMode = false;
+            }
+        }
+    }
+
+    /// <summary>The pulse panel (Phase 6): target, granularity slider, start/stop with echo.</summary>
+    public PumpDosingViewModel Dosing { get; }
+
+    /// <summary>Pulses need pump 3.13; an online node without its fields disables the segment.</summary>
+    public bool CanUsePulseMode => !Dosing.NodeLacksDosing;
+
+    public string PulseModeHint => Dosing.NodeLacksDosing
+        ? "Dosagem por pulsos requer a bomba 3.13."
+        : IsPulseMode
+            ? "Pulsos em velocidade fixa (ponto de dosagem); a curva polinomial não é usada."
+            : "Perfis Const, Linear, Exp, Poli e Segmentos sobre a curva polinomial do nó.";
+
+    partial void OnIsContinuousModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PulseModeHint));
+        OnPropertyChanged(nameof(ShowNoCurveWarning));
+    }
+
+    /// <summary>The no-curve warning matters only for continuous profiles; pulses do not use the curve.</summary>
+    public bool ShowNoCurveWarning => NoCurveOnNode && IsContinuousMode;
+
+    private void OnDosingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PumpDosingViewModel.NodeLacksDosing))
+        {
+            OnPropertyChanged(nameof(CanUsePulseMode));
+            OnPropertyChanged(nameof(PulseModeHint));
+            if (Dosing.NodeLacksDosing && IsPulseMode)
+            {
+                IsContinuousMode = true;
+            }
+        }
+        else if (e.PropertyName == nameof(PumpDosingViewModel.IsDosing) && Dosing.IsDosing && IsContinuousMode)
+        {
+            // A dosing run found on the node (or started elsewhere) opens the pulse panel.
+            IsContinuousMode = false;
+        }
+    }
+
+    /// <summary>
+    /// The node echoes its calibration (3.12+) but reports no curve: a continuous profile would
+    /// not turn the motor (flow → speed gives 0 without <c>pump_poly_cal</c>).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    public partial bool NoCurveOnNode { get; set; }
+
+    [ObservableProperty] public partial string TargetFlowNowText { get; set; } = "—";
+    [ObservableProperty] public partial string SummaryText { get; set; } = "—";
+    [ObservableProperty] public partial string CycleVolumeText { get; set; } = "—";
+    [ObservableProperty] public partial string DeviationText { get; set; } = "";
+    [ObservableProperty] public partial string CurveStatusText { get; set; } = "Curva: —";
+    [ObservableProperty] public partial string DosePointStatusText { get; set; } = "Ponto: —";
+    [ObservableProperty] public partial string LiquidSensorText { get; set; } = "";
+    [ObservableProperty] public partial string LastRebootText { get; set; } = "";
+    [ObservableProperty] public partial string GasSummaryText { get; set; } = "";
+
+    // ---- Live overlay and deviation (Phase 7) ----------------------------------------
+
+    private readonly PumpLiveSeries _profileLive = new();
+    private readonly PumpDeviationTracker _profileDeviation = new() { HoldMinutes = 2.0 };
+
+    /// <summary>Measured flow and cycle volume on the node's profile clock (<c>PumpProfileMin</c>, pump 3.13).</summary>
+    [ObservableProperty] public partial IReadOnlyList<double>? LiveMinutes { get; set; }
+    [ObservableProperty] public partial IReadOnlyList<double>? LiveFlow { get; set; }
+    [ObservableProperty] public partial IReadOnlyList<double>? LiveVolume { get; set; }
+
+    /// <summary>Cycle volume off the node's target by more than 5 % for over 2 min.</summary>
+    [ObservableProperty] public partial bool IsDeviationAlert { get; set; }
+
+    /// <summary>Why the measured series is not drawn over the plan, if it is not.</summary>
+    [ObservableProperty] public partial string LiveNote { get; set; } = "";
+
+    /// <summary>Last snapshot, for readouts that also change with the staged profile.</summary>
+    private SensorSnapshot? _lastSnapshot;
 
     public bool CanResetVolume => IsEnabled && Status.CanSend && !IsOwnedByOther && !_awaitingResetVolume;
 
@@ -348,7 +461,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
                 _pidRequestedAt = null;
                 _awaitingPidEcho = false;
                 _committed = _committed with { PidKp = kp, PidKi = ki, PidKd = kd };
-                _settings.Update(settings => settings with { PumpControl = _committed });
+                PersistCommitted();
                 NotifyPidAvailability();
                 StatusText = "Ganhos PID confirmados pelo nó.";
             }
@@ -496,6 +609,12 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         _revertingEnable = false;
     }
 
+    partial void OnNoCurveOnNodeChanged(bool value)
+    {
+        ApplyProfileCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ShowNoCurveWarning));
+    }
+
     partial void OnSelectedModeOptionChanged(PumpModeOption value) => ValidateAndRefresh();
 
     partial void OnInitMinutesTextChanged(string value) => ValidateAndRefresh();
@@ -541,9 +660,9 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         }
     }
 
-    partial void OnInitialVolumeTextChanged(string value) { RefreshPendingState(); RefreshGasReadout(); }
+    partial void OnInitialVolumeTextChanged(string value) { RefreshPendingState(); RefreshGasReadout(); RefreshCardReadouts(); }
 
-    partial void OnVvmTextChanged(string value) { RefreshPendingState(); RefreshGasReadout(); }
+    partial void OnVvmTextChanged(string value) { RefreshPendingState(); RefreshGasReadout(); RefreshCardReadouts(); }
 
     [RelayCommand(CanExecute = nameof(CanApply))]
     private void ApplyProfile()
@@ -574,7 +693,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         if (TryGetStagedSettings(out var staged))
         {
             _committed = staged with { Version = _committed.Version + 1 };
-            _settings.Update(settings => settings with { PumpControl = _committed });
+            PersistCommitted();
         }
 
         HasPendingChange = false;
@@ -688,6 +807,29 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         };
         return true;
     }
+
+    /// <summary>
+    /// Saves the card's own fields. The curve, the hose library selection and the dosing
+    /// settings belong to Calibrações and to the pulse panel: they are taken from the current
+    /// settings, so a profile send never rolls back a calibration or the dose point saved since
+    /// this card loaded.
+    /// </summary>
+    private void PersistCommitted()
+        => _settings.Update(s => s with
+        {
+            PumpControl = _committed with
+            {
+                CalibrationSlope = s.PumpControl.CalibrationSlope,
+                CalibrationIntercept = s.PumpControl.CalibrationIntercept,
+                CalibrationQt = s.PumpControl.CalibrationQt,
+                CalibrationSt = s.PumpControl.CalibrationSt,
+                CalibrationMLow = s.PumpControl.CalibrationMLow,
+                CalibrationMHigh = s.PumpControl.CalibrationMHigh,
+                CalibrationPoints = s.PumpControl.CalibrationPoints,
+                SelectedProfileName = s.PumpControl.SelectedProfileName,
+                Dose = s.PumpControl.Dose,
+            },
+        });
 
     /// <summary>Parses and validates the active mode's fields into a profile spec.</summary>
     public bool TryBuildSpec(out PumpProfileSpec spec, out string? error)
@@ -849,6 +991,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         ApplyProfileCommand.NotifyCanExecuteChanged();
         RefreshPendingState();
         RefreshGasReadout();
+        RefreshCardReadouts();
     }
 
     private void RefreshPendingState()
@@ -868,10 +1011,16 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             var maxFlow = _settings.Current.Setpoints.MaxFlowLitresPerMinute;
             var qg = Math.Clamp((v0 + (_lastPumpVolumeMl / 1000.0)) * vvm, 0.0, maxFlow);
             GasFlowText = qg.ToString("F2", CultureInfo.CurrentCulture);
+            // Where aeration will be when the staged plan has delivered its volume on top of today's.
+            var planMl = Preview?.TotalVolumeMl ?? 0.0;
+            var qgEnd = Math.Clamp((v0 + ((_lastPumpVolumeMl + planMl) / 1000.0)) * vvm, 0.0, maxFlow);
+            GasSummaryText = (GasProportionalEnabled ? "ligado" : "desligado") +
+                             $" · Q_g agora {qg.ToString("F2", CultureInfo.CurrentCulture)} · no fim do plano {qgEnd.ToString("F2", CultureInfo.CurrentCulture)} L/min";
         }
         else
         {
             GasFlowText = "—";
+            GasSummaryText = GasProportionalEnabled ? "ligado · parâmetros inválidos" : "desligado";
         }
     }
 
@@ -891,6 +1040,11 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         TogglePotentiometersCommand.NotifyCanExecuteChanged();
         NotifyPidAvailability();
 
+        TrackRefusal(snapshot);
+        Dosing.OnSnapshot(snapshot);
+        TrackReboot(snapshot);
+        TrackLiquidSensor(snapshot);
+
         _lastPumpVolumeMl = snapshot.PumpVolume > SensorReadings.NotReceived ? snapshot.PumpVolume : 0.0;
 
         PumpFlowText = snapshot.PumpFlow > SensorReadings.NotReceived
@@ -900,7 +1054,9 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             ? snapshot.PumpVolume.ToString("F3", CultureInfo.CurrentCulture)
             : "—";
 
+        _lastSnapshot = snapshot;
         RefreshGasReadout();
+        RefreshCardReadouts();
         MaybeSendProportionalGas();
 
         if (_awaitingResetVolume)
@@ -939,6 +1095,18 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         if (Status.IsOffline || (_cascade is { IsEngaged: true }))
         {
             return;
+        }
+
+        // After an unexplained volume drop, hold the last gas setpoint until the pump's volume
+        // is back where it was; recomputing from the lower figure would cut aeration.
+        if (_gasHoldVolumeMl is { } hold)
+        {
+            if (_lastPumpVolumeMl < hold)
+            {
+                return;
+            }
+
+            _gasHoldVolumeMl = null;
         }
 
         if (!_initialised || !GasProportionalEnabled || !IsEnabled)
@@ -1045,13 +1213,267 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
             var mode => mode.ToString(CultureInfo.CurrentCulture),
         };
 
+        // Pump 3.13 says who drives the motor; older pumps only expose the profile state,
+        // which reads "Parada" during pulse dosing.
         PumpRunStateText = !Status.IsOnline
             ? "—"
-            : snapshot.PumpActive
-                ? "Dosando"
-                : snapshot.PumpWaiting
-                    ? "Aguardando janela"
-                    : "Parada";
+            : snapshot.PumpDrive is { } drive
+                ? PumpNodeText.Drive(drive)
+                : snapshot.PumpActive
+                    ? "Dosando"
+                    : snapshot.PumpWaiting
+                        ? "Aguardando janela"
+                        : "Parada";
+    }
+
+    /// <summary>
+    /// Row and status-strip readouts: target flow now, live summary, cycle volume and deviation,
+    /// calibration state, liquid sensor, last reboot and the proportional-gas summary.
+    /// </summary>
+    private void RefreshCardReadouts()
+    {
+        if (!_initialised)
+        {
+            return;
+        }
+
+        var s = _lastSnapshot;
+        var online = s is not null && Status.IsOnline;
+        var c = CultureInfo.CurrentCulture;
+
+        // Calibration: the curve on the node (CRC echo) and the dose point chosen in Calibrações.
+        NoCurveOnNode = online && s!.PumpTransitionSpeed is not null && s.PumpCalCrc is null or 0;
+        CurveStatusText = !online || s!.PumpTransitionSpeed is null
+            ? "Curva no nó: —"
+            : NoCurveOnNode ? "Curva no nó ✗ (modo contínuo indisponível)" : $"Curva no nó ✓ (CRC {s.PumpCalCrc:X8})";
+        var point = _settings.Current.PumpControl.Dose.Point;
+        DosePointStatusText = point is null
+            ? "Ponto de dosagem ✗"
+            : $"Ponto ✓ S {point.SpeedUnits.ToString("F0", c)} → {point.RateMlMin.ToString("F2", c)} mL/min" +
+              (DateTimeOffset.TryParse(point.CapturedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.None, out var at) ? $" ({at.LocalDateTime:dd/MM})" : "");
+
+        if (!online)
+        {
+            TargetFlowNowText = "—";
+            SummaryText = Status.IsOffline ? "Sem comunicação" : "—";
+            CycleVolumeText = "—";
+            DeviationText = "";
+            LiquidSensorText = "";
+            LastRebootText = "";
+            return;
+        }
+
+        var drive = s!.PumpDrive;
+        var running = drive == (int)PumpDriveState.ProfileRunning || (drive is null && s.PumpActive);
+        var waiting = drive == (int)PumpDriveState.ProfileWaiting || (drive is null && s.PumpWaiting);
+        var dosing = s.PumpDoseActive == true;
+        var blocked = s.PumpLiquidOk == false && drive is >= (int)PumpDriveState.ManualSpeed and <= (int)PumpDriveState.DosePulse;
+
+        // Target flow now: the committed profile at the node's own clock (3.13), else the mean
+        // flow of the dosing run.
+        var committedSpec = SpecFrom(_committed);
+        if (dosing && s.PumpDoseMl is { } ml && s.PumpDosePeriodS is { } per && per > 0)
+        {
+            TargetFlowNowText = (ml / per * 60.0).ToString("F3", c);
+        }
+        else if (running && s.PumpProfileMin is { } tMin && committedSpec is not null)
+        {
+            TargetFlowNowText = PumpProfileMath.FlowAt(committedSpec, tMin).ToString("F3", c);
+        }
+        else if (running && committedSpec is { Mode: PumpProfileMode.Constant })
+        {
+            TargetFlowNowText = committedSpec.Lambda.ToString("F3", c);
+        }
+        else
+        {
+            TargetFlowNowText = running || waiting ? "—" : "0";
+        }
+
+        var volume = s.PumpVolume > SensorReadings.NotReceived ? s.PumpVolume : double.NaN;
+        CycleVolumeText = s.PumpCycleVolume is { } cyc ? cyc.ToString("F2", c) + " mL" : "—";
+        UpdateProfileLive(s, running);
+        if (running && s.PumpCycleVolume is { } cycle && s.PumpTargetVolume > SensorReadings.NotReceived)
+        {
+            var dev = cycle - s.PumpTargetVolume;
+            DeviationText = $"Desvio {(dev >= 0 ? "+" : "−")}{Math.Abs(dev).ToString("F2", c)} mL" +
+                            (_profileDeviation.Relative is { } r ? $" ({(r * 100).ToString("+0.#;−0.#;0", c)} %)" : "") +
+                            (IsDeviationAlert ? " — acima de 5 % há mais de 2 min" : "");
+        }
+        else if (dosing && s.PumpDoseDelivered is { } done && s.PumpDoseTotal is { } tot && tot > 0)
+        {
+            DeviationText = $"Dosagem {done.ToString("F2", c)} / {tot.ToString("F1", c)} mL ({done / tot * 100.0:F0} %)";
+        }
+        else
+        {
+            DeviationText = "";
+        }
+
+        SummaryText = blocked
+            ? "Bloqueada: sensor de líquido seco"
+            : dosing
+                ? $"{(s.PumpDoseDelivered ?? 0).ToString("F2", c)}" + (s.PumpDoseTotal is { } t2 && t2 > 0 ? $" / {t2.ToString("F1", c)}" : "") + " mL" +
+                  (s.PumpDosePulse == true ? " · pulso" : s.PumpDoseNextS is { } next ? $" · próx. {next / 60}:{next % 60:00}" : "")
+                : running
+                    ? (s.PumpProfileMin is { } tm ? $"{tm.ToString("F0", c)} / {_committed.FinalMinutes.ToString("F0", c)} min · " : "") +
+                      (s.PumpCycleVolume is { } cv ? cv.ToString("F1", c) + " mL" : "")
+                    : waiting
+                        ? "Aguardando janela"
+                        : $"Parada · {(double.IsNaN(volume) ? "—" : volume.ToString("F2", c))} mL";
+
+        LiquidSensorText = s.PumpLiquidSensor switch
+        {
+            true when s.PumpLiquidOk == false => "Sensor de líquido: seco (motor bloqueado)",
+            true => "Sensor de líquido: com líquido",
+            false => "Sensor de líquido: desligado",
+            null => "",
+        };
+        LastRebootText = s.PumpUptimeS is { } up
+            ? $"Ligada há {FormatUptime(up)} ({PumpNodeText.ResetReason(s.PumpResetReason)})"
+            : "";
+    }
+
+    /// <summary>
+    /// Appends the running profile's measured flow and cycle volume on the node's own clock
+    /// (<c>t_min</c>), so the overlay stays aligned after the app or the node restarts (§5.4).
+    /// The deviation compares the cycle volume with the node's own target integral.
+    /// </summary>
+    private void UpdateProfileLive(SensorSnapshot s, bool running)
+    {
+        if (!running)
+        {
+            if (_profileLive.Count > 0 && s.PumpDrive == (int)PumpDriveState.Stopped)
+            {
+                // Keep the last run on screen until a new one starts; only the alert clears.
+                _profileDeviation.Reset();
+                IsDeviationAlert = false;
+            }
+
+            return;
+        }
+
+        if (s.PumpProfileMin is not { } tMin)
+        {
+            LiveNote = "Sem o relógio do perfil (bomba anterior à 3.13): a medida não é sobreposta ao plano.";
+            return;
+        }
+
+        LiveNote = "";
+        var flow = s.PumpFlow > SensorReadings.NotReceived ? s.PumpFlow : 0.0;
+        var cycle = s.PumpCycleVolume ?? 0.0;
+        _profileLive.Add(tMin, flow, cycle);
+        (LiveMinutes, LiveFlow, LiveVolume) = _profileLive.Snapshot();
+        if (s.PumpTargetVolume > SensorReadings.NotReceived)
+        {
+            _profileDeviation.Update(tMin, s.PumpTargetVolume, cycle);
+            IsDeviationAlert = _profileDeviation.IsAlert;
+        }
+    }
+
+    private static string FormatUptime(long seconds)
+        => seconds < 3600 ? $"{seconds / 60} min" : seconds < 86400 ? $"{seconds / 3600} h {seconds % 3600 / 60:00} min" : $"{seconds / 86400} d {seconds % 86400 / 3600} h";
+
+    /// <summary>The profile last sent, as a spec (for the target flow at the node's clock).</summary>
+    private static PumpProfileSpec? SpecFrom(PumpControlSettings s)
+    {
+        try
+        {
+            return new PumpProfileSpec(s.Mode, s.InitMinutes, s.FinalMinutes,
+                s.Mode switch
+                {
+                    PumpProfileMode.Constant => s.LambdaConst,
+                    PumpProfileMode.Linear => s.LambdaLinear,
+                    PumpProfileMode.Exponential => s.LambdaExp,
+                    _ => 0.0,
+                },
+                s.Mode switch
+                {
+                    PumpProfileMode.Linear => s.PhiLinear,
+                    PumpProfileMode.Exponential => s.PhiExp,
+                    _ => 0.0,
+                },
+                s.PolynomialCoefficients, s.PiecewiseTimes, s.PiecewiseFlows);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A change of <c>PumpRejCmdId</c>/<c>PumpRejErr</c> means the node refused the last frame.</summary>
+    private void TrackRefusal(SensorSnapshot snapshot)
+    {
+        var id = snapshot.PumpRejCmdId;
+        var err = snapshot.PumpRejErr;
+        var changed = (id, err) != (_lastRejCmdId, _lastRejErr);
+        var first = _lastRejCmdId is null && _lastRejErr is null;
+        _lastRejCmdId = id;
+        _lastRejErr = err;
+        if (!changed || first || string.IsNullOrEmpty(err))
+        {
+            return;
+        }
+
+        // Whatever echo was awaited will not come.
+        if (_awaitingPidEcho)
+        {
+            _requestedPid = null;
+            _pidRequestedAt = null;
+            _awaitingPidEcho = false;
+            NotifyPidAvailability();
+        }
+
+        StatusText = $"A bomba recusou o último comando: {PumpDoseRules.DescribeRefusal(err)}.";
+        Dosing.OnRefused(err);
+    }
+
+    /// <summary>
+    /// A changed boot counter (pump 3.13), or a volume that fell without a reset being asked
+    /// for, means the node restarted. Proportional gas holds until the volume recovers.
+    /// </summary>
+    private void TrackReboot(SensorSnapshot snapshot)
+    {
+        var rebooted = false;
+        if (snapshot.PumpBootCount is { } boot)
+        {
+            rebooted = _lastBootCount is { } last && boot != last;
+            _lastBootCount = boot;
+        }
+
+        var volume = snapshot.PumpVolume;
+        var dropped = volume > SensorReadings.NotReceived && !_awaitingResetVolume &&
+                      _lastPumpVolumeMl > 0.0 && volume < _lastPumpVolumeMl - 0.05;
+        if (dropped)
+        {
+            _gasHoldVolumeMl = _lastPumpVolumeMl;
+        }
+
+        if (rebooted)
+        {
+            StatusText = $"A bomba externa reiniciou ({PumpNodeText.ResetReason(snapshot.PumpResetReason)}).";
+        }
+        else if (dropped)
+        {
+            StatusText = "O volume da bomba caiu sem pedido de zerar (reinício?); o gás proporcional segura o último valor.";
+        }
+    }
+
+    /// <summary>Warns when the liquid sensor holds a motor that something asked to run, for over 5 s.</summary>
+    private void TrackLiquidSensor(SensorSnapshot snapshot)
+    {
+        var wantsMotor = snapshot.PumpDrive is >= (int)PumpDriveState.ManualSpeed and <= (int)PumpDriveState.DosePulse;
+        if (snapshot.PumpLiquidOk == false && wantsMotor)
+        {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            _liquidBlockedSince ??= now;
+            if ((now - _liquidBlockedSince.Value).TotalSeconds > 5.0)
+            {
+                StatusText = "Sensor de líquido seco: o motor está bloqueado.";
+            }
+        }
+        else
+        {
+            _liquidBlockedSince = null;
+        }
     }
 
     private void OnStatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1090,6 +1512,7 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         if (transfer.Actuators.Contains(ActuatorId.ExternalPump))
         {
             CurrentOwner = transfer.To;
+            Dosing.NotifyCommands();
         }
 
         if (transfer.Actuators.Contains(ActuatorId.Aeration))
@@ -1129,6 +1552,8 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.StateChanged -= OnDeviceStateChanged;
         Status.PropertyChanged -= OnStatusChanged;
+        Dosing.PropertyChanged -= OnDosingChanged;
+        Dosing.Detach();
         if (_arbiter is not null)
         {
             _arbiter.OwnershipChanged -= OnOwnershipChanged;

@@ -14,7 +14,13 @@ namespace OpenTECHub.Services.Calibration;
 /// </remarks>
 public sealed record PumpCalibrationProfile
 {
-    public const int CurrentSchemaVersion = 2;
+    /// <summary>3 adds <see cref="DosePoints"/> (2026-10-11).</summary>
+    public const int CurrentSchemaVersion = 3;
+
+    /// <summary>Oldest schema still read; a schema-2 file loads with no dose points and is saved as 3.</summary>
+    public const int MinSupportedSchemaVersion = 2;
+
+    public static bool IsSupportedSchema(int version) => version is >= MinSupportedSchemaVersion and <= CurrentSchemaVersion;
 
     /// <summary>Schema revision of this file for future forward/backward compatibility.</summary>
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
@@ -59,6 +65,12 @@ public sealed record PumpCalibrationProfile
 
     /// <summary>Volumetric calibration points associated with this profile.</summary>
     public PumpCalibrationPoint[] CalibrationPoints { get; init; } = [];
+
+    /// <summary>Dose points of this hose for pulse dosing (schema 3); independent of the curve.</summary>
+    public PumpDosePoint[] DosePoints { get; init; } = [];
+
+    /// <summary>The dose point table (runs, typed t₀, active rows); optional in schema 3.</summary>
+    public PumpDoseRun[] DoseRuns { get; init; } = [];
 
     /// <summary>Goodness-of-fit statistics computed when the curve was adjusted.</summary>
     public PumpFitStatistics? FitStatistics { get; init; }
@@ -128,7 +140,8 @@ public sealed record PumpCalibrationProfileSummary(
     double HighSlope,
     int SchemaVersion,
     bool IsCompatible,
-    DateTimeOffset? LastAppliedUtc = null)
+    DateTimeOffset? LastAppliedUtc = null,
+    int DosePointCount = 0)
 {
     public string DisplayName => Name;
     public string Id => ProfileId;

@@ -58,11 +58,12 @@ public sealed class DetailPaneContractTests
         Assert.Contains("SelectedIndex=\"{Binding SelectedTabIndex, Mode=TwoWay}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("\"ph\" => 0", vm, StringComparison.Ordinal);
         Assert.Contains("\"oxygen\" => 1", vm, StringComparison.Ordinal);
-        // Same order as the tabs in the XAML (biomass and pump used to be swapped here).
+        // The on-screen order: the view moves the pump tab to index 3 (rendered check in
+        // DocumentationEvidenceTests.Calibration_shortcuts_open_the_named_tab).
         Assert.Contains("\"temperature\" => 2", vm, StringComparison.Ordinal);
-        Assert.Contains("\"flow\" => 3", vm, StringComparison.Ordinal);
-        Assert.Contains("\"biomass\" => 4", vm, StringComparison.Ordinal);
-        Assert.Contains("\"pump\" => 5", vm, StringComparison.Ordinal);
+        Assert.Contains("\"pump\" or \"pump-curve\" or \"pump-dose\" => 3", vm, StringComparison.Ordinal);
+        Assert.Contains("\"flow\" => 4", vm, StringComparison.Ordinal);
+        Assert.Contains("\"biomass\" => 5", vm, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PumpPlotHost\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PumpRightScroll\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource CalibrationSidePanelStyle}\"", xaml, StringComparison.Ordinal);

@@ -393,8 +393,160 @@ public sealed class DeviceModel
     /// <summary>Bench potentiometers in command (3.10 echo). Cleared by <c>pump_speed</c>, restored by <c>pump_pot:1</c>.</summary>
     public bool PumpPotEnabled { get; set; } = true;
     public double PumpVolumeOffset { get; set; }
-    public double PumpVolume => Math.Max(0.0, (UptimeSeconds * 1.25 / 60.0) - PumpVolumeOffset);
-    public void ResetPumpVolume() => PumpVolumeOffset = UptimeSeconds * 1.25 / 60.0;
+    public double PumpVolume => Math.Max(0.0, (UptimeSeconds * 1.25 / 60.0) + PumpDoseDeliveredTotal - PumpVolumeOffset);
+    public void ResetPumpVolume() => PumpVolumeOffset = (UptimeSeconds * 1.25 / 60.0) + PumpDoseDeliveredTotal;
+
+    // ---- Pump 3.13: pulse dosing, refusals and reboots ---------------------------
+    // Same limits and refusal codes as the firmware (PumpDoseRules mirrors DoseMath.h), so
+    // the card and the harness can rehearse dosing without a pump.
+
+    public PumpDoseParameters PumpDose { get; set; } = new(0.35, 300.0, 120.0, 5.4, 50.0, 0.0);
+
+    private bool _pumpDoseRunning;
+    private double _pumpDoseStartedAt;
+    private double _pumpDoseStoppedDelivered;
+    private long _pumpDoseStoppedPulses;
+    private double _pumpDoseCarried; // delivered by earlier runs, still in the session volume
+
+    /// <summary>Pulses whose end has passed since this run started.</summary>
+    public long PumpDosePulses
+    {
+        get
+        {
+            if (!_pumpDoseRunning)
+            {
+                return _pumpDoseStoppedPulses;
+            }
+
+            var elapsed = UptimeSeconds - _pumpDoseStartedAt;
+            var onS = PumpDoseRules.PulseMs(PumpDose.VolumeMl, PumpDose.RateMlMin, PumpDose.DeadMs) / 1000.0;
+            var completed = elapsed < onS ? 0 : (long)Math.Floor((elapsed - onS) / PumpDose.PeriodS) + 1;
+            if (PumpDose.TotalMl > 0.0)
+            {
+                completed = Math.Min(completed, (long)Math.Ceiling(PumpDose.TotalMl / PumpDose.VolumeMl - 1e-9));
+            }
+
+            return completed;
+        }
+    }
+
+    public double PumpDoseDelivered
+    {
+        get
+        {
+            if (!_pumpDoseRunning)
+            {
+                return _pumpDoseStoppedDelivered;
+            }
+
+            var delivered = PumpDosePulses * PumpDose.VolumeMl;
+            return PumpDose.TotalMl > 0.0 ? Math.Min(delivered, PumpDose.TotalMl) : delivered;
+        }
+    }
+
+    /// <summary>All dosed volume this boot, in the session counter like the firmware.</summary>
+    public double PumpDoseDeliveredTotal => _pumpDoseCarried + (_pumpDoseRunning ? PumpDoseDelivered : 0.0);
+
+    /// <summary>Running until stopped or until the total is reached.</summary>
+    public bool PumpDoseActive => _pumpDoseRunning && !(PumpDose.TotalMl > 0.0 && PumpDoseDelivered >= PumpDose.TotalMl - 0.005);
+
+    public bool PumpDosePulse
+    {
+        get
+        {
+            if (!PumpDoseActive)
+            {
+                return false;
+            }
+
+            var elapsed = UptimeSeconds - _pumpDoseStartedAt;
+            var onS = PumpDoseRules.PulseMs(PumpDose.VolumeMl, PumpDose.RateMlMin, PumpDose.DeadMs) / 1000.0;
+            return elapsed % PumpDose.PeriodS < onS;
+        }
+    }
+
+    public long PumpDoseNextS
+    {
+        get
+        {
+            if (!PumpDoseActive || PumpDosePulse)
+            {
+                return 0;
+            }
+
+            var elapsed = UptimeSeconds - _pumpDoseStartedAt;
+            return (long)Math.Ceiling(PumpDose.PeriodS - (elapsed % PumpDose.PeriodS));
+        }
+    }
+
+    public void StartPumpDose()
+    {
+        StopPumpDose();
+        _pumpDoseRunning = true;
+        _pumpDoseStartedAt = UptimeSeconds;
+        _pumpDoseStoppedDelivered = 0.0;
+        _pumpDoseStoppedPulses = 0;
+        PumpManualSpeed = 0.0;
+    }
+
+    public void StopPumpDose()
+    {
+        if (!_pumpDoseRunning)
+        {
+            return;
+        }
+
+        _pumpDoseStoppedDelivered = PumpDoseDelivered;
+        _pumpDoseStoppedPulses = PumpDosePulses;
+        _pumpDoseCarried += _pumpDoseStoppedDelivered;
+        _pumpDoseRunning = false;
+    }
+
+    /// <summary>Boot counter the pump keeps in NVS; <see cref="RestartPump"/> bumps it.</summary>
+    public long PumpBootCount { get; private set; } = 1;
+
+    /// <summary><c>esp_reset_reason()</c>: 1 power-on, 3 software, 7 watchdog.</summary>
+    public int PumpResetReason { get; private set; } = 1;
+
+    /// <summary>Simulates a pump reboot: the session volume survives (3.12.1), dosing resumes.</summary>
+    public void RestartPump(int resetReason = 3)
+    {
+        PumpBootCount++;
+        PumpResetReason = resetReason;
+    }
+
+    /// <summary>Last refused Hub command (0 = none) and its code ("" = last frame accepted).</summary>
+    public long PumpRejCmdId { get; private set; }
+    public string PumpRejErr { get; private set; } = "";
+    private long _pumpCommandSequence = 512_345_000;
+
+    public void NotePumpFrame(string? refusal)
+    {
+        _pumpCommandSequence++;
+        if (refusal is null)
+        {
+            PumpRejCmdId = 0;
+            PumpRejErr = "";
+        }
+        else
+        {
+            PumpRejCmdId = _pumpCommandSequence;
+            PumpRejErr = refusal;
+        }
+    }
+
+    public bool PumpLiquidSensor { get; set; }
+
+    /// <summary>Test hook: false holds the motor as a dry liquid sensor would.</summary>
+    public bool PumpLiquidOk { get; set; } = true;
+
+    public int PumpDrive => PumpDoseActive
+        ? PumpDosePulse ? (int)PumpDriveState.DosePulse : (int)PumpDriveState.DoseIdle
+        : PumpMode > 0
+            ? (int)PumpDriveState.ProfileRunning
+            : PumpManualSpeed > 0.0
+                ? (int)PumpDriveState.ManualSpeed
+                : (int)PumpDriveState.Stopped;
 
     public int BiomassIntegrationTimeMs { get; set; } = 100;
     public double BiomassPwmPercent { get; set; } = 2.0;

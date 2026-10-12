@@ -501,6 +501,46 @@ public sealed record BiomassControlSettings
     public int ProbePeriodMs { get; init; } = 25000;
 }
 
+/// <summary>A copy of the dose point the card doses with, so it works without the profile file.</summary>
+public sealed record PumpDosePointSettings
+{
+    public double SpeedUnits { get; init; }
+    public double RateMlMin { get; init; }
+    public double? DeadTimeMs { get; init; }
+    public double? RecommendedMinOnMs { get; init; }
+    public double CvPercent { get; init; }
+    public string? ProfileName { get; init; }
+    public string? CapturedAtUtc { get; init; }
+}
+
+/// <summary>Pulse dosing settings: the dose point in use, the target and the slider's period.</summary>
+public sealed record PumpDoseSettings
+{
+    /// <summary>Dose point in use; null until one is chosen in Calibrações.</summary>
+    public PumpDosePointSettings? Point { get; init; }
+
+    /// <summary>Target entered as "V mL in D h" (true) or as a mean flow in mL/min (false).</summary>
+    public bool TargetByVolume { get; init; } = true;
+
+    public double TargetVolumeMl { get; init; } = 50.0;
+
+    public double TargetHours { get; init; } = 12.0;
+
+    public double MeanFlowMlMin { get; init; } = 0.0694;
+
+    /// <summary>Stop when the target volume is delivered (volume target only).</summary>
+    public bool StopAtTotal { get; init; } = true;
+
+    /// <summary>The slider's position, saved as the period between pulse starts, s; null = recommended.</summary>
+    public double? PeriodS { get; init; }
+
+    /// <summary>Longest time between pulses the operator accepts, s (D2: 30 min).</summary>
+    public double MaxIntervalS { get; init; } = 1800.0;
+
+    /// <summary>When the node confirmed the last start (ISO 8601 UTC), for the live overlay without pump 3.13 clocks.</summary>
+    public string? RunStartedUtc { get; init; }
+}
+
 /// <summary>
 /// A versioned external-pump profile (WP2): the active mode, its operating window and every
 /// mode's parameters, plus the optional proportional-gas coupling.
@@ -591,6 +631,9 @@ public sealed record PumpControlSettings
     /// Currently active external pump hose calibration profile name, if any.
     /// </summary>
     public string? SelectedProfileName { get; init; } = null;
+
+    /// <summary>Pulse dosing (plan 2026-10-11). Phase 4 keeps the dose point in use.</summary>
+    public PumpDoseSettings Dose { get; init; } = new();
 }
 
 /// <summary>

@@ -130,10 +130,25 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("IsExpandedExternalPump", section, StringComparison.Ordinal);
         Assert.Contains("DataContext=\"{Binding PumpControl}\"", section, StringComparison.Ordinal);
         Assert.Contains("IsChecked=\"{Binding IsEnabled, Mode=TwoWay}\"", section, StringComparison.Ordinal);
-        Assert.Contains("<ctl:PumpPreviewChart", section, StringComparison.Ordinal);
-        Assert.Contains("ItemsSource=\"{Binding ModeOptions}\"", section, StringComparison.Ordinal);
-        Assert.Contains("SelectedItem=\"{Binding SelectedModeOption, Mode=TwoWay}\"", section, StringComparison.Ordinal);
-        Assert.Contains("Command=\"{Binding ApplyProfileCommand}\"", section, StringComparison.Ordinal);
+        Assert.Contains("<ctl:ExternalPumpPanel />", section, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding TargetFlowNowText}\"", section, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding SummaryText}\"", section, StringComparison.Ordinal);
+
+        // The drawer itself (plan 2026-10-11 §5.2): status strip, mode selector, stacked charts.
+        var panel = File.ReadAllText(Path.Combine(Path.GetDirectoryName(ViewPath)!, "..", "Controls", "ExternalPumpPanel.xaml"));
+        Assert.Contains("<ctl:PumpPlanChart", panel, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding ModeOptions}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding SelectedModeOption, Mode=TwoWay}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ApplyProfileCommand}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding IsContinuousMode, Mode=TwoWay}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("Visibility=\"{Binding ShowNoCurveWarning, Converter={StaticResource BoolToVis}}\"", panel, StringComparison.Ordinal);
+
+        // The pulse panel (Phase 6): granularity slider, pulse charts, start/stop.
+        Assert.Contains("Value=\"{Binding SliderPosition, Mode=TwoWay}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("DosePreview=\"{Binding Preview}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding Dosing.StartCommand}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding Dosing.StopCommand}\"", panel, StringComparison.Ordinal);
+        Assert.Contains("CommandParameter=\"pump-dose\"", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("o controle ainda não está implementado", section, StringComparison.Ordinal);
     }
 
@@ -248,9 +263,11 @@ public sealed class ControlWorkspaceContractTests
 
         // Distance, biomass and flask editors require actual node presence, not merely the
         // app-to-Hub link. The flowmeter retains its acknowledgement-aware inline guard. The
-        // external-pump drawer adds one more use as a scoped implicit style, so its mode
-        // selector and every entry gate on the node being online with a single reference.
-        Assert.Equal(11, Count(section, "ConnectedExternalDeviceEntryStyle"));
+        // external-pump drawer lives in Controls/ExternalPumpPanel.xaml since 2026-10-12 and
+        // gates its entries with its own implicit style on Status.IsOnline.
+        Assert.Equal(10, Count(section, "ConnectedExternalDeviceEntryStyle"));
+        var panel = File.ReadAllText(Path.Combine(Path.GetDirectoryName(ViewPath)!, "..", "Controls", "ExternalPumpPanel.xaml"));
+        Assert.Contains("<Setter Property=\"IsEnabled\" Value=\"{Binding Status.IsOnline}\" />", panel, StringComparison.Ordinal);
     }
 
     [Fact]

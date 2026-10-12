@@ -216,6 +216,35 @@ o campo mostra "aguardando eco do nó". O valor ecoado aparece ao lado do campo 
   e mostra "n de m enviados"; pode ser cancelado. Alterar IT ou PWM invalida o branco: capture-o de
   novo antes de medir.
 
+### Bomba externa: perfis contínuos e dosagem de volumes pequenos
+
+A gaveta **Bomba Externa** do Controle mostra no topo uma faixa de estado: o que o nó está fazendo,
+volume da sessão (estimado) com **Zerar**, ciclo e desvio, calibração (curva no nó e ponto de dosagem,
+com atalhos **Calibrar…**), sensor de líquido e o último reinício. Abaixo, o seletor
+**Contínuo (perfil) | Pulsos**.
+
+**Contínuo.** Escolha o perfil, a janela e os parâmetros; os dois gráficos mostram a vazão e o volume
+planejados e, com a bomba 3.13, a vazão e o volume medidos por cima. **Enviar perfil** só fica livre
+com a curva calibrada no nó.
+
+**Pulsos (dosar volumes pequenos).** Para vazões abaixo do que a bomba faz em contínuo (ex.: 50 mL
+em 12 h), o nó liga o motor na velocidade do ponto de dosagem por um tempo curto a cada intervalo.
+Requer bomba 3.13, Hub 10.9 e um ponto de dosagem (Calibrações → Bomba Externa → Ponto de dosagem).
+
+1. **Meta:** "V mL em D h" (com *Parar ao atingir o volume*) ou uma vazão média em mL/min.
+2. **Granularidade:** o deslizante vai de *muitos e pequenos* a *poucos e grandes*. A vazão média não
+   muda; muda só como o volume é dividido no tempo. A faixa sob a trilha é **âmbar** onde o pulso fica
+   menor que o mínimo recomendado (erro de partida maior) e **verde** no resto. A leitura mostra
+   volume por pulso, duração, intervalo, pulsos por hora, total e erro de partida.
+3. **Editar valores exatos** aceita período, volume por pulso e o intervalo máximo (padrão 30 min).
+4. **Iniciar dosagem** envia tudo num só comando e só confirma quando o nó ecoa os mesmos parâmetros.
+   Se o nó recusar, o motivo aparece no rodapé. Durante a dosagem a meta fica travada: para mudar,
+   **Parar dosagem**, editar e iniciar de novo.
+5. O gráfico de baixo mostra a escada planejada e o volume entregue; o **desvio** alerta acima de 5 %
+   por mais de dois períodos (confira sensor de líquido, mangueira e ponto de dosagem).
+6. O fim aparece como *Concluída*, *Parada pelo operador* ou *Interrompida* com a causa provável.
+   O interruptor da linha continua sendo a parada segura e também cancela a dosagem.
+
 ### Procedimento de Parada Segura Global (*Safe Stop*)
 No cabeçalho superior direito de qualquer tela, encontra-se o botão de emergência **Parada Segura (Safe Stop)**:
 - Ao ser acionado, o coordenador de segurança **revoga instantaneamente a posse** de qualquer receita em andamento, malha cascata ou ensaio cinético.
@@ -271,17 +300,53 @@ acionada) — mantenha o N₂ fechado na fonte. Marque *Calibrar pelo reator (A)
 aspersor. O arranjo e a rota ficam gravados com os pontos.
 
 ### E. Calibração da bomba externa (peristáltica do Hub)
-1. Em **Calibrações → Bomba externa**, leia os coeficientes vigentes (ecoados pelo nó): a bomba
-   aplica `Q [mL/min] = slope · S + intercept`, onde **S é a velocidade interna 0–1000** (o firmware a
-   converte em PWM 155–1023) — não é o PWM bruto.
-2. Acione a bomba em pelo menos três velocidades (por exemplo S = 250, 500 e 1000) por tempo
-   cronometrado sobre uma balança; converta massa em volume pela densidade e calcule a vazão.
-3. Ajuste a reta (slope, intercept) e digite os dois valores; a prévia mostra a vazão prevista nos
-   três pontos. **Aplicar** envia ao nó pelo Hub.
-4. O recibo `Calibracoes/bomba-externa-<data>.json` (pedido, eco aplicado, firmware do Hub e da bomba)
-   é gravado **só depois do eco**; sem eco em 15 s o app avisa e nada é persistido.
-5. **Zerar volume** (na gaveta Bomba Externa) zera o acumulador `PumpVol` no nó; o app espera o
-   quadro seguinte para confirmar, não zera localmente.
+
+A bomba externa tem **dois modos**, cada um com a sua calibração, em **Calibrações → Bomba Externa**.
+Todas as calibrações da bomba seguem o mesmo ensaio: **tempo definido → volume lido na proveta
+graduada → vazão = volume / tempo**. Não se usa balança. **S é a velocidade interna 0–1000** (o
+firmware a converte em PWM), não o PWM bruto.
+
+A **biblioteca de perfis de mangueira** (à direita) guarda as duas calibrações por mangueira e mostra
+`Curva ✓/✗ · Ponto ✓/✗`. O **controle manual** (encher mangueira) leva sempre um prazo de 60 s no nó,
+renovado enquanto ativo: se o app, o PC ou o Hub caírem, a bomba para sozinha.
+
+#### E.1 Curva polinomial · modo contínuo
+
+Usada pelos perfis Const, Linear, Exp, Poli e Segmentos. Sem curva no nó, o cartão avisa e
+**Enviar perfil** fica bloqueado.
+
+1. Encha a mangueira pelo controle manual.
+2. Rode ensaios em várias velocidades (ex.: S = 50, 100, 250, 500, 750, 1000). O nó cronometra cada
+   ensaio e para o motor no prazo; informe o volume lido na proveta.
+3. Escolha a velocidade de transição St (o app sugere a de menor erro) e confira o ajuste no gráfico.
+4. **Salvar** grava o perfil da mangueira; **Enviar ao nó** aplica os nove coeficientes e espera o eco
+   (CRC). Sem eco em 15 s, nada é dado como aplicado.
+
+#### E.2 Ponto de dosagem · modo pulsos
+
+Usado pela dosagem por pulsos. É **uma velocidade fixa e a vazão medida nela**. Não depende da curva
+e não expira; a data aparece no cartão. Requer bomba 3.13 e Hub 10.9.
+
+1. Encha a mangueira pelo controle manual.
+2. **Tabela do ponto.** Cada linha é um ensaio: S, tempo (s), volume (mL), vazão, **t₀ (ms)** e origem.
+   As linhas chegam de três jeitos:
+   - **Iniciar ensaio** (ex.: S = 120 por 120 s, cronometrado pelo nó): ao informar o volume da
+     proveta, o ensaio vira uma linha;
+   - **Importar da curva**: escolha uma velocidade que tenha ensaios na curva e eles são copiados
+     para a tabela. É uma cópia: editar a curva depois não muda o ponto;
+   - **+ Linha**: digite um ensaio feito fora do app.
+3. Marque **Ativa** nas linhas que formam o ponto. Todas na mesma velocidade; várias dão média e CV
+   (acima de 3 % o app pede outra repetição). Um ensaio feito em outra velocidade entra **inativo**.
+   **✕** remove a linha.
+4. **t₀ (atraso de partida)** é opcional. Digite-o na tabela se o conhecer, ou meça com a
+   **Verificação em pulsos** (N pulsos pela dosagem do próprio nó). O digitado vale sobre o medido.
+   Sem t₀, a dosagem recomenda pulsos de pelo menos 2 s.
+5. **Salvar no perfil** grava a tabela na mangueira; **Usar na dosagem** define o ponto do cartão;
+   **Enviar ao nó** grava S, vazão e t₀ na bomba e espera o eco.
+
+**Zerar volume** (na gaveta Bomba Externa) zera o acumulador `PumpVol` no nó; o app espera o quadro
+seguinte para confirmar, não zera localmente. O volume é **estimado** pela calibração: confira na
+proveta ao fim de um cultivo.
 
 ---
 

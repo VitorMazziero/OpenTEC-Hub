@@ -189,6 +189,28 @@ public static class WireCodec
                 {
                     AppendLong(buffer, TelemetryKeys.PumpCalCrc, model.PumpCalCrc);
                 }
+
+                // Pump 3.13 through Hub 10.9.
+                AppendLong(buffer, TelemetryKeys.PumpUptimeS, (long)model.UptimeSeconds);
+                AppendLong(buffer, TelemetryKeys.PumpBootCount, model.PumpBootCount);
+                AppendInt(buffer, TelemetryKeys.PumpResetReason, model.PumpResetReason);
+                AppendLong(buffer, TelemetryKeys.PumpRejCmdId, model.PumpRejCmdId);
+                AppendString(buffer, TelemetryKeys.PumpRejErr, model.PumpRejErr);
+                AppendInt(buffer, TelemetryKeys.PumpDrive, model.PumpDrive);
+                AppendBool(buffer, TelemetryKeys.PumpLiquidSensor, model.PumpLiquidSensor);
+                AppendBool(buffer, TelemetryKeys.PumpLiquidOk, model.PumpLiquidOk);
+                AppendBool(buffer, TelemetryKeys.PumpDoseActive, model.PumpDoseActive);
+                AppendBool(buffer, TelemetryKeys.PumpDosePulse, model.PumpDosePulse);
+                Append(buffer, TelemetryKeys.PumpDoseMl, model.PumpDose.VolumeMl, 3);
+                Append(buffer, TelemetryKeys.PumpDosePeriodS, model.PumpDose.PeriodS, 1);
+                Append(buffer, TelemetryKeys.PumpDoseSpeed, model.PumpDose.Speed, 1);
+                Append(buffer, TelemetryKeys.PumpDoseRate, model.PumpDose.RateMlMin, 3);
+                Append(buffer, TelemetryKeys.PumpDoseTotal, model.PumpDose.TotalMl, 3);
+                Append(buffer, TelemetryKeys.PumpDoseDeadMs, model.PumpDose.DeadMs, 0);
+                Append(buffer, TelemetryKeys.PumpDoseDelivered, model.PumpDoseDelivered, 3);
+                AppendLong(buffer, TelemetryKeys.PumpDosePulses, model.PumpDosePulses);
+                AppendLong(buffer, TelemetryKeys.PumpDoseNextS, model.PumpDoseNextS);
+                Append(buffer, TelemetryKeys.PumpDoseShortfall, 0.0, 3);
             }
         }
 
@@ -557,10 +579,23 @@ public static class WireCodec
             model.EnqueueServoCommand("poll_ms");
         }
 
+        // Pump 3.13 validates the whole frame first: refused, nothing applies and the refusal
+        // code is published until the next accepted frame.
+        if (model.PumpEnabled && IsPumpFrame(root))
+        {
+            var refusal = ValidatePumpFrame(root, model);
+            model.NotePumpFrame(refusal);
+            if (refusal is not null)
+            {
+                goto AfterPump;
+            }
+        }
+
         // The Hub forwards the pump block only while routing is on, so mode:0 arriving in the
         // same frame as pumpComm:0 is dropped - which is exactly why the app sends two.
         if (model.PumpEnabled && TryDouble(root, CommandKeys.Mode, out var pumpMode))
         {
+            model.StopPumpDose();
             model.PumpMode = (int)pumpMode;
         }
 
@@ -568,6 +603,7 @@ public static class WireCodec
         // mirrors that so the volumetric calibration can be rehearsed without a bench.
         if (model.PumpEnabled && TryDouble(root, CommandKeys.PumpManualSpeed, out var manualSpeed))
         {
+            model.StopPumpDose();
             model.PumpMode = 0;
             model.PumpManualSpeed = Math.Clamp(manualSpeed, 0.0, 1000.0);
             model.PumpPotEnabled = false;
@@ -581,6 +617,25 @@ public static class WireCodec
                 model.PumpManualSpeed = 0.0;
             }
         }
+
+        // Pulse dosing: parameters, then start/stop, last in the frame like the firmware.
+        if (model.PumpEnabled)
+        {
+            model.PumpDose = MergeDose(root, model.PumpDose);
+            if (TryDouble(root, CommandKeys.PumpDose, out var dose))
+            {
+                if (dose == 1)
+                {
+                    model.StartPumpDose();
+                }
+                else
+                {
+                    model.StopPumpDose();
+                }
+            }
+        }
+
+    AfterPump:
 
         if (TryDouble(root, CommandKeys.AgitatorPercent, out var agitatorPercent))
         {
@@ -770,6 +825,56 @@ public static class WireCodec
         }
 
         return true;
+    }
+
+    private static readonly string[] PumpFrameKeys =
+    [
+        CommandKeys.Mode, CommandKeys.PumpManualSpeed, CommandKeys.PumpPotentiometers, CommandKeys.PumpCommand,
+        CommandKeys.PumpDose, CommandKeys.PumpDoseMl, CommandKeys.PumpDosePeriodS, CommandKeys.PumpDoseSpeed,
+        CommandKeys.PumpDoseRateMlMin, CommandKeys.PumpDoseTotalMl, CommandKeys.PumpDoseDeadMs,
+        CommandKeys.PumpPidKp, CommandKeys.PumpTransitionSpeed,
+    ];
+
+    private static bool IsPumpFrame(JsonElement root)
+        => PumpFrameKeys.Any(key => root.TryGetProperty(key, out _));
+
+    private static PumpDoseParameters MergeDose(JsonElement root, PumpDoseParameters current)
+        => new(
+            TryDouble(root, CommandKeys.PumpDoseMl, out var ml) ? ml : current.VolumeMl,
+            TryDouble(root, CommandKeys.PumpDosePeriodS, out var per) ? per : current.PeriodS,
+            TryDouble(root, CommandKeys.PumpDoseSpeed, out var spd) ? spd : current.Speed,
+            TryDouble(root, CommandKeys.PumpDoseRateMlMin, out var rate) ? rate : current.RateMlMin,
+            TryDouble(root, CommandKeys.PumpDoseTotalMl, out var tot) ? tot : current.TotalMl,
+            TryDouble(root, CommandKeys.PumpDoseDeadMs, out var dead) ? dead : current.DeadMs);
+
+    /// <summary>The dosing part of the firmware's <c>validateFrame</c> (FrameValidate.h).</summary>
+    private static string? ValidatePumpFrame(JsonElement root, DeviceModel model)
+    {
+        var hasMode = TryDouble(root, CommandKeys.Mode, out var mode);
+        if (hasMode && (mode < 0 || mode > 5))
+        {
+            return "mode_range";
+        }
+
+        var next = MergeDose(root, model.PumpDose);
+        var touched = next != model.PumpDose;
+        var hasDose = TryDouble(root, CommandKeys.PumpDose, out var dose);
+        if (hasDose && dose != 0 && dose != 1)
+        {
+            return "dose_range";
+        }
+
+        var starting = hasDose && dose == 1;
+        var stopping = hasDose && dose == 0;
+        var cancels = hasMode || root.TryGetProperty(CommandKeys.PumpManualSpeed, out _);
+        var staysActive = model.PumpDoseActive && !cancels && !stopping;
+        if ((starting || (touched && staysActive)) && PumpDoseRules.Validate(next) is { } code)
+        {
+            return code;
+        }
+
+        var busyAfter = hasMode ? mode > 0 : model.PumpMode > 0;
+        return starting && busyAfter ? "dose_busy" : null;
     }
 
     private static bool TryDouble(JsonElement root, string key, out double value)

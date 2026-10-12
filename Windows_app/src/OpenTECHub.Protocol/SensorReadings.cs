@@ -343,6 +343,28 @@ public sealed class SensorReadings
     public double? PumpC2 { get; set; }
     public long? PumpCalCrc { get; set; }
 
+    public long? PumpUptimeS { get; set; }
+    public long? PumpBootCount { get; set; }
+    public int? PumpResetReason { get; set; }
+    public long? PumpRejCmdId { get; set; }
+    public string? PumpRejErr { get; set; }
+    public int? PumpDrive { get; set; }
+    public bool? PumpLiquidSensor { get; set; }
+    public bool? PumpLiquidOk { get; set; }
+    public double? PumpProfileMin { get; set; }
+    public bool? PumpDoseActive { get; set; }
+    public bool? PumpDosePulse { get; set; }
+    public double? PumpDoseMl { get; set; }
+    public double? PumpDosePeriodS { get; set; }
+    public double? PumpDoseSpeed { get; set; }
+    public double? PumpDoseRate { get; set; }
+    public double? PumpDoseTotal { get; set; }
+    public double? PumpDoseDeadMs { get; set; }
+    public double? PumpDoseDelivered { get; set; }
+    public long? PumpDosePulses { get; set; }
+    public long? PumpDoseNextS { get; set; }
+    public double? PumpDoseShortfall { get; set; }
+
     public int? BiomassGear { get; set; }
     public double? BiomassEma { get; set; }
     public int? BiomassProbePeriodMs { get; set; }
@@ -560,6 +582,27 @@ public sealed class SensorReadings
         PumpF2 = PumpF2,
         PumpC2 = PumpC2,
         PumpCalCrc = PumpCalCrc,
+        PumpUptimeS = PumpUptimeS,
+        PumpBootCount = PumpBootCount,
+        PumpResetReason = PumpResetReason,
+        PumpRejCmdId = PumpRejCmdId,
+        PumpRejErr = PumpRejErr,
+        PumpDrive = PumpDrive,
+        PumpLiquidSensor = PumpLiquidSensor,
+        PumpLiquidOk = PumpLiquidOk,
+        PumpProfileMin = PumpProfileMin,
+        PumpDoseActive = PumpDoseActive,
+        PumpDosePulse = PumpDosePulse,
+        PumpDoseMl = PumpDoseMl,
+        PumpDosePeriodS = PumpDosePeriodS,
+        PumpDoseSpeed = PumpDoseSpeed,
+        PumpDoseRate = PumpDoseRate,
+        PumpDoseTotal = PumpDoseTotal,
+        PumpDoseDeadMs = PumpDoseDeadMs,
+        PumpDoseDelivered = PumpDoseDelivered,
+        PumpDosePulses = PumpDosePulses,
+        PumpDoseNextS = PumpDoseNextS,
+        PumpDoseShortfall = PumpDoseShortfall,
         BiomassGear = BiomassGear,
         BiomassEma = BiomassEma,
         BiomassProbePeriodMs = BiomassProbePeriodMs,
@@ -934,6 +977,54 @@ public sealed record SensorSnapshot
 
     /// <summary>Dual-range calibration CRC32 echo (pump 3.11, Hub 10.3).</summary>
     public long? PumpCalCrc { get; init; }
+
+    // ---- Pump 3.13 via Hub 10.9 (null = older pump or Hub) ------------------
+
+    /// <summary>Node uptime, s. Published whenever the node is present.</summary>
+    public long? PumpUptimeS { get; init; }
+
+    /// <summary>Boot counter kept in the node's NVS; a change means the pump restarted.</summary>
+    public long? PumpBootCount { get; init; }
+
+    /// <summary><c>esp_reset_reason()</c> of the last boot (<see cref="PumpNodeText.ResetReason"/>).</summary>
+    public int? PumpResetReason { get; init; }
+
+    /// <summary>Last Hub command the node refused (0 = none, or a local command).</summary>
+    public long? PumpRejCmdId { get; init; }
+
+    /// <summary>Refusal code (<see cref="PumpDoseRules.DescribeRefusal"/>); empty = last frame accepted.</summary>
+    public string? PumpRejErr { get; init; }
+
+    /// <summary>Who drives the motor (<see cref="PumpDriveState"/>).</summary>
+    public int? PumpDrive { get; init; }
+
+    /// <summary>Liquid-presence sensor enabled on the node.</summary>
+    public bool? PumpLiquidSensor { get; init; }
+
+    /// <summary>Motor allowed by the liquid sensor (or the sensor is off).</summary>
+    public bool? PumpLiquidOk { get; init; }
+
+    /// <summary>Profile time on the node's own clock, min.</summary>
+    public double? PumpProfileMin { get; init; }
+
+    public bool? PumpDoseActive { get; init; }
+    public bool? PumpDosePulse { get; init; }
+    public double? PumpDoseMl { get; init; }
+    public double? PumpDosePeriodS { get; init; }
+    public double? PumpDoseSpeed { get; init; }
+    public double? PumpDoseRate { get; init; }
+    public double? PumpDoseTotal { get; init; }
+    public double? PumpDoseDeadMs { get; init; }
+
+    /// <summary>Volume delivered by the current dosing run, mL (estimated: rate × motor time).</summary>
+    public double? PumpDoseDelivered { get; init; }
+    public long? PumpDosePulses { get; init; }
+
+    /// <summary>Seconds until the next pulse; 0 during a pulse.</summary>
+    public long? PumpDoseNextS { get; init; }
+
+    /// <summary>Volume that did not come out because the liquid sensor held the motor, mL.</summary>
+    public double? PumpDoseShortfall { get; init; }
 
     public int? BiomassGear { get; init; }
     public double? BiomassEma { get; init; }

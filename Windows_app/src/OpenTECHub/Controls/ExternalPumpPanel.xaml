@@ -1,0 +1,415 @@
+<UserControl x:Class="OpenTECHub.Controls.ExternalPumpPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:OpenTECHub.Converters"
+             xmlns:ctl="clr-namespace:OpenTECHub.Controls">
+    <!-- The external pump's drawer (plan 2026-10-11 §5.2). DataContext: PumpControlViewModel.
+         Extracted from ControlView so the pulse panel (Phase 6) has its own file to grow in. -->
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:NullToVisibilityConverter x:Key="NullToVis" />
+        <ctl:NotNullToBoolConverter x:Key="NotNull" />
+        <ctl:DoseZoneBrushConverter x:Key="ZoneBrush" />
+        <Style x:Key="DosingFieldLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="StatusLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        </Style>
+        <Style x:Key="StatusValue" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style x:Key="StatusBlock" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusSmall}" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="MinWidth" Value="170" />
+        </Style>
+        <!-- The pump cannot be commanded while its node is offline: every entry stays dimmed
+             until it reports online, the same rule as the row switch. -->
+        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="IsEnabled" Value="{Binding Status.IsOnline}" />
+        </Style>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="IsEnabled" Value="{Binding Status.IsOnline}" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <!-- ── Estado: what the pump is doing, in blocks rather than grey captions. ── -->
+        <WrapPanel Margin="0,0,0,4">
+            <Border Style="{StaticResource StatusBlock}">
+                <StackPanel>
+                    <TextBlock Text="Estado" Style="{StaticResource StatusLabel}" />
+                    <TextBlock Text="{Binding PumpRunStateText}" Style="{StaticResource StatusValue}" />
+                    <TextBlock Text="{Binding PumpModeText, StringFormat='Modo no nó: {0}'}" Style="{StaticResource StatusLabel}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatusBlock}">
+                <StackPanel>
+                    <TextBlock Text="Volume da sessão (estimado)" Style="{StaticResource StatusLabel}" />
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Zerar" Command="{Binding ResetVolumeCommand}"
+                                Padding="8,1" FontSize="{DynamicResource FontSizeCaption}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                ToolTip="Zera o volume acumulado registrado no nó da bomba (espera confirmação pela telemetria)" />
+                        <TextBlock Style="{StaticResource StatusValue}"><Run Text="{Binding PumpVolumeText, Mode=OneWay}" /><Run Text=" mL" /></TextBlock>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatusBlock}">
+                <StackPanel>
+                    <TextBlock Text="Ciclo / alvo do nó" Style="{StaticResource StatusLabel}" />
+                    <TextBlock Style="{StaticResource StatusValue}"><Run Text="{Binding CycleVolumeText, Mode=OneWay}" /><Run Text=" · alvo " /><Run Text="{Binding PumpTargetVolumeText, Mode=OneWay}" /><Run Text=" mL" /></TextBlock>
+                    <TextBlock Text="{Binding DeviationText}" Visibility="{Binding DeviationText, Converter={StaticResource NullToVis}}" Style="{StaticResource StatusLabel}" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatusBlock}">
+                <StackPanel>
+                    <TextBlock Text="Calibração" Style="{StaticResource StatusLabel}" />
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Calibrar…" Padding="6,0" FontSize="{DynamicResource FontSizeCaption}" Margin="8,0,0,0"
+                                Command="{Binding DataContext.OpenCalibrationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="pump-curve" ToolTip="Abre Calibrações › Bomba Externa › Curva polinomial" />
+                        <TextBlock Text="{Binding CurveStatusText}" Style="{StaticResource StatusValue}" />
+                    </DockPanel>
+                    <DockPanel Margin="0,2,0,0">
+                        <Button DockPanel.Dock="Right" Content="Calibrar…" Padding="6,0" FontSize="{DynamicResource FontSizeCaption}" Margin="8,0,0,0"
+                                Command="{Binding DataContext.OpenCalibrationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="pump-dose" ToolTip="Abre Calibrações › Bomba Externa › Ponto de dosagem" />
+                        <TextBlock Text="{Binding DosePointStatusText}" Style="{StaticResource StatusValue}" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource StatusBlock}"
+                    Visibility="{Binding LiquidSensorText, Converter={StaticResource NullToVis}}">
+                <StackPanel>
+                    <TextBlock Text="Nó" Style="{StaticResource StatusLabel}" />
+                    <TextBlock Text="{Binding LiquidSensorText}" Style="{StaticResource StatusValue}" FontWeight="Normal" />
+                    <TextBlock Text="{Binding LastRebootText}" Style="{StaticResource StatusLabel}" />
+                </StackPanel>
+            </Border>
+        </WrapPanel>
+
+        <!-- ── Modo de acionamento: one calibration per mode. ── -->
+        <DockPanel Margin="0,0,0,10" LastChildFill="True">
+            <Border Style="{StaticResource SegmentedGroupBorderStyle}" DockPanel.Dock="Left">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Style="{StaticResource SegmentedRadioStyle}"
+                                 IsChecked="{Binding IsContinuousMode, Mode=TwoWay}" Content="Contínuo (perfil)"
+                                 ToolTip="Perfis Const, Linear, Exp, Poli e Segmentos; usam a curva polinomial do nó." />
+                    <RadioButton Style="{StaticResource SegmentedRadioStyle}"
+                                 IsChecked="{Binding IsPulseMode, Mode=TwoWay}" Content="Pulsos"
+                                 IsEnabled="{Binding CanUsePulseMode}"
+                                 ToolTip="{Binding PulseModeHint}" ToolTipService.ShowOnDisabled="True" />
+                </StackPanel>
+            </Border>
+            <TextBlock Text="{Binding PulseModeHint}" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap"
+                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+        </DockPanel>
+
+        <!-- No curve on the node: a continuous profile would not turn the motor. -->
+        <Border Visibility="{Binding ShowNoCurveWarning, Converter={StaticResource BoolToVis}}"
+                Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource StateWarningBrush}"
+                BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}" Padding="10,6" Margin="0,0,0,10">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Calibrar a curva" Margin="8,0,0,0"
+                        Command="{Binding DataContext.OpenCalibrationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        CommandParameter="pump-curve" />
+                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource StateWarningTextBrush}"
+                           Text="Sem curva no nó: o motor não gira em perfil contínuo. Calibre a curva polinomial ou use Pulsos. Enviar perfil fica bloqueado." />
+            </DockPanel>
+        </Border>
+
+        <!-- ── Parâmetros à esquerda, gráficos à direita (empilha em telas estreitas). ── -->
+        <Grid Visibility="{Binding IsContinuousMode, Converter={StaticResource BoolToVis}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="480" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                <WrapPanel>
+                    <StackPanel Width="170" Margin="0,0,10,10">
+                        <TextBlock Text="Perfil" Style="{StaticResource DosingFieldLabel}" />
+                        <ComboBox ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedModeOption, Mode=TwoWay}" DisplayMemberPath="Label" />
+                    </StackPanel>
+                    <StackPanel Width="130" Margin="0,0,10,10">
+                        <TextBlock Text="Tempo inicial (min)" Style="{StaticResource DosingFieldLabel}" />
+                        <TextBox Text="{Binding InitMinutesText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Minutos ≥ 0" />
+                    </StackPanel>
+                    <StackPanel Width="130" Margin="0,0,10,10">
+                        <TextBlock Text="Tempo final (min)" Style="{StaticResource DosingFieldLabel}" />
+                        <TextBox Text="{Binding FinalMinutesText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Maior que o inicial" />
+                    </StackPanel>
+                </WrapPanel>
+
+                <WrapPanel Visibility="{Binding ShowConstant, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Width="160" Margin="0,0,10,10">
+                        <TextBlock Text="λ (mL/min)" Style="{StaticResource DosingFieldLabel}" />
+                        <TextBox Text="{Binding LambdaConstText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </WrapPanel>
+                <WrapPanel Visibility="{Binding ShowLinear, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Width="160" Margin="0,0,10,10">
+                        <TextBlock Text="λ (mL/min)" Style="{StaticResource DosingFieldLabel}" />
+                        <TextBox Text="{Binding LambdaLinearText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Width="160" Margin="0,0,10,10">
+                        <TextBlock Text="φ (mL/min²)" Style="{StaticResource DosingFieldLabel}" />
+                        <TextBox Text="{Binding PhiLinearText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </WrapPanel>
+                <WrapPanel Visibility="{Binding ShowExponential, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Width="160" Margin="0,0,10,10">
+                        <TextBlock Text="λ (mL/min)" Style="{StaticResource DosingFieldLabel}" />
+                        <TextBox Text="{Binding LambdaExpText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Width="160" Margin="0,0,10,10">
+                        <TextBlock Text="φ (1/min)" Style="{StaticResource DosingFieldLabel}" />
+                        <TextBox Text="{Binding PhiExpText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </WrapPanel>
+                <StackPanel Visibility="{Binding ShowPolynomial, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Coeficientes p0..p20 (vírgula)" Style="{StaticResource DosingFieldLabel}" />
+                    <TextBox Text="{Binding PolynomialCoefficientsText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="p0, p1, p2, … — até 21 valores, ordem crescente de grau" Margin="0,0,0,10" />
+                </StackPanel>
+                <StackPanel Visibility="{Binding ShowPiecewise, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Tempos t0..tN [min] (vírgula; t0 = 0, crescentes)" Style="{StaticResource DosingFieldLabel}" />
+                    <TextBox Text="{Binding PiecewiseTimesText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8" />
+                    <TextBlock Text="Vazões q0..qN [mL/min] (vírgula)" Style="{StaticResource DosingFieldLabel}" />
+                    <TextBox Text="{Binding PiecewiseFlowsText, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+                </StackPanel>
+
+                <TextBlock Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0">
+                    <Run Text="Pico " /><Run Text="{Binding PeakFlowText, Mode=OneWay}" /><Run Text=" mL/min · total " /><Run Text="{Binding TotalVolumeText, Mode=OneWay}" /><Run Text=" mL" />
+                </TextBlock>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1">
+                <ctl:PumpPlanChart Preview="{Binding Preview}" Height="320"
+                                   LiveMinutes="{Binding LiveMinutes}" LiveFlow="{Binding LiveFlow}" LiveVolume="{Binding LiveVolume}" />
+                <TextBlock Text="{Binding LiveNote}" Visibility="{Binding LiveNote, Converter={StaticResource NullToVis}}"
+                           Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                <Border Visibility="{Binding IsDeviationAlert, Converter={StaticResource BoolToVis}}" Margin="0,6,0,0" Padding="8,4"
+                        BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}">
+                    <TextBlock Text="{Binding DeviationText}" Foreground="{DynamicResource StateWarningTextBrush}" TextWrapping="Wrap" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- ── Pulsos: meta, ponto de dosagem e granularidade (plano 2026-10-11 §4, §5.2). ── -->
+        <Grid x:Name="PulsePanel" Visibility="{Binding IsPulseMode, Converter={StaticResource BoolToVis}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="480" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Margin="0,0,16,0" DataContext="{Binding Dosing}" IsEnabled="{Binding CanEditPlan}">
+                <TextBlock Text="Meta" Style="{StaticResource DosingFieldLabel}" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <RadioButton IsChecked="{Binding IsTargetByVolume, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"
+                                 AutomationProperties.Name="Meta por volume e duração" />
+                    <TextBox Width="80" Text="{Binding TargetVolumeText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsTargetByVolume}" />
+                    <TextBlock Text=" mL em " VerticalAlignment="Center" />
+                    <TextBox Width="70" Text="{Binding TargetHoursText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsTargetByVolume}" />
+                    <TextBlock Text=" h" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <RadioButton IsChecked="{Binding IsTargetByFlow, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,6,0"
+                                 AutomationProperties.Name="Meta por vazão média" />
+                    <TextBox Width="100" Text="{Binding MeanFlowText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsTargetByFlow}" />
+                    <TextBlock Text=" mL/min (sem limite de volume)" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Text="Ponto de dosagem" Style="{StaticResource DosingFieldLabel}" />
+                <DockPanel Margin="0,0,0,10">
+                    <Button DockPanel.Dock="Right" Content="Calibrar…" Padding="6,0" Margin="8,0,0,0" VerticalAlignment="Top"
+                            Command="{Binding DataContext.OpenCalibrationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="pump-dose" ToolTip="Abre Calibrações › Bomba Externa › Ponto de dosagem" />
+                    <TextBlock Text="{Binding DosePointText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+
+                <TextBlock Text="Granularidade" Style="{StaticResource DosingFieldLabel}" />
+                <Grid Margin="0,2,0,0" IsEnabled="{Binding Plan, Converter={StaticResource NotNull}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="muitos e pequenos" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <StackPanel Grid.Column="1">
+                        <Slider Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
+                                Value="{Binding SliderPosition, Mode=TwoWay}" VerticalAlignment="Center"
+                                AutomationProperties.Name="Granularidade da dosagem"
+                                ToolTip="Mesmo volume e mesma vazão média; muda só como o volume é dividido no tempo." />
+                        <!-- Zones under the track: amber while the pulse is shorter than the recommended minimum. -->
+                        <Grid Height="5" Margin="6,3,6,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding AmberWidth}" />
+                                <ColumnDefinition Width="{Binding GreenWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="{DynamicResource StateWarningBrush}" CornerRadius="2,0,0,2"
+                                    ToolTip="Precisão baixa: pulso menor que o mínimo recomendado" />
+                            <Border Grid.Column="1" Background="{DynamicResource StateOkBrush}" CornerRadius="0,2,2,0"
+                                    ToolTip="Precisão boa" />
+                        </Grid>
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="poucos e grandes" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                </Grid>
+                <TextBlock Text="{Binding PulseText}" FontWeight="SemiBold" Margin="0,6,0,0" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ScheduleText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding StartErrorText}" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ZoneText}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,2,0,0"
+                           Foreground="{Binding Zone, Converter={StaticResource ZoneBrush}}" />
+                <TextBlock Text="{Binding ClampNotice}" Visibility="{Binding ClampNotice, Converter={StaticResource NullToVis}}"
+                           Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateWarningTextBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                <TextBlock Text="{Binding PlanError}" Visibility="{Binding PlanError, Converter={StaticResource NullToVis}}"
+                           Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateAlarmTextBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                <CheckBox Content="Parar ao atingir o volume da meta" IsChecked="{Binding StopAtTotal, Mode=TwoWay}"
+                          IsEnabled="{Binding IsTargetByVolume}" Margin="0,8,0,0" />
+
+                <Expander Header="Editar valores exatos" Margin="0,8,0,0">
+                    <StackPanel Margin="0,6,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="Período (s)" Width="160" VerticalAlignment="Center" />
+                            <TextBox Width="90" Text="{Binding ExactPeriodText}" />
+                            <Button Content="Aplicar" Command="{Binding ApplyExactPeriodCommand}" Margin="6,0,0,0" Padding="8,1" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="Volume por pulso (mL)" Width="160" VerticalAlignment="Center" />
+                            <TextBox Width="90" Text="{Binding ExactVolumeText}" />
+                            <Button Content="Aplicar" Command="{Binding ApplyExactVolumeCommand}" Margin="6,0,0,0" Padding="8,1" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Intervalo máximo (min)" Width="160" VerticalAlignment="Center" />
+                            <TextBox Width="90" Text="{Binding MaxIntervalMinutesText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <TextBlock Text="O período é arredondado (1 s até 2 min, 5 s até 10 min, 15 s acima) e recortado à faixa possível; volume e tempo de pulso são recalculados a partir dele."
+                                   Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    </StackPanel>
+                </Expander>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" DataContext="{Binding Dosing}">
+                <ctl:PumpPlanChart DosePreview="{Binding Preview}" MeanFlow="{Binding MeanFlowMlMin}" Height="320"
+                                   LiveMinutes="{Binding LiveMinutes}" LiveFlow="{Binding LiveFlow}" LiveVolume="{Binding LiveVolume}" />
+                <TextBlock Text="{Binding RunText}" Visibility="{Binding RunText, Converter={StaticResource NullToVis}}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0" />
+                <TextBlock Text="{Binding DeviationText}" Visibility="{Binding DeviationText, Converter={StaticResource NullToVis}}"
+                           Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                <Border Visibility="{Binding IsDeviationAlert, Converter={StaticResource BoolToVis}}" Margin="0,6,0,0" Padding="8,4"
+                        BorderBrush="{DynamicResource StateWarningBrush}" BorderThickness="1" CornerRadius="{DynamicResource RadiusSmall}">
+                    <TextBlock Text="A entrega se afastou do plano por mais de dois períodos: confira o sensor de líquido, a mangueira e o ponto de dosagem."
+                               Foreground="{DynamicResource StateWarningTextBrush}" TextWrapping="Wrap" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+
+        <!-- ── Gás proporcional, recolhido com resumo. ── -->
+        <Expander Margin="0,12,0,0">
+            <Expander.Header>
+                <TextBlock><Run Text="Gás proporcional" FontWeight="SemiBold" /><Run Text=" — " /><Run Text="{Binding GasSummaryText, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}" /></TextBlock>
+            </Expander.Header>
+            <Border Margin="0,8,0,0" Padding="12" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="{DynamicResource RadiusSmall}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton Style="{StaticResource ToggleSwitchStyle}" IsEnabled="{Binding Status.IsOnline}"
+                                      IsChecked="{Binding GasProportionalEnabled, Mode=TwoWay}" VerticalAlignment="Center" />
+                        <TextBlock Text="Q_g = (V₀ + Vol/1000)·vvm" VerticalAlignment="Center" Margin="10,0,0,0" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <WrapPanel Margin="0,10,0,0">
+                        <StackPanel Width="150" Margin="0,0,10,10">
+                            <TextBlock Text="Vol. inicial V₀ (L)" Style="{StaticResource DosingFieldLabel}" />
+                            <TextBox Text="{Binding InitialVolumeText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Width="150" Margin="0,0,10,10">
+                            <TextBlock Text="vvm" Style="{StaticResource DosingFieldLabel}" />
+                            <TextBox Text="{Binding VvmText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Width="150" Margin="0,0,10,10">
+                            <TextBlock Text="Q_g agora (L/min)" Style="{StaticResource DosingFieldLabel}" />
+                            <TextBlock Text="{Binding GasFlowText}" Style="{StaticResource NumericTextStyle}" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <TextBlock Text="Quando ativo, comanda a aeração pelo mesmo árbitro do controle manual/cascata. É recusado se a cascata detiver a aeração. Se o volume da bomba cair sem pedido de zerar, o último valor é mantido."
+                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Expander>
+
+        <!-- ── Avançado: PID do nó (só contínuo) e potenciômetros. ── -->
+        <Expander Margin="0,8,0,0">
+            <Expander.Header>
+                <TextBlock><Run Text="Avançado" FontWeight="SemiBold" /><Run Text=" — PID do nó · potenciômetros" Foreground="{DynamicResource TextSecondaryBrush}" /></TextBlock>
+            </Expander.Header>
+            <StackPanel Margin="0,8,0,0">
+                <StackPanel Visibility="{Binding IsContinuousMode, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="PID de volume do nó" FontWeight="SemiBold" />
+                    <TextBlock Text="O nó fecha a malha sobre o volume estimado do ciclo (integral do perfil × volume integrado do duty). Corrige a execução, não a calibração. Padrões de fábrica: Kp 0,5 · Ki 0,05 · Kd 0,001."
+                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,2,0,6" />
+                    <TextBlock Text="{Binding PidUnavailableText}" Visibility="{Binding PidUnavailableText, Converter={StaticResource NullToVis}}"
+                               Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource StateWarningTextBrush}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                    <WrapPanel IsEnabled="{Binding CanEditPid}">
+                        <StackPanel Width="120" Margin="0,0,10,6">
+                            <TextBlock Text="Kp" Style="{StaticResource DosingFieldLabel}" />
+                            <TextBox Text="{Binding PidKpText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Width="120" Margin="0,0,10,6">
+                            <TextBlock Text="Ki" Style="{StaticResource DosingFieldLabel}" />
+                            <TextBox Text="{Binding PidKiText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Width="120" Margin="0,0,10,6">
+                            <TextBlock Text="Kd" Style="{StaticResource DosingFieldLabel}" />
+                            <TextBox Text="{Binding PidKdText, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <DockPanel Margin="0,2,0,8">
+                        <Button DockPanel.Dock="Right" Content="Enviar PID" Command="{Binding SendPidCommand}" />
+                        <TextBlock Text="{Binding AppliedPidText}" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
+                    </DockPanel>
+                </StackPanel>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Potenciômetros" Command="{Binding TogglePotentiometersCommand}"
+                            ToolTip="Alterna o comando manual de bancada. Ligar devolve o motor aos potenciômetros e esquece a velocidade manual; desligar trava os potenciômetros." />
+                    <TextBlock Text="{Binding PotentiometersText}" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}"
+                               Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+                </DockPanel>
+            </StackPanel>
+        </Expander>
+
+        <!-- ── Rodapé ── -->
+        <TextBlock Text="{Binding ValidationError}" Visibility="{Binding ValidationError, Converter={StaticResource NullToVis}}"
+                   Foreground="{DynamicResource StateAlarmTextBrush}" FontSize="{DynamicResource FontSizeCaption}" TextWrapping="Wrap" Margin="0,10,0,8" />
+        <Grid Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding Dosing.StatusText}" Visibility="{Binding IsPulseMode, Converter={StaticResource BoolToVis}}"
+                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBlock Grid.Column="0" Text="{Binding StatusText}" Visibility="{Binding IsContinuousMode, Converter={StaticResource BoolToVis}}"
+                       Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" IsEnabled="{Binding Status.IsOnline}"
+                        Visibility="{Binding IsContinuousMode, Converter={StaticResource BoolToVis}}">
+                <Button Content="Reverter" Command="{Binding RevertCommand}" Margin="0,0,6,0" />
+                <Button Content="Enviar perfil" Style="{StaticResource AccentButtonStyle}" Command="{Binding ApplyProfileCommand}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" IsEnabled="{Binding Status.IsOnline}"
+                        Visibility="{Binding IsPulseMode, Converter={StaticResource BoolToVis}}">
+                <Button Content="Parar dosagem" Command="{Binding Dosing.StopCommand}" Margin="0,0,6,0"
+                        ToolTip="Envia pump_dose:0. O interruptor da linha continua sendo a parada segura." />
+                <Button Content="Iniciar dosagem" Style="{StaticResource AccentButtonStyle}" Command="{Binding Dosing.StartCommand}"
+                        ToolTip="Envia os seis parâmetros e pump_dose:1 num só quadro; confirma pelo eco do nó." />
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</UserControl>

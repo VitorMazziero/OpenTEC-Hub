@@ -577,7 +577,7 @@ public sealed class PumpCalibrationTests
 
         vm.StartRunCommand.Execute(null);
 
-        Assert.Contains("""{"pump_speed":500,"pump_speed_ms":63000}""", device.Sent[^1]);
+        Assert.Contains("""{"pump_speed":500,"pump_speed_ms":60000}""", device.Sent[^1]);
         Assert.True(vm.IsRunning);
         Assert.False(vm.CanApply);
         Assert.False(vm.CanStartRun);
@@ -593,7 +593,7 @@ public sealed class PumpCalibrationTests
         Assert.Contains("""{"pump_speed":0}""", device.Sent[^1]);
         Assert.False(vm.IsRunning);
         Assert.True(vm.HasPendingRun);
-        Assert.Contains(60.4.ToString("F1", CultureInfo.CurrentCulture) + " s", vm.RunSummaryText);
+        Assert.Contains(60.0.ToString("F1", CultureInfo.CurrentCulture) + " s (cronometrados pelo nó)", vm.RunSummaryText);
     }
 
     [Fact]
@@ -788,7 +788,7 @@ public sealed class PumpCalibrationTests
         Assert.True(vm.CanStartManual);
 
         vm.StartManualCommand.Execute(null);
-        Assert.Contains("""{"pump_speed":500}""", device.Sent[^1]);
+        Assert.Contains("""{"pump_speed":500,"pump_speed_ms":60000}""", device.Sent[^1]);
         Assert.True(vm.IsManualRunning);
 
         vm.StopManualCommand.Execute(null);

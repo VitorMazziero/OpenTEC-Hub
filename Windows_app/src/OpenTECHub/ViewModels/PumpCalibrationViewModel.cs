@@ -25,8 +25,9 @@ public sealed partial class PumpCalibrationRunViewModel : ObservableObject
         if (point is { } stored)
         {
             SpeedText = stored.SpeedUnits.ToString("F0", CultureInfo.CurrentCulture);
-            SecondsText = stored.Seconds.ToString("F1", CultureInfo.CurrentCulture);
-            VolumeText = stored.VolumeMl.ToString("F1", CultureInfo.CurrentCulture);
+            // Up to 4 decimals: F1 rounded 4.56 mL to 4.6 on load and the next save kept the loss.
+            SecondsText = stored.Seconds.ToString("0.##", CultureInfo.CurrentCulture);
+            VolumeText = stored.VolumeMl.ToString("0.####", CultureInfo.CurrentCulture);
         }
     }
 
@@ -115,7 +116,68 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 {
     public const double MinRunSeconds = 5.0;
     public const double MaxRunSeconds = 600.0;
+    /// <summary>
+    /// Backup stop after the node's deadline. Since 2026-10-11 (D6) the node's deadline is the
+    /// run duration itself, so the point's time is the node's motor time, not the PC's clock.
+    /// </summary>
     public const double RunDeadlineMarginSeconds = 3.0;
+
+    /// <summary>Ponto de dosagem card (pulse dosing calibration, independent of the curve).</summary>
+    public PumpDosePointViewModel DosePoint { get; }
+
+    // ---- Two calibrations, two pump modes --------------------------------------------
+    // The tab shows one at a time: the polynomial curve feeds the continuous mode, the dose
+    // point feeds the pulse mode. The hose library and the manual fill serve both.
+
+    /// <summary>Curve section shown (the default); false shows the dose-point section.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDoseSection))]
+    public partial bool IsCurveSection { get; set; } = true;
+
+    public bool IsDoseSection
+    {
+        get => !IsCurveSection;
+        set
+        {
+            if (value)
+            {
+                IsCurveSection = false;
+            }
+        }
+    }
+
+    /// <summary>The hose has a usable polynomial curve (fitted now or stored in the profile).</summary>
+    public bool HasCurve => HasFit || ActiveProfile?.HasFittedCurve == true;
+
+    public bool HasDosePoint => DosePoint.HasPoint;
+
+    public string CurveStatusText => HasCurve ? "Curva ✓ · modo contínuo" : "Curva ✗ · modo contínuo indisponível";
+
+    public string DoseStatusText => HasDosePoint ? "Ponto ✓ · modo pulsos" : "Ponto ✗ · modo pulsos indisponível";
+
+    partial void OnHasFitChanged(bool value) => NotifyCalibrationStatus();
+
+    partial void OnActiveProfileChanged(PumpCalibrationProfile? value) => NotifyCalibrationStatus();
+
+    private void NotifyCalibrationStatus()
+    {
+        OnPropertyChanged(nameof(HasCurve));
+        OnPropertyChanged(nameof(CurveStatusText));
+        OnPropertyChanged(nameof(HasDosePoint));
+        OnPropertyChanged(nameof(DoseStatusText));
+    }
+
+    /// <summary>
+    /// Node-side deadline on every manual (fill-the-hose) run, ms. Renewed while the run lasts,
+    /// so a crashed app, PC or Hub stops the motor within this time instead of never.
+    /// </summary>
+    public const int ManualDeadlineMs = 60000;
+
+    /// <summary>How often the manual run's deadline is renewed.</summary>
+    public static readonly TimeSpan ManualRenewInterval = TimeSpan.FromSeconds(20);
+
+    private DateTimeOffset _manualRenewedAt;
+    private int _manualSpeed;
     private static readonly TimeSpan RunTickInterval = TimeSpan.FromMilliseconds(250);
 
     private readonly IDeviceService _device;
@@ -168,6 +230,20 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         _calibrationsDirectory = calibrationsDirectory ?? AppPaths.CalibrationsDirectory;
         _profileStore = profileStore ?? new PumpCalibrationProfileStore(AppPaths.PumpProfilesDirectory);
         _dialogs = dialogs;
+
+        // Before any profile loads: loading hands the profile's dose points to it.
+        DosePoint = new PumpDosePointViewModel(device, settings, _dispatcher, _timeProvider, () => IsRunning || IsManualRunning,
+            () => [.. Runs.Where(r => r.IsValidInput).Select(r => r.Point)]);
+        Runs.CollectionChanged += (_, _) => DosePoint.RefreshImportOptions();
+        DosePoint.SaveRequested += OnDosePointSaveRequested;
+        DosePoint.BusyChanged += NotifyCommandAvailability;
+        DosePoint.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PumpDosePointViewModel.HasPoint))
+            {
+                NotifyCalibrationStatus();
+            }
+        };
 
         RefreshProfiles();
         var activeName = _settings.Current.PumpControl.SelectedProfileName;
@@ -456,7 +532,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     public bool CanResetVolume => IsConnected && IsPumpOnline && !_awaitingResetVolume && !IsAwaitingCalibration &&
                                   !_isPumpCommandPending && !IsRunning && !IsManualRunning;
 
-    public bool CanStartRun => IsConnected && IsPumpOnline && !IsRunning && !IsManualRunning && RunValidationError is null &&
+    public bool CanStartRun => IsConnected && IsPumpOnline && !IsRunning && !IsManualRunning && !DosePoint.IsBusy && RunValidationError is null &&
                                !_isPumpCommandPending && !IsAwaitingCalibration && !_awaitingResetVolume;
 
     public bool CanAbortRun => IsRunning;
@@ -465,7 +541,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     public bool CanEditRuns => !IsRunning;
 
-    public bool CanStartManual => IsConnected && IsPumpOnline && !IsRunning && !IsManualRunning &&
+    public bool CanStartManual => IsConnected && IsPumpOnline && !IsRunning && !IsManualRunning && !DosePoint.IsBusy &&
                                   ManualValidationError is null && !_isPumpCommandPending &&
                                   !IsAwaitingCalibration && !_awaitingResetVolume;
 
@@ -566,6 +642,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         }
 
         IsDirty = true;
+        DosePoint.RefreshImportOptions();
         RecomputeFit();
     }
 
@@ -699,6 +776,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         ActiveProfileId = "";
         ActiveProfileName = "Nova mangueira";
         ProfileNotes = "";
+        DosePoint.LoadPoints([], null);
         IsDirty = false;
         RecomputeFit();
         StatusText = "Novo perfil iniciado. Adicione ou edite pontos volumétricos; a tabela pode ser salva agora e o ajuste concluído depois.";
@@ -752,6 +830,8 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             {
                 AddRun(new PumpCalibrationRunViewModel(pt));
             }
+
+            DosePoint.LoadPoints(profile.DosePoints, profile.Name, profile.DoseRuns);
         }
         finally
         {
@@ -904,6 +984,8 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             HighF = hasFittedCurve ? currentCurve.HighSpeed.F : 0.0,
             HighC = hasFittedCurve ? currentCurve.HighSpeed.C : 0.0,
             CalibrationPoints = points,
+            DosePoints = [.. DosePoint.PointsForSave()],
+            DoseRuns = [.. DosePoint.RunsForSave()],
             FitStatistics = fitStats,
             AlgorithmVersion = hasFittedCurve ? "quartic-quadratic-c1-v2" : "points-only-v1",
             OptionalNotes = ProfileNotes,
@@ -923,6 +1005,7 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         ActiveProfile = profile;
         ActiveProfileName = profile.Name;
         ActiveProfileId = profile.ProfileId;
+        DosePoint.MarkSaved(profile.Name, profile.DosePoints);
         IsDirty = false;
         _settings.Update(s => s with { PumpControl = s.PumpControl with { SelectedProfileName = profile.Name, CalibrationPoints = points } });
 
@@ -1305,13 +1388,15 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
-        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(speed));
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(speed, ManualDeadlineMs));
         if (!result.Accepted)
         {
             StatusText = DispatchRefusal.Describe(result);
             return;
         }
 
+        _manualSpeed = speed;
+        _manualRenewedAt = _timeProvider.GetUtcNow();
         IsManualRunning = true;
         StatusText = $"Controle manual ativo em S = {speed}. Pare assim que o líquido completar a mangueira.";
         NotifyCommandAvailability();
@@ -1345,7 +1430,8 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
             return;
         }
 
-        var deadlineMs = (int)Math.Ceiling((seconds + RunDeadlineMarginSeconds) * 1000.0);
+        // D6: the node stops at exactly the planned time; the app's stop at the end is a backup.
+        var deadlineMs = (int)Math.Round(seconds * 1000.0);
         var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed((int)speed, deadlineMs));
         if (!result.Accepted)
         {
@@ -1417,10 +1503,12 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         }
         else
         {
-            _lastRun = (_runSpeed, elapsed);
-            RunSummaryText = $"S {_runSpeed:F0} durante {elapsed.ToString("F1", CultureInfo.CurrentCulture)} s";
+            // The node ran the motor for exactly the planned time (its own deadline); the PC's
+            // elapsed time includes the link latency and is only reported.
+            _lastRun = (_runSpeed, _runPlannedSeconds);
+            RunSummaryText = $"S {_runSpeed:F0} durante {_runPlannedSeconds.ToString("F1", CultureInfo.CurrentCulture)} s (cronometrados pelo nó)";
             HasPendingRun = true;
-            StatusText = $"Bomba parada após {elapsed.ToString("F1", CultureInfo.CurrentCulture)} s. Leia o volume no recipiente graduado e informe abaixo.";
+            StatusText = $"Bomba parada pelo nó após {_runPlannedSeconds.ToString("F1", CultureInfo.CurrentCulture)} s. Leia o volume no recipiente graduado e informe abaixo.";
         }
 
         NotifyCommandAvailability();
@@ -1508,8 +1596,29 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
     // Telemetry and Receipts
     // ------------------------------------------------------------------
 
+    /// <summary>Keeps a manual run alive: resends the speed with a fresh deadline every 20 s.</summary>
+    private void RenewManualDeadline()
+    {
+        if (!IsManualRunning || _timeProvider.GetUtcNow() - _manualRenewedAt < ManualRenewInterval)
+        {
+            return;
+        }
+
+        var result = _dispatcher.Dispatch(CommandBuilders.PumpManualSpeed(_manualSpeed, ManualDeadlineMs));
+        if (result.Accepted)
+        {
+            _manualRenewedAt = _timeProvider.GetUtcNow();
+        }
+        else
+        {
+            StatusText = "Renovação do controle manual recusada; a bomba para sozinha em até 60 s: " +
+                         DispatchRefusal.Describe(result);
+        }
+    }
+
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
+        RenewManualDeadline();
         IsPumpOnline = snapshot.PumpOnline;
         _isPumpProfileActive = snapshot.PumpActive;
         _isPumpProfileWaiting = snapshot.PumpWaiting;
@@ -1814,6 +1923,8 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
 
     private void NotifyCommandAvailability()
     {
+        // The dose-point card blocks while a curve run or manual fill is on, and vice versa.
+        DosePoint?.NotifyAll();
         OnPropertyChanged(nameof(IsAwaitingCalibration));
         OnPropertyChanged(nameof(CanEditCalibration));
         OnPropertyChanged(nameof(CanApply));
@@ -1846,8 +1957,25 @@ public sealed partial class PumpCalibrationViewModel : ObservableObject, IDispos
         StopManualCommand.NotifyCanExecuteChanged();
     }
 
+    private void OnDosePointSaveRequested()
+    {
+        if (string.IsNullOrWhiteSpace(ActiveProfileName) || ActiveProfileName == "Nova mangueira" && string.IsNullOrEmpty(ActiveProfileId))
+        {
+            SaveProfileAs();
+        }
+        else
+        {
+            DoSaveProfile(ActiveProfileName);
+        }
+
+        DosePoint.StatusText = StatusText;
+    }
+
     public void Dispose()
     {
+        DosePoint.SaveRequested -= OnDosePointSaveRequested;
+        DosePoint.BusyChanged -= NotifyCommandAvailability;
+        DosePoint.Dispose();
         if (IsRunning || IsManualRunning)
         {
             _runTimer?.Stop();

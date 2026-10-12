@@ -866,6 +866,68 @@ public static class CommandBuilders
             .Set(CommandKeys.PumpTransitionSpeed, transitionSpeed);
     }
 
+    /// <summary>
+    /// Stores the pulse-dosing parameters on the pump without starting it (pump 3.13 via
+    /// Hub 10.9). With dosing already running they apply from the next pulse.
+    /// </summary>
+    public static OpenTECCommand PumpDoseConfigure(PumpDoseParameters parameters)
+        => DoseParameters(OpenTECCommand.Create(), parameters);
+
+    /// <summary>
+    /// Parameters and <c>pump_dose:1</c> in one frame: the node validates the whole frame and
+    /// either starts with exactly these values or refuses it (<c>PumpRejErr</c>).
+    /// </summary>
+    public static OpenTECCommand PumpDoseStart(PumpDoseParameters parameters)
+        => DoseParameters(OpenTECCommand.Create(), parameters).Set(CommandKeys.PumpDose, 1);
+
+    /// <summary>
+    /// Sends only the dose point (speed, measured flow, start-up dead time) to the pump. With
+    /// dosing stopped the node just stores them; with dosing running it validates them against
+    /// the running schedule and refuses the frame if the pulse would no longer fit.
+    /// </summary>
+    public static OpenTECCommand PumpDosePoint(double speed, double rateMlMin, double deadMs)
+    {
+        if (!double.IsFinite(speed) || speed < PumpDoseRules.SpeedMin || speed > PumpDoseRules.SpeedMax)
+        {
+            throw new ArgumentOutOfRangeException(nameof(speed), "Dose speed must be within 1..1000.");
+        }
+
+        if (!double.IsFinite(rateMlMin) || rateMlMin <= 0.0 || rateMlMin > PumpDoseRules.MaxRateMlMin)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rateMlMin), "Dose rate must be within (0, 1000] mL/min.");
+        }
+
+        if (!double.IsFinite(deadMs) || deadMs < 0.0 || deadMs > PumpDoseRules.DeadMaxMs)
+        {
+            throw new ArgumentOutOfRangeException(nameof(deadMs), "Dead time must be within [0, 2000] ms.");
+        }
+
+        return OpenTECCommand.Create()
+            .Set(CommandKeys.PumpDoseSpeed, speed)
+            .Set(CommandKeys.PumpDoseRateMlMin, rateMlMin)
+            .Set(CommandKeys.PumpDoseDeadMs, Math.Round(deadMs));
+    }
+
+    /// <summary>Stops pulse dosing: <c>{"pump_dose":0}</c>. The parameters stay on the node.</summary>
+    public static OpenTECCommand PumpDoseStop()
+        => OpenTECCommand.Create().Set(CommandKeys.PumpDose, 0);
+
+    private static OpenTECCommand DoseParameters(OpenTECCommand command, PumpDoseParameters p)
+    {
+        if (PumpDoseRules.Validate(p) is { } code)
+        {
+            throw new ArgumentOutOfRangeException(nameof(p), $"Pulse dosing parameters refused: {code}.");
+        }
+
+        return command
+            .Set(CommandKeys.PumpDoseMl, p.VolumeMl)
+            .Set(CommandKeys.PumpDosePeriodS, p.PeriodS)
+            .Set(CommandKeys.PumpDoseSpeed, p.Speed)
+            .Set(CommandKeys.PumpDoseRateMlMin, p.RateMlMin)
+            .Set(CommandKeys.PumpDoseTotalMl, p.TotalMl)
+            .Set(CommandKeys.PumpDoseDeadMs, p.DeadMs);
+    }
+
     /// <summary>Configures the external pump PID gains.</summary>
     public static OpenTECCommand PumpPid(double kp, double ki, double kd)
         => OpenTECCommand.Create()

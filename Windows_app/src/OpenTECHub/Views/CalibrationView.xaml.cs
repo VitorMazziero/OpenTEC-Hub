@@ -25,6 +25,8 @@ public partial class CalibrationView : UserControl
 
     private readonly WpfPlot _flowPlot = new();
     private readonly WpfPlot _pumpPlot = new();
+    private readonly WpfPlot _doseRepPlot = new();
+    private readonly WpfPlot _dosePulsePlot = new();
     private FlowCalibrationViewModel? _flowSubscribed;
     private PumpCalibrationViewModel? _pumpSubscribed;
 
@@ -38,6 +40,8 @@ public partial class CalibrationView : UserControl
         CalibrationTabs.Items.Insert(3, PumpTab);
         FlowPlotHost.Child = _flowPlot;
         PumpPlotHost.Child = _pumpPlot;
+        DoseRepPlotHost.Child = _doseRepPlot;
+        DosePulsePlotHost.Child = _dosePulsePlot;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         DataContextChanged += (_, _) => Attach();
@@ -82,6 +86,7 @@ public partial class CalibrationView : UserControl
             {
                 RedrawFlowCurve();
                 RedrawPumpCurve();
+                RedrawDosePlots();
             }
         });
 
@@ -98,9 +103,13 @@ public partial class CalibrationView : UserControl
         if (_pumpSubscribed is not null)
         {
             _pumpSubscribed.CurveChanged += RedrawPumpCurve;
+            _pumpSubscribed.DosePoint.Points.CollectionChanged += OnDosePointsChanged;
+            _pumpSubscribed.DosePoint.Repetitions.CollectionChanged += OnDosePointsChanged;
+            _pumpSubscribed.DosePoint.PulseChecks.CollectionChanged += OnDosePointsChanged;
         }
         RedrawFlowCurve();
         RedrawPumpCurve();
+        RedrawDosePlots();
     }
 
     private void Detach()
@@ -113,7 +122,114 @@ public partial class CalibrationView : UserControl
         if (_pumpSubscribed is not null)
         {
             _pumpSubscribed.CurveChanged -= RedrawPumpCurve;
+            _pumpSubscribed.DosePoint.Points.CollectionChanged -= OnDosePointsChanged;
+            _pumpSubscribed.DosePoint.Repetitions.CollectionChanged -= OnDosePointsChanged;
+            _pumpSubscribed.DosePoint.PulseChecks.CollectionChanged -= OnDosePointsChanged;
             _pumpSubscribed = null;
+        }
+    }
+
+    private void OnDosePointsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        RedrawPumpCurve();
+        RedrawDosePlots();
+    }
+
+    /// <summary>
+    /// Dose-point section: flow of each repetition with the mean and ±CV band, and the pulse
+    /// checks as volume per pulse against pulse length, with the line v = (Q/60000)(t − t₀).
+    /// </summary>
+    private void RedrawDosePlots()
+    {
+        var surface = ToPlotColor(TryBrush("SurfaceCardBrush"), MediaColors.White);
+        var text = ToPlotColor(TryBrush("TextPrimaryBrush"), MediaColors.Black);
+        var grid = ToPlotColor(TryBrush("StrokeDefaultBrush"), MediaColors.LightGray);
+        var accent = ToPlotColor(TryBrush("AccentBrush"), MediaColors.SteelBlue);
+        var output = ToPlotColor(TryBrush("ChartOutputBrush"), MediaColors.DarkOrange);
+
+        void Style(ScottPlot.Plot plot, string title, string x, string y)
+        {
+            plot.Clear();
+            plot.FigureBackground.Color = surface;
+            plot.DataBackground.Color = surface;
+            plot.Axes.Color(text);
+            plot.Grid.MajorLineColor = grid.WithAlpha(0.45);
+            plot.Axes.Title.Label.Text = title;
+            plot.Axes.Title.Label.ForeColor = text;
+            plot.Axes.Bottom.Label.Text = x;
+            plot.Axes.Left.Label.Text = y;
+            plot.Legend.IsVisible = true;
+            plot.Legend.Alignment = Alignment.LowerRight;
+            plot.Legend.FontSize = 10;
+            plot.Legend.BackgroundColor = surface;
+            plot.Legend.FontColor = text;
+            plot.Legend.OutlineColor = grid;
+        }
+
+        var dose = _pumpSubscribed?.DosePoint;
+        var reps = dose?.Repetitions.ToArray() ?? [];
+        DoseRepEmpty.Visibility = reps.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        DoseRepPlotHost.Visibility = reps.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (reps.Length > 0 && dose is not null)
+        {
+            var plot = _doseRepPlot.Plot;
+            Style(plot, "Repetições do ponto de dosagem", "Repetição", "Vazão (mL/min)");
+            var xs = Enumerable.Range(1, reps.Length).Select(i => (double)i).ToArray();
+            var mean = dose.MeanRateMlMin;
+            var halfBand = double.IsFinite(dose.CvPercent) ? mean * dose.CvPercent / 100.0 : 0.0;
+            if (halfBand > 0)
+            {
+                var band = plot.Add.HorizontalSpan(mean - halfBand, mean + halfBand);
+                band.FillStyle.Color = accent.WithAlpha(0.12);
+                band.LineStyle.Width = 0;
+                band.LegendText = $"± CV ({dose.CvPercent:F1} %)";
+            }
+
+            var meanLine = plot.Add.HorizontalLine(mean);
+            meanLine.Color = accent;
+            meanLine.LineWidth = 1.5f;
+            meanLine.LinePattern = LinePattern.Dashed;
+            meanLine.LegendText = $"Média {mean:F3} mL/min";
+            var scatter = plot.Add.Scatter(xs, reps.Select(r => r.RateMlMin).ToArray());
+            scatter.LineWidth = 0;
+            scatter.MarkerSize = 10;
+            scatter.MarkerShape = MarkerShape.FilledDiamond;
+            scatter.Color = output;
+            scatter.LegendText = "Vazão por ensaio";
+            var lo = reps.Min(r => r.RateMlMin);
+            var hi = reps.Max(r => r.RateMlMin);
+            var pad = Math.Max(Math.Max(halfBand * 2, (hi - lo) * 0.5), mean * 0.03);
+            plot.Axes.SetLimits(0.5, reps.Length + 0.5, Math.Max(0, lo - pad), hi + pad);
+            plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericFixedInterval(1);
+            _doseRepPlot.Refresh();
+        }
+
+        var checks = dose?.PulseChecks.ToArray() ?? [];
+        DosePulseEmpty.Visibility = checks.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        DosePulsePlotHost.Visibility = checks.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (checks.Length > 0 && dose is not null)
+        {
+            var plot = _dosePulsePlot.Plot;
+            Style(plot, "Verificação em pulsos", "Duração do pulso (ms)", "Volume por pulso (mL)");
+            var rate = dose.MeanRateMlMin;
+            var t0 = OpenTECHub.Services.Calibration.PumpDosePointMath.DeadTimeMs(checks, rate) ?? 0.0;
+            var tMax = Math.Max(checks.Max(c => c.OnMs) * 1.2, 500.0);
+            var line = plot.Add.Line(t0, 0.0, tMax, rate * (tMax - t0) / 60000.0);
+            line.Color = accent;
+            line.LineWidth = 1.5f;
+            line.LegendText = $"v = (Q/60000)·(t − {t0:F0} ms)";
+            var ideal = plot.Add.Line(0.0, 0.0, tMax, rate * tMax / 60000.0);
+            ideal.Color = grid;
+            ideal.LinePattern = LinePattern.Dashed;
+            ideal.LegendText = "Sem atraso de partida";
+            var scatter = plot.Add.Scatter(checks.Select(c => c.OnMs).ToArray(), checks.Select(c => c.PerPulseMl).ToArray());
+            scatter.LineWidth = 0;
+            scatter.MarkerSize = 9;
+            scatter.Color = output;
+            scatter.LegendText = "Medido (média por pulso)";
+            plot.Legend.Alignment = Alignment.UpperLeft;
+            plot.Axes.SetLimits(0, tMax, 0, rate * tMax / 60000.0 * 1.1);
+            _dosePulsePlot.Refresh();
         }
     }
 
@@ -299,6 +415,33 @@ public partial class CalibrationView : UserControl
                 var minimumCurveFlow = allCurveFlows.DefaultIfEmpty(0.0).Min();
                 plot.Axes.SetLimits(0, speedMaximum * 1.04,
                     curveIsValid ? 0.0 : Math.Min(0.0, minimumCurveFlow * 1.1), maximumFlow * 1.1);
+            }
+        }
+
+        // Dose points: their own marker, to see whether they agree with the curve.
+        var dosePoints = _pumpSubscribed?.DosePoint.PointsForSave()
+            .Where(p => double.IsFinite(p.SpeedUnits) && double.IsFinite(p.RateMlMin)).ToArray() ?? [];
+        if (dosePoints.Length > 0)
+        {
+            var dose = plot.Add.Scatter(dosePoints.Select(p => p.SpeedUnits).ToArray(), dosePoints.Select(p => p.RateMlMin).ToArray());
+            dose.LineWidth = 0;
+            dose.MarkerSize = 11;
+            dose.MarkerShape = MarkerShape.FilledDiamond;
+            dose.Color = ToPlotColor(TryBrush("ChartOutputBrush"), MediaColors.DarkOrange);
+            dose.LegendText = "Ponto de dosagem";
+            if (!hasMeasuredPoints && (_pumpSubscribed is null || !_pumpSubscribed.TryGetPreviewCurve(out _, out _)))
+            {
+                hasMeasuredPoints = false;
+                var maxRate = dosePoints.Max(p => p.RateMlMin);
+                plot.Axes.SetLimits(0, Math.Max(200.0, dosePoints.Max(p => p.SpeedUnits) * 1.3), 0, Math.Max(1.0, maxRate * 1.4));
+                plot.Legend.IsVisible = true;
+                plot.Legend.Alignment = Alignment.UpperLeft;
+                plot.Legend.FontSize = 10;
+                plot.Legend.BackgroundColor = surface;
+                plot.Legend.FontColor = text;
+                plot.Legend.OutlineColor = grid;
+                _pumpPlot.Refresh();
+                return;
             }
         }
 

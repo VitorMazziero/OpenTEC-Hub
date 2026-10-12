@@ -628,6 +628,32 @@ public sealed class TelemetryParser
         Readings.PumpCalCrc =
             TryGetCounter(root, TelemetryKeys.PumpCalCrc, out var calCrc) ? calCrc : null;
 
+        // Pump 3.13 (Hub 10.9) - non-sticky like the echoes above: absent means null.
+        Readings.PumpUptimeS = TryGetCounter(root, TelemetryKeys.PumpUptimeS, out var up) ? up : null;
+        Readings.PumpBootCount = TryGetCounter(root, TelemetryKeys.PumpBootCount, out var boot) ? boot : null;
+        Readings.PumpResetReason = TryGetInt(root, TelemetryKeys.PumpResetReason, out var rst) ? rst : null;
+        Readings.PumpRejCmdId = TryGetCounter(root, TelemetryKeys.PumpRejCmdId, out var rejId) ? rejId : null;
+        Readings.PumpRejErr = TryGetPropertyCaseInsensitive(root, TelemetryKeys.PumpRejErr, out var rejErr) &&
+                              rejErr.ValueKind == JsonValueKind.String
+            ? rejErr.GetString()
+            : null;
+        Readings.PumpDrive = TryGetInt(root, TelemetryKeys.PumpDrive, out var drive) ? drive : null;
+        Readings.PumpLiquidSensor = TryGetBool(root, TelemetryKeys.PumpLiquidSensor, out var sens) ? sens : null;
+        Readings.PumpLiquidOk = TryGetBool(root, TelemetryKeys.PumpLiquidOk, out var wet) ? wet : null;
+        Readings.PumpProfileMin = TryGetDouble(root, TelemetryKeys.PumpProfileMin, out var tMin) ? tMin : null;
+        Readings.PumpDoseActive = TryGetBool(root, TelemetryKeys.PumpDoseActive, out var dAct) ? dAct : null;
+        Readings.PumpDosePulse = TryGetBool(root, TelemetryKeys.PumpDosePulse, out var dPulse) ? dPulse : null;
+        Readings.PumpDoseMl = TryGetDouble(root, TelemetryKeys.PumpDoseMl, out var dMl) ? dMl : null;
+        Readings.PumpDosePeriodS = TryGetDouble(root, TelemetryKeys.PumpDosePeriodS, out var dPer) ? dPer : null;
+        Readings.PumpDoseSpeed = TryGetDouble(root, TelemetryKeys.PumpDoseSpeed, out var dSpd) ? dSpd : null;
+        Readings.PumpDoseRate = TryGetDouble(root, TelemetryKeys.PumpDoseRate, out var dRate) ? dRate : null;
+        Readings.PumpDoseTotal = TryGetDouble(root, TelemetryKeys.PumpDoseTotal, out var dTot) ? dTot : null;
+        Readings.PumpDoseDeadMs = TryGetDouble(root, TelemetryKeys.PumpDoseDeadMs, out var dDead) ? dDead : null;
+        Readings.PumpDoseDelivered = TryGetDouble(root, TelemetryKeys.PumpDoseDelivered, out var dDone) ? dDone : null;
+        Readings.PumpDosePulses = TryGetCounter(root, TelemetryKeys.PumpDosePulses, out var dN) ? dN : null;
+        Readings.PumpDoseNextS = TryGetCounter(root, TelemetryKeys.PumpDoseNextS, out var dNext) ? dNext : null;
+        Readings.PumpDoseShortfall = TryGetDouble(root, TelemetryKeys.PumpDoseShortfall, out var dShort) ? dShort : null;
+
         if (presence.HasTelemetry && !presence.Online)
         {
             // A Hub without the pump presence window republishes the last sample forever.

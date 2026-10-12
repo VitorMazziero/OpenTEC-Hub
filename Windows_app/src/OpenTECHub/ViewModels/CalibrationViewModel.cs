@@ -47,15 +47,27 @@ public sealed partial class CalibrationViewModel : ObservableObject, IDisposable
     {
         SelectedTabIndex = target switch
         {
-            // Tab order in CalibrationView.xaml. Biomass and pump used to be swapped here.
+            // The tab order on screen, not in CalibrationView.xaml: the view's constructor moves
+            // the pump tab next to temperature (index 3). Indexed by the XAML order, "pump"
+            // opened Biomassa, "flow" opened the pump and "biomass" opened Vazão de ar.
             "ph" => 0,
             "oxygen" => 1,
             "temperature" => 2,
-            "flow" => 3,
-            "biomass" => 4,
-            "pump" => 5,
+            "pump" or "pump-curve" or "pump-dose" => 3,
+            "flow" => 4,
+            "biomass" => 5,
             _ => SelectedTabIndex,
         };
+
+        // The pump card links straight to the calibration its mode needs.
+        if (target == "pump-curve")
+        {
+            Pump.IsCurveSection = true;
+        }
+        else if (target == "pump-dose")
+        {
+            Pump.IsDoseSection = true;
+        }
     }
 
     public void Dispose()

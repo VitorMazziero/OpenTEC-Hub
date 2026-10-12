@@ -1750,6 +1750,56 @@ grandezas do servo, vazão, temperatura, pressão, distância, biomassa, bomba, 
 Hampel na exibição: picos isolados (até três amostras) são desenhados na mediana local; degraus reais são
 preservados. Os dados gravados e exportados permanecem brutos. O₂ e pH já são filtrados na leitura.
 
+### D-079 · Ponto de dosagem por tabela editável, com t₀ digitado e importação da curva
+
+**Status:** Accepted and implemented · 2026-10-12
+
+O ponto de dosagem deixa de existir só como "repetições do ensaio desta seção". Ele vem de uma **tabela de linhas** (`PumpDoseRun`, salva no perfil como `doseRuns`):
+
+1. **Origem das linhas:** ensaio contínuo desta seção (cada ensaio acrescenta uma linha), **cópia dos ensaios da curva** numa velocidade escolhida, ou digitação à mão. A cópia não fica ligada à curva: editar a curva depois não muda o ponto, nem o contrário. A origem aparece na linha e no ponto (`Source`).
+2. **Linhas ativas formam o ponto:** a média da vazão (e o CV, com mais de uma) das linhas marcadas "Ativa". Todas na mesma velocidade: ativar uma linha de outra S desativa as demais e descarta as verificações em pulsos, que eram da S anterior. Um ensaio feito em outra S entra na tabela **inativo**.
+3. **t₀ digitado:** coluna opcional (0–2000 ms). A média dos t₀ digitados nas linhas ativas vale sobre o t₀ medido pela verificação em pulsos e é o que vai ao nó (`pump_dose_dead_ms`). Sem nenhum dos dois, o ponto fica com "t₀ não informado".
+4. Perfis salvos antes da tabela abrem com as repetições do ponto mais recente como linhas ativas.
+
+### D-078 · Painel de pulsos: plano congelado durante a dosagem, eco como confirmação e sobreposição no relógio do nó
+
+**Status:** Accepted and implemented · 2026-10-12 (plano `plans/2026-10-11-plano-cartao-bomba-dosagem-pulsos.md`, fases 6 e 7)
+
+1. **Deslizante de granularidade** (`PumpDosingViewModel`): meta como "V mL em D h" ou vazão média; o deslizante escolhe o período em escala logarítmica entre `T_min` e `T_max` (`PumpDoseMath`). A posição é salva como **período**; se sair da faixa depois de mudar a meta ou o intervalo máximo, é recortada e o painel avisa. Zonas sob a trilha: âmbar abaixo do pulso mínimo recomendado (2 s sem verificação em pulsos), verde acima; a zona vermelha não aparece porque a faixa já começa no mínimo do firmware.
+2. **Iniciar** manda os seis parâmetros e `pump_dose:1` num só quadro pelo despachante manual (árbitro, `ExternalPump`). Só conta como confirmado quando `PumpDoseActive` sobe **e** os parâmetros ecoados batem em 0,0005 relativo, em até 15 s; uma mudança de `PumpRejCmdId` encerra a espera com o motivo traduzido. **Parar** manda `pump_dose:0`; o interruptor da linha continua sendo a parada segura.
+3. **Plano congelado durante a dosagem**: com a dosagem ativa (ou um comando em voo), meta e deslizante ficam desabilitados. Editar o plano sem enviar mostraria uma prévia que o nó não executa. Para mudar: parar, editar, iniciar.
+4. Uma dosagem encontrada no nó (outra sessão, app reaberto) **abre o painel de pulsos** sozinha. Uma bomba online sem nenhum campo 3.13 desabilita *Pulsos* ("requer a bomba 3.13").
+5. Fim da dosagem distinguido: **Concluída** (entregue ≥ total), **Parada pelo operador**, **Interrompida** com a causa provável (sensor seco, perfil contínuo iniciado, modo 0/roteamento).
+6. **Sobreposição ao vivo** (fase 7): em pulsos, o tempo vem dos contadores do próprio nó (`decorrido = n·T − próximo`, com `n` = pulsos concluídos; durante um pulso, `n·T`); no contínuo, de `PumpProfileMin`. Assim o gráfico continua alinhado depois de reabrir o app. As amostras são guardadas pelo próprio cartão (`PumpLiveSeries`), não lidas do `TelemetryHistory`: a série precisa do relógio do plano, não do relógio de parede, e não há canal novo no histórico. Sem `t_min` (bomba anterior à 3.13), a medida não é sobreposta e o cartão diz por quê.
+7. **Desvio** = entregue − planejado no tempo atual (em pulsos, a escada de pulsos que já deveriam ter terminado; no contínuo, o alvo integral do nó). Alerta só quando passa de 5 % por mais de dois períodos (no contínuo, 2 min), porque logo antes de cada pulso a escada fica um pulso inteiro abaixo do plano.
+8. Corrigido junto: **enviar perfil ou confirmar o PID regravava `PumpControl` inteiro** a partir da cópia carregada no início, desfazendo a curva, a mangueira selecionada e o ponto de dosagem salvos em Calibrações depois disso. Agora só os campos do cartão são gravados.
+
+### D-077 · Cartão da bomba reorganizado: coluna Setpoint é a vazão-alvo, faixa de estado e dois gráficos
+
+**Status:** Accepted and implemented · 2026-10-12 (plano `plans/2026-10-11-plano-cartao-bomba-dosagem-pulsos.md`, fase 5)
+
+Na linha principal, a coluna **Setpoint** mostrava o volume. Passa a mostrar a **vazão-alvo agora** (o perfil enviado no relógio do nó, `PumpProfileMin`, ou a vazão média da dosagem). A coluna de texto fixo "5 perfis + gás prop." vira um **resumo dinâmico** (volume e tempo do perfil, progresso da dosagem com o próximo pulso, "Parada · V mL", "Bloqueada: sensor de líquido seco"). A gaveta saiu da `ControlView` para `Controls/ExternalPumpPanel.xaml`:
+
+- **faixa de estado** em blocos: estado pelo `PumpDrive`, volume da sessão (estimado) com Zerar, ciclo e alvo do nó com o desvio, **calibração** (curva no nó pelo `PumpCalCrc`, ponto de dosagem em uso) com atalhos para cada seção de Calibrações, sensor de líquido e tempo ligado/motivo do último reinício;
+- **seletor de acionamento** *Contínuo (perfil) | Pulsos*; *Pulsos* fica visível e desabilitado até o painel da fase 6;
+- **sem curva no nó** (o nó ecoa a calibração mas sem CRC): faixa de alerta e *Enviar perfil* bloqueado, porque o perfil não giraria o motor;
+- **dois gráficos empilhados** (`PumpPlanChart`: vazão em cima, volume embaixo, um eixo Y cada, X compartilhado) no lugar do gráfico de dois eixos, cujas curvas se cruzavam num ponto sem significado; já aceita as séries medidas da fase 7;
+- **gás proporcional** e **avançado** (PID do nó, só no contínuo, e potenciômetros) recolhidos, com resumo no cabeçalho; o gás mostra "Q_g no fim do plano".
+
+### D-076 · Calibração da bomba dividida por modo e atalhos de Calibrações na ordem da tela
+
+**Status:** Accepted and implemented · 2026-10-12
+
+A aba *Bomba Externa* mostra uma calibração por vez, com um seletor **Curva polinomial · modo contínuo | Ponto de dosagem · modo pulsos**. Cada lado tem o seu gráfico e o seu painel; a curva continua como era. O ponto de dosagem ganhou gráficos próprios: vazão de cada repetição com a média e a faixa do CV, e a verificação em pulsos como volume por pulso contra a duração, com a reta que cruza o eixo em t₀. A **biblioteca de perfis de mangueira** e o **controle manual** ficam fora do seletor, porque servem aos dois; a biblioteca mostra `Curva ✓/✗ · Ponto ✓/✗` do perfil ativo. O ensaio do ponto usa sempre o volume lido na proveta (tempo definido → volume → vazão), como as outras calibrações da bomba; não há balança.
+
+Corrigido no caminho: `CalibrationViewModel.Select` indexava as abas pela ordem do XAML, mas a view move a aba da bomba para a posição 3 no construtor. "pump" abria *Sensor de Biomassa*, "flow" abria a bomba e "biomass" abria *Vazão de ar*. Os índices seguem a tela, há destinos `pump-curve` e `pump-dose`, e um teste renderizado confere o cabeçalho da aba aberta.
+
+### D-075 · Dosagem por pulsos e ponto de dosagem separados da curva polinomial
+
+**Status:** Accepted; implemented through phase 4 · 2026-10-11
+
+A bomba tem dois modos de acionamento com calibrações próprias. O **contínuo** (perfis Const…Segmentos) converte vazão em velocidade pela curva polinomial do perfil de mangueira. A **dosagem por pulsos** liga o motor numa velocidade fixa por `volume / vazão (+ t₀)` a cada período, com a vazão medida no **ponto de dosagem**: um ensaio cronometrado pelo nó nessa velocidade, com o volume da proveta. O ponto é guardado no perfil de mangueira (esquema 3), não depende da curva e não expira. A verificação opcional em pulsos mede o atraso de partida t₀ e, com repetições, o pulso mínimo recomendado. Contrato e firmware: bomba 3.13 e Hub 10.9.
+
 ### D-074 · Esforço de reinício do controle de O₂
 
 **Status:** Accepted and implemented · 2026-10-10

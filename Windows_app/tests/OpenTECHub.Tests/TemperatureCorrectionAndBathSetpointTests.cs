@@ -72,9 +72,11 @@ public sealed class TemperatureCorrectionAndBathSetpointTests
     [InlineData("ph", 0)]
     [InlineData("oxygen", 1)]
     [InlineData("temperature", 2)]
-    [InlineData("flow", 3)]
-    [InlineData("biomass", 4)]
-    [InlineData("pump", 5)]
+    // On-screen order: the view moves the pump tab to index 3 (checked against the rendered
+    // view in DocumentationEvidenceTests.Calibration_shortcuts_open_the_named_tab).
+    [InlineData("pump", 3)]
+    [InlineData("flow", 4)]
+    [InlineData("biomass", 5)]
     public void Calibration_targets_open_their_own_tab(string target, int index)
     {
         var device = new RecordingDeviceService();

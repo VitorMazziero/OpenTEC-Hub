@@ -191,6 +191,16 @@ public static class CommandKeys
     /// </summary>
     public const string PumpPotentiometers = "pump_pot";
 
+    // ---- Pump 3.13 pulse dosing (Hub 10.9 strips the pump_ prefix) ----------
+    /// <summary><c>1</c> starts pulse dosing, <c>0</c> stops it.</summary>
+    public const string PumpDose = "pump_dose";
+    public const string PumpDoseMl = "pump_dose_ml";
+    public const string PumpDosePeriodS = "pump_dose_period_s";
+    public const string PumpDoseSpeed = "pump_dose_speed";
+    public const string PumpDoseRateMlMin = "pump_dose_rate_mlmin";
+    public const string PumpDoseTotalMl = "pump_dose_total_ml";
+    public const string PumpDoseDeadMs = "pump_dose_dead_ms";
+
     /// <summary>Absolute start time of the profile, in minutes (<c>t' = t − init_t</c>).</summary>
     public const string InitT = "init_t";
 
@@ -594,6 +604,30 @@ public static class TelemetryKeys
     public const string PumpPidKd = "PumpPidKd";
     public const string PumpPotEnabled = "PumpPotEnabled";
     public const string PumpCycleVolume = "PumpCycleVol";
+
+    // Pump 3.13 (Hub 10.9). Health and refusal are published whenever the node is present;
+    // the rest only while routing is on. A 3.12 pump never produces any of them.
+    public const string PumpUptimeS = "PumpUptimeS";
+    public const string PumpBootCount = "PumpBootCount";
+    public const string PumpResetReason = "PumpResetReason";
+    public const string PumpRejCmdId = "PumpRejCmdId";
+    public const string PumpRejErr = "PumpRejErr";
+    public const string PumpDrive = "PumpDrive";
+    public const string PumpLiquidSensor = "PumpLiquidSensor";
+    public const string PumpLiquidOk = "PumpLiquidOk";
+    public const string PumpProfileMin = "PumpProfileMin";
+    public const string PumpDoseActive = "PumpDoseActive";
+    public const string PumpDosePulse = "PumpDosePulse";
+    public const string PumpDoseMl = "PumpDoseMl";
+    public const string PumpDosePeriodS = "PumpDosePeriodS";
+    public const string PumpDoseSpeed = "PumpDoseSpeed";
+    public const string PumpDoseRate = "PumpDoseRate";
+    public const string PumpDoseTotal = "PumpDoseTotal";
+    public const string PumpDoseDeadMs = "PumpDoseDeadMs";
+    public const string PumpDoseDelivered = "PumpDoseDelivered";
+    public const string PumpDosePulses = "PumpDosePulses";
+    public const string PumpDoseNextS = "PumpDoseNextS";
+    public const string PumpDoseShortfall = "PumpDoseShortfall";
 
     public const string PumpTransitionSpeed = "PumpTransitionSpeed";
     public const string PumpCalCrc = "PumpCalCrc";

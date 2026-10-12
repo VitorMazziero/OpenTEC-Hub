@@ -6,6 +6,37 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.32.0] - 2026-10-12
+
+Bomba externa: dosagem por pulsos, ponto de dosagem e cartão reorganizado (plano
+`plans/2026-10-11-plano-cartao-bomba-dosagem-pulsos.md`, fases 0–8). Requer bomba 3.13 e Hub 10.9.0
+para *Pulsos*; com bomba 3.12.x ou Hub 10.8 o cartão novo funciona e *Pulsos* fica desabilitado.
+Validação de bancada: `External-Devices/bomba-peristaltica/docs/BANCADA_3.13.md` (portões G0–G3).
+
+- Manual do operador e documentação do app: "Bomba externa: perfis contínuos e dosagem de volumes pequenos" e a seção de calibração reescrita (curva polinomial, ponto de dosagem, tabela e t₀; proveta, não balança).
+- Harness: B3.16 "parada segura cancela a dosagem".
+
+- **Dosagem por pulsos no cartão da bomba** (fase 6, D-078): segmento *Pulsos* habilitado com meta ("V mL em D h" ou vazão média), ponto de dosagem em uso com atalho para calibrar, deslizante de granularidade (muitos e pequenos ↔ poucos e grandes) com zonas de precisão, leitura do pulso (volume, duração, intervalo, pulsos/h, total, erro de partida), "Editar valores exatos" e intervalo máximo. *Iniciar dosagem* envia um só quadro e espera o eco do nó; *Parar dosagem* envia `pump_dose:0`. Gráficos em pulsos: trem de pulsos numa janela de detalhe com a média, e escada de volume. Exige bomba 3.13.
+- **Sobreposição ao vivo e desvio** (fase 7): vazão e volume medidos desenhados sobre o plano, alinhados pelo relógio do nó; desvio entregue − planejado com alerta acima de 5 % por mais de dois períodos.
+- **Tabela do ponto de dosagem** (Calibrações › Bomba Externa › Ponto de dosagem, D-079): cada ensaio vira uma linha editável (S, tempo, volume, vazão, **t₀ digitado**, origem); "Ativa" escolhe as linhas que formam o ponto (uma velocidade; várias dão média e CV) e "✕" remove as outras. "+ Linha" digita um ensaio à mão e **"Importar da curva"** copia os ensaios da curva numa velocidade, sem vínculo com ela. O t₀ digitado vale sobre o medido pela verificação em pulsos e vai ao nó com o ponto. A tabela é salva no perfil da mangueira (`doseRuns`).
+- Corrigido: a tabela da curva arredondava tempo e volume para 1 casa ao abrir o perfil (4,56 mL virava 4,6) e o próximo salvamento perdia a precisão.
+- Corrigido: enviar um perfil ou confirmar o PID da bomba desfazia a curva, a mangueira e o ponto de dosagem salvos em Calibrações depois que o cartão abriu.
+
+- **Cartão da bomba reorganizado** (fase 5, D-077): coluna Setpoint com a vazão-alvo agora e resumo dinâmico na linha; gaveta em `ExternalPumpPanel` com faixa de estado (estado do nó, volume estimado, ciclo e desvio, calibração com atalhos, sensor de líquido, último reinício), seletor *Contínuo | Pulsos* (pulsos na fase 6), alerta e bloqueio de *Enviar perfil* sem curva no nó, dois gráficos empilhados (vazão e volume) e gás/avançado recolhidos com resumo.
+- **Calibrações › Bomba Externa dividida por modo** (D-076): *Curva polinomial · modo contínuo* e *Ponto de dosagem · modo pulsos*, cada um com seu gráfico e painel; biblioteca de mangueiras com `Curva ✓/✗ · Ponto ✓/✗` e controle manual comuns.
+- Corrigido: os atalhos para Calibrações abriam a aba errada ("pump" abria Biomassa, "flow" a bomba, "biomass" Vazão de ar).
+
+- Protocolo da bomba 3.13 / Hub 10.9: comandos de dosagem por pulsos (`PumpDoseStart`, `PumpDoseConfigure`, `PumpDoseStop`), validados com as mesmas regras e códigos do firmware (`PumpDoseRules`); telemetria nova (`PumpDrive`, sensor de líquido, reinícios, recusa, `PumpDose*`), nula com bomba ou Hub antigos.
+- `PumpDoseMath`: faixa de períodos, zonas de precisão, deslizante logarítmico ↔ período, prévia em pulsos e escada (base do painel de pulsos da fase 6).
+- Cartão da bomba: estado pelo `PumpDrive` (a dosagem não aparece mais como "Parada"); mostra o motivo quando a bomba recusa um comando; avisa reinício da bomba e o sensor de líquido seco; o gás proporcional segura o último valor se o volume da bomba cair sem pedido de zerar.
+- Calibração › controle manual: o acionamento leva sempre um prazo de 60 s no nó, renovado a cada 20 s enquanto ativo; se o app, o PC ou o Hub caírem, a bomba para sozinha.
+- Catálogo de firmware: bomba 3.13. Simulador e harness (B3.12–B3.14: comandos seguidos, recusa e dosagem).
+- **Calibrações › Bomba Externa › Ponto de dosagem** (fase 4): ensaio contínuo numa velocidade fixa cronometrado pelo nó (o prazo do nó é a própria duração), volume lido na proveta, repetições com média e CV (pede outra acima de 3 %), verificação opcional em pulsos pela dosagem do nó (mede o atraso de partida t₀ e, com repetições, o pulso mínimo recomendado), "Salvar no perfil", "Usar na dosagem" e "Enviar ao nó" com eco. Bloqueado com perfil ou dosagem em execução. Pontos no gráfico S × Q como losangos. Não depende da curva e não expira (D7).
+- Perfis de mangueira no esquema 3 (`dosePoints`); arquivos do esquema 2 continuam abrindo e são regravados no 3.
+- Ensaio automático da curva cronometrado pelo nó (D6): o tempo do ponto é o prazo exato do nó, sem a latência da parada pelo Hub.
+
+---
+
 ## [0.31.1] - 2026-10-11
 
 - Corrigido: o interruptor da **bomba externa** e do **sensor de distância/espuma** ficava bloqueado depois que a comunicação era desligada no Hub. O Hub só dá esses nós como online com a comunicação ligada, e o app só liberava o interruptor com o nó online. Agora ele também fica livre quando o Hub informa a comunicação desligada.

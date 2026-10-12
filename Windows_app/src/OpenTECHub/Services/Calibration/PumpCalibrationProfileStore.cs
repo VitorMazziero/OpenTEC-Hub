@@ -55,7 +55,7 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                         ? sv
                         : 1;
 
-                    var isCompatible = schemaVersion == PumpCalibrationProfile.CurrentSchemaVersion;
+                    var isCompatible = PumpCalibrationProfile.IsSupportedSchema(schemaVersion);
 
                     var profileId = root.TryGetProperty("profileId", out var idElem) && idElem.ValueKind == JsonValueKind.String && idElem.GetString() is { } id
                         ? id
@@ -86,6 +86,10 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                         ? la
                         : null;
 
+                    var dosePointCount = root.TryGetProperty("dosePoints", out var dpElem) && dpElem.ValueKind == JsonValueKind.Array
+                        ? dpElem.GetArrayLength()
+                        : 0;
+
                     list.Add(new PumpCalibrationProfileSummary(
                         name,
                         profileId,
@@ -98,7 +102,8 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                         highSlope,
                         schemaVersion,
                         isCompatible,
-                        lastAppliedUtc));
+                        lastAppliedUtc,
+                        dosePointCount));
                 }
                 catch (Exception ex)
                 {
@@ -132,10 +137,10 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                 {
                     if (!doc.RootElement.TryGetProperty("schemaVersion", out var svElem) ||
                         !svElem.TryGetInt32(out var sv) ||
-                        sv != PumpCalibrationProfile.CurrentSchemaVersion)
+                        !PumpCalibrationProfile.IsSupportedSchema(sv))
                     {
                         throw new InvalidOperationException(
-                            $"O perfil '{name}' não pertence ao formato atual de calibração polinomial (schema {PumpCalibrationProfile.CurrentSchemaVersion}).");
+                            $"O perfil '{name}' não pertence a um formato de calibração suportado (schema {PumpCalibrationProfile.MinSupportedSchemaVersion}–{PumpCalibrationProfile.CurrentSchemaVersion}).");
                     }
                 }
 
@@ -195,7 +200,7 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
                     using var doc = JsonDocument.Parse(existingText);
                     if (doc.RootElement.TryGetProperty("schemaVersion", out var svElem) &&
                         svElem.TryGetInt32(out var sv) &&
-                        sv != PumpCalibrationProfile.CurrentSchemaVersion)
+                        !PumpCalibrationProfile.IsSupportedSchema(sv))
                     {
                         throw new InvalidOperationException(
                             $"Não é permitido sobrescrever o perfil '{profile.Name}' pois ele não pertence ao schema atual ({sv} != {PumpCalibrationProfile.CurrentSchemaVersion}).");
@@ -209,6 +214,8 @@ public sealed class PumpCalibrationProfileStore : IPumpCalibrationProfileStore
 
             var updatedProfile = profile with
             {
+                // A schema-2 profile loaded and saved again is written in the current schema.
+                SchemaVersion = PumpCalibrationProfile.CurrentSchemaVersion,
                 Name = profile.Name.Trim(),
                 ModifiedUtc = DateTimeOffset.UtcNow,
             };

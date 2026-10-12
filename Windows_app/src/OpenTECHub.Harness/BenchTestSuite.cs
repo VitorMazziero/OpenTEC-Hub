@@ -679,6 +679,56 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
 
         Skip("B3", "B3.9", "calibração polinomial da bomba", "validada pelo fluxo dedicado da tela (nove coeficientes, ACK, eco e CRC)");
 
+        // Portão G0 (bomba 3.12.1): comandos seguidos confirmados. Até a 3.12 o cmd_id era lido
+        // como float e o PumpCommandPending ficava preso depois do primeiro comando.
+        if (options.Pump && _parser.Readings.PumpCommEnabled == true)
+        {
+            var acked = 0;
+            var worstMs = 0L;
+            for (var i = 0; i < 5; i++)
+            {
+                var kp = Math.Round(0.5 + (0.001 * (i + 1)), 4);
+                var (ok, ms, _) = await EchoAsync(CommandBuilders.PumpPid(kp, 0.05, 0.001),
+                    s => s.PumpCommandPending == false, TimeSpan.FromSeconds(6), null, ct).ConfigureAwait(false);
+                latencies.Add($"pump,consecutive_{i + 1},{ms}");
+                if (ok) { acked++; worstMs = Math.Max(worstMs, ms); }
+            }
+
+            await Send(CommandBuilders.PumpPid(0.5, 0.05, 0.001), ct).ConfigureAwait(false);
+            Add("B3", "B3.12", "5 comandos seguidos confirmados (G0)", $"{acked}/5, pior {worstMs} ms", "5/5, ≤ 3000 ms", acked == 5 && worstMs <= 3000 ? "PASS" : "FAIL", "echo-latency.csv");
+        }
+        else
+        {
+            Skip("B3", "B3.12", "comandos seguidos", options.Pump ? "pumpComm desligado" : "passe --pump");
+        }
+
+        // Bomba 3.13 + Hub 10.9: recusa visível e dosagem com eco.
+        if (options.Pump && _parser.Readings.PumpCommEnabled == true && _parser.Readings.PumpDrive is not null)
+        {
+            var bad = new PumpDoseParameters(0.35, 300.0, 120.0, 5.4, 0.0, 0.0);
+            // Período menor que o pulso: o app não deixaria passar; vai cru para provar a recusa do nó.
+            await Send(OpenTECCommand.Create().Set(CommandKeys.PumpDoseMl, 0.35).Set(CommandKeys.PumpDosePeriodS, 3.0)
+                .Set(CommandKeys.PumpDoseSpeed, 120.0).Set(CommandKeys.PumpDoseRateMlMin, 5.4).Set(CommandKeys.PumpDose, 1), ct).ConfigureAwait(false);
+            var refused = (await ReadFramesAsync(TimeSpan.FromSeconds(6), int.MaxValue, ct).ConfigureAwait(false))
+                .Any(f => f.PumpRejErr == "dose_fit" && f.PumpDoseActive != true);
+            Add("B3", "B3.13", "dosagem inválida recusada (rej_err)", refused ? "dose_fit, nada aplicado" : "não", "PumpRejErr = dose_fit", refused ? "PASS" : "FAIL", "");
+
+            var good = bad with { PeriodS = 20.0, VolumeMl = 0.09, TotalMl = 0.27 };
+            var (started, ms, _) = await EchoAsync(CommandBuilders.PumpDoseStart(good),
+                s => s.PumpDoseActive == true && s.PumpDosePeriodS is { } p && Math.Abs(p - 20.0) < 0.05,
+                TimeSpan.FromSeconds(10), null, ct).ConfigureAwait(false);
+            latencies.Add($"pump,dose_start,{ms}");
+            var finished = started && (await ReadFramesAsync(TimeSpan.FromSeconds(60), int.MaxValue, ct).ConfigureAwait(false))
+                .Any(f => f.PumpDoseActive == false && f.PumpDosePulses == 3);
+            await Send(CommandBuilders.PumpDoseStop(), ct).ConfigureAwait(false);
+            Add("B3", "B3.14", "dosagem: eco, 3 pulsos e fim pelo total", started ? (finished ? $"eco em {ms} ms, 3 pulsos" : "eco, sem fim em 60 s") : "sem eco",
+                "eco ≤ 5 s; 3 pulsos", started && finished && ms <= 5000 ? "PASS" : "FAIL", "echo-latency.csv");
+        }
+        else
+        {
+            Skip("B3", "B3.13–B3.14", "dosagem e recusa", options.Pump ? "bomba 3.13 / Hub 10.9 ausentes (sem PumpDrive)" : "passe --pump");
+        }
+
         {
             var malformedBefore = _malformed;
             await Send(CommandBuilders.PumpPid(0.5, 0.05, 0.001), ct).ConfigureAwait(false);
@@ -690,6 +740,25 @@ internal sealed class BenchTestSuite(BenchOptions options, ILoggerFactory logger
         if (options.Pump && _parser.Readings.PumpCommEnabled == true)
         {
             Remember("pumpComm", c => Send(CommandBuilders.PumpEnable(), c));
+
+            // Bomba 3.13: a parada segura (modo 0, depois roteamento off) também cancela uma
+            // dosagem em curso. Verificado antes de desligar a rota, enquanto os d_* são publicados.
+            if (_parser.Readings.PumpDrive is not null)
+            {
+                var endless = new PumpDoseParameters(0.09, 20.0, 120.0, 5.4, 0.0, 0.0);
+                var (dosing, _, _) = await EchoAsync(CommandBuilders.PumpDoseStart(endless),
+                    s => s.PumpDoseActive == true, TimeSpan.FromSeconds(10), null, ct).ConfigureAwait(false);
+                await Send(CommandBuilders.PumpStopProfile(), ct).ConfigureAwait(false);
+                var cancelled = dosing && (await ReadFramesAsync(TimeSpan.FromSeconds(6), int.MaxValue, ct).ConfigureAwait(false))
+                    .Any(f => f.PumpDoseActive == false);
+                Add("B3", "B3.16", "parada segura cancela a dosagem", dosing ? (cancelled ? "dosagem cancelada pelo modo 0" : "dosagem continuou") : "dosagem não iniciou",
+                    "PumpDoseActive false em ≤ 6 s", dosing && cancelled ? "PASS" : "FAIL", "");
+            }
+            else
+            {
+                Skip("B3", "B3.16", "parada segura cancela a dosagem", "bomba 3.13 / Hub 10.9 ausentes (sem PumpDrive)");
+            }
+
             await Send(CommandBuilders.PumpStopProfile(), ct).ConfigureAwait(false);
             await Send(CommandBuilders.PumpRoutingDisabled(), ct).ConfigureAwait(false);
             var frames = await ReadFramesAsync(TimeSpan.FromSeconds(10), int.MaxValue, ct).ConfigureAwait(false);

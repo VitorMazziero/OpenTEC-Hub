@@ -10,6 +10,11 @@
 > **Leitura das versões:** Hub 10.4 é a versão ativa. Para a bomba, 3.12 é a primeira
 > implantação e o único contrato executável; menções a 3.10/3.11 abaixo são apenas histórico
 > de desenvolvimento, não compatibilidade disponível. O fluxômetro mantém seu histórico próprio.
+>
+> **Bomba 3.12.1 / 3.13 com Hub 10.9 e app 0.32 (2026-10-12):** compilados e testados em
+> software, à espera da bancada (portões G0–G3 do plano
+> `Windows_app/docs/plans/2026-10-11-plano-cartao-bomba-dosagem-pulsos.md`). Ordem de gravação:
+> bomba 3.12.1 → Hub 10.9.0 → bomba 3.13 → app 0.32.0; cada passo é compatível com o anterior.
 
 ---
 
@@ -17,7 +22,7 @@
 
 | Dispositivo | Firmware Ativo | Hub 10.4 | App Windows | Integração Software | Ensaio em Bancada Física |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **Bomba Peristáltica** | v3.12 | 🟢 Curva polinomial dupla | 🟢 Curva polinomial e perfis locais | 🟢 Integrado e testado em software | 🟡 Pendente (§1.11) |
+| **Bomba Peristáltica** | v3.12 → 3.13 | 🟢 Curva polinomial dupla; dosagem, recusa e entrega no push no Hub 10.9 | 🟢 Curva, ponto de dosagem e dosagem por pulsos (0.32) | 🟢 Integrado e testado em software | 🟡 Pendente (§1.11, roteiro §10 do plano) |
 | **Sensor de Distância** | v11 | 🟢 Total | 🟢 Total | 🟢 100% Integrado | 🟡 Pendente (§2.11) |
 | **Fluxômetro de Ar** | v12.0 | 🟢 Transição editável | 🟢 Transição editável | 🟢 Integrado e testado em software | 🟡 Pendente (§3.11) |
 | **Sensor de Biomassa** | v11.1 | 🟢 Total (+ `biomassAutoRange`, janela por `probe_ms`) | 🟢 Total (+ auto-range, sentinelas, alarme de aquisição parada) | 🟢 Integrado; B02/B14 abertos por decisão (§4.10) | 🟡 Pendente (§4.11) |
@@ -25,7 +30,7 @@
 | **Servo Drive (RPM)** | driver 2.0 | 🟢 Total | 🟢 Total | 🟢 100% Integrado — só no Módulo TECNAL 2 | 🟢 Concluída (§6.0); sem novas alterações por projeto |
 | **Banho termostático (C404)** | r3 | 🔴 Não implementado | 🔴 Não implementado | 🟡 Nó + app Android próprio validados em software; integração planejada | 🟡 Gates G1–G10 pendentes |
 
-## 1. Bomba peristáltica externa (`bomba-peristaltica`, firmware 3.12)
+## 1. Bomba peristáltica externa (`bomba-peristaltica`, firmware 3.12 → 3.13)
 
 ### 1.0 Painel de Navegação Rápida — Estado de Prontidão e Integração (3.12)
 
@@ -46,6 +51,13 @@
 | **Calibração volumétrica assistida** | Acionamento via `speed` com rampa de duty 155..1023 | Repassa `pump_speed` | Pontos em ambas as faixas, ajuste limitado, resíduos, $R^2$, aplicação e recibo | *Calibrações › Bomba Externa* | `PumpCalibrationTests` |
 | **Proteção contra comandos perigosos** | `clear_nvs` só opera localmente | Hub bloqueia `clear_nvs`, `save_config`, etc. com `ESP32_AVISO` | App nunca emite comandos destrutivos à flash | N/A (proteção de infra) | `test_pump_command_whitelist_blocks_clear_nvs_and_config_verbs` |
 | **Saúde e Diagnóstico do Nó** | `/diag` com RSSI, heap, uptime, falhas, estado | Proxy assíncrono `/nodeDiag` a cada 30 s | Tabela de nós de rede com métricas ao vivo | *Configurações › Rede* | `NodeDiagTaskTests` |
+| **`cmd_id` como inteiro (3.12.1)** | `parseJsonUint32`: ACK bate com o Hub; ids vizinhos não colidem | Sem mudança | `PumpCommandPending` apaga em ≤ 3 s | todas as ações | `test_firmware_v3121_integration.py`, `tests/host-sim` |
+| **Volume de sessão sobrevive a reinício (3.12.1)** | `s_sess` gravado em qualquer estado; só `reset_volume` zera | Sem mudança | Gás proporcional segura o último valor se o volume cair sem pedido | *Controle › Bomba Externa* | `test_firmware_v3121_integration.py`, `PumpIntegration313Tests` |
+| **Dosagem por pulsos (3.13)** | `dose_*` + `dose_dead_ms`; pulso útil ≥ 200 ms, folga 0,5 s, prazo no core 0 | Repassa `pump_dose*`; publica `PumpDose*` depois do primeiro `d_act` | Painel *Pulsos*: meta, deslizante de granularidade com zonas, eco, sobreposição ao vivo e desvio | *Controle › Bomba Externa › Pulsos* | `test_firmware_v313_contract.py`, `test_pump_313.py`, `PumpDosingTests`, B3.13–B3.16 |
+| **Recusa visível (3.13)** | Valida o quadro inteiro antes de aplicar; publica `rej_cmd_id`/`rej_err` | `rejectReliable`: encerra o pendente; publica `PumpRejCmdId`/`PumpRejErr` | Motivo traduzido no rodapé do cartão e no painel de pulsos | *Controle › Bomba Externa* | `tests/host-sim`, `test_pump_313.py`, `PumpIntegration313Tests` |
+| **Entrega na resposta do push (3.13)** | Aplica o comando devolvido pelo `/pumpData` pelo caminho do poll | Responde com `takeReliable(pumpBox)` | — (latência menor) | — | `test_pump_313.py` |
+| **Estado e saúde do nó (3.13)** | `drv`, `sens`/`wet`, `t_min`, `up`/`boot`/`rst` | `PumpDrive`, `PumpLiquidSensor`/`PumpLiquidOk`, `PumpProfileMin`, `PumpUptimeS`/`PumpBootCount`/`PumpResetReason` | Faixa de estado do cartão; aviso de reinício e de sensor seco | *Controle › Bomba Externa* | `PumpIntegration313Tests` |
+| **Ponto de dosagem (app 0.32)** | `dose_speed`, `dose_rate_mlmin`, `dose_dead_ms` guardados na NVS | Repassa | Tabela editável (ensaios, importação da curva, t₀ digitado, linhas ativas), perfil de mangueira esquema 3 | *Calibrações › Bomba Externa › Ponto de dosagem* | `PumpDosePointTests` |
 
 ---
 
@@ -63,6 +75,10 @@
 | **Persistência NVS do PID** | Enviar novos ganhos de PID pelo app, desligar e religar o nó da bomba, conferir se os ganhos retornam no push sem intervenção. | Item 8 | 🟡 Pendente de ensaio |
 | **Retomada de emergência pós-queda** | Cortar energia do nó com motor girando em perfil contínuo; religar energia e confirmar retomada autônoma via checkpoint NVS `s_cvol`. | Item 9 | 🟡 Pendente de ensaio |
 | **Comando pós-reboot do Hub** | Reiniciar o Hub mantendo a bomba ligada; enviar *Zerar volume* e confirmar aplicação imediata (semeadura de `cmd_id`). | Item 10 | 🟡 Pendente de ensaio |
+| **Comandos seguidos confirmados (G0, 3.12.1)** | 10 comandos seguidos pelo app, cada um confirmado e `PumpCommandPending` apagando em ≤ 3 s (harness B3.12). | Item 12 | 🟡 Pendente de ensaio |
+| **Recusa e campos 3.13 (G1)** | Campos novos no JSON do Hub; dosagem inválida recusada com `PumpRejErr` (B3.13); latência medida em `echo-latency.csv`. | Item 13 | 🟡 Pendente de ensaio |
+| **Ponto de dosagem e linearidade (G3)** | S = 120, 3 × 120 s com CV ≤ 2 %; pulsos de 0,2 a 4 s e ajuste de `t₀`; compensação com erro ≤ 3 %. | Item 14 | 🟡 Pendente de ensaio |
+| **Execução longa de dosagem (G3)** | 50 mL em 12 h: proveta × `PumpDoseDelivered` × `PumpVol` em ≤ 3 %; queda de energia no meio; parada segura durante um pulso. | Item 15 | 🟡 Pendente de ensaio |
 
 ---
 
@@ -269,6 +285,12 @@ Decisões do operador em 2026-09-12 sobre a auditoria; o que foi feito em cada u
 - [ ] Desligar energia no meio de um perfil e religar: confirmar retomada automática (item 6) e decidir se é o comportamento desejado.
 - [ ] Reiniciar o Hub com a bomba ligada e enviar `reset_volume`: deve ser aplicado (semeadura de `cmd_id`, Hub 2026-09-12).
 - [ ] Com `sensorEnable:1` por `POST /command` local e tubo seco: motor parado; molhar: parte em ≤ 50 ms + 500 ms de trava.
+- [ ] **(12, 3.12.1 · G0)** 10 comandos seguidos (perfil, PID, zerar, potenciômetros, perfil) confirmados, `PumpCommandPending` ≤ 3 s; reinício em repouso mantém `PumpVol`; perfil → `speed` → reinício: o perfil **não** volta.
+- [ ] **(13, 3.13 + Hub 10.9 · G1)** campos `PumpDrive`, `PumpBootCount`, `PumpDose*` no JSON do Hub; dosagem com período menor que o pulso → `PumpRejErr = dose_fit` e nada aplicado; fechar o app com *Encher mangueira* ativo → motor para em ≤ 60 s.
+- [ ] **(14, G3)** ponto de dosagem S = 120, 3 × 120 s, CV ≤ 2 %; linearidade `t_on` ∈ {0,2; 0,5; 1; 2; 4} s × 30 pulsos, ajuste de `t₀`; compensação com `dose_dead_ms = t₀`, erro médio ≤ 3 %.
+- [ ] **(15, G3)** 50 mL em 12 h com proveta no fim (≤ 3 % contra `PumpDoseDelivered` e `PumpVol`); queda de energia no meio (retoma em ~5 s, perda ≤ 1 min + 1 pulso); `reset_volume` durante a dosagem e reinício (`vol` não volta); Hub mudo 2 min (pulsos com a duração certa); interruptor durante um pulso (para em < 1 s e cancela a dosagem).
+
+Registro dos resultados: `External-Devices/bomba-peristaltica/docs/BANCADA_3.13.md`.
 
 ---
 

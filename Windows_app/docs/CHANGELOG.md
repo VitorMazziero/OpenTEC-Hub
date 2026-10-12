@@ -6,6 +6,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.32.1] - 2026-10-12
+
+- Corrigidos os indicadores de pH e oxigênio no painel: acompanham, respectivamente, o controle de pH aplicado e a cascata de oxigênio ativa.
+
+---
+
 ## [0.32.0] - 2026-10-12
 
 Bomba externa: dosagem por pulsos, ponto de dosagem e cartão reorganizado (plano

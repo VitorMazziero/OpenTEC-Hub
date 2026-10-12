@@ -208,7 +208,14 @@ public sealed partial class ProcessVariableViewModel : ObservableObject
 
     /// <summary>True while the subsystem is enabled on the device.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSynopticActive))]
     public partial bool IsEnabled { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSynopticActive))]
+    public partial bool IsAuxiliaryControlActive { get; set; }
+
+    public bool IsSynopticActive => IsEnabled || IsAuxiliaryControlActive;
 
     /// <summary>
     /// True when this is the variable the shell has selected.

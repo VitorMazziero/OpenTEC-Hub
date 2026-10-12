@@ -359,6 +359,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             arbiter: device as ICommandArbiter,
             dispatcher: manualDispatcher,
             externalBath: ExternalBath);
+        Ph.IsAuxiliaryControlActive = PHControl.AppliedIsEnabled;
+        Oxygen.IsAuxiliaryControlActive = Control.IsCascadeActive;
+        PHControl.PropertyChanged += OnSynopticPHControlChanged;
+        Control.OxygenRow.PropertyChanged += OnSynopticOxygenControlChanged;
         CascadeDetail = new CascadeDetailViewModel(cascade);
         Our = new OurViewModel(ourSensor);
 
@@ -1454,6 +1458,18 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         }
     }
 
+    private void OnSynopticPHControlChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PHControlViewModel.AppliedIsEnabled))
+            Ph.IsAuxiliaryControlActive = PHControl.AppliedIsEnabled;
+    }
+
+    private void OnSynopticOxygenControlChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ControlParameterRowViewModel.IsCascadeEngaged))
+            Oxygen.IsAuxiliaryControlActive = Control.IsCascadeActive;
+    }
+
     private void OnTelemetryReceived(SensorSnapshot snapshot)
     {
         Temperature.Push(snapshot.Temperature);
@@ -1703,6 +1719,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _device.TelemetryReceived -= OnTelemetryReceived;
         _device.SessionTimeZeroed -= OnSessionTimeZeroed;
         _nutrientControl.PropertyChanged -= OnNutrientCommandChanged;
+        PHControl.PropertyChanged -= OnSynopticPHControlChanged;
+        Control.OxygenRow.PropertyChanged -= OnSynopticOxygenControlChanged;
         _alarms.Changed -= OnAlarmsChanged;
         _settings.Changed -= OnSettingsChanged;
         _sessionLogger.StatusChanged -= OnSessionStatusChanged;

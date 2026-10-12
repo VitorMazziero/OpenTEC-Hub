@@ -14,9 +14,9 @@ def read(relative: str) -> str:
 class PumpDoseContract(unittest.TestCase):
     def test_wire_version_is_unchanged_and_build_is_distinct(self):
         app = read("core/FirmwareApp.cpp")
-        self.assertIn('#define PUMP_FW_VERSION "3.12"', app)
-        self.assertIn('#define PUMP_FW_BUILD "3.12+dose2"', app)
-        self.assertIn("ver=3.12", read("network/HubClient.h"))
+        self.assertIn('#define PUMP_FW_VERSION "3.13"', app)
+        self.assertIn('#define PUMP_FW_BUILD "3.13"', app)
+        self.assertIn('ver=" PUMP_FW_VERSION "', read("network/HubClient.h"))
 
     def test_dose_state_does_not_touch_pump_config_layout(self):
         app = read("core/FirmwareApp.cpp")
@@ -28,15 +28,18 @@ class PumpDoseContract(unittest.TestCase):
             self.assertLessEqual(len(key), 15)  # NVS key limit
 
     def test_parameters_are_validated_before_use(self):
-        dose = read("control/DoseController.h")
-        for rule in ("dose_ml fora de", "dose_period_s fora de", "dose_speed fora de",
-                     "dose_rate_mlmin ausente", "pulso menor que 0,5 s", "pulso nao cabe no periodo"):
-            self.assertIn(rule, dose)
-        self.assertIn("MIN_MOTOR_ON_TIME_MS", dose)
+        math = read("control/DoseMath.h")
+        for code in ('"dose_ml"', '"dose_period"', '"dose_speed"', '"dose_rate"', '"dose_total"',
+                     '"dose_dead"', '"dose_short"', '"dose_fit"'):
+            self.assertIn(code, math)
+        self.assertIn("DOSE_MIN_ON_MS   = 200", math)
+        self.assertIn("DOSE_GAP_MS      = 500", math)
+        self.assertIn("doseValidateCode(", read("control/DoseController.h"))
 
     def test_pulse_length_is_volume_over_measured_rate_not_calibration(self):
         dose = read("control/DoseController.h")
-        self.assertIn("volume / g_dose.rateMlMin * 60000.0f", dose)
+        self.assertIn("return volumeMl / rateMlMin * 60000.0f;", read("control/DoseMath.h"))
+        self.assertIn("dosePulseMs(volume, g_dose.rateMlMin, g_dose.deadMs)", dose)
         self.assertNotIn("mlminToSpeedUnits", dose)
         self.assertNotIn("speedUnitsToMlmin", dose)
 
@@ -58,7 +61,7 @@ class PumpDoseContract(unittest.TestCase):
                        'doseCancel("mode")', 'doseCancel("speed")'):
             self.assertIn(reason, ctl)
         # The dose handler runs last so a same-frame dose:1 survives a mode/speed reset.
-        self.assertTrue(ctl.rstrip().endswith("doseHandleCommand(json.c_str());\n}"))
+        self.assertTrue(ctl.rstrip().endswith("doseHandleCommand(json.c_str());\n    return true;\n}"))
 
     def test_ota_interlock_stops_the_pulse(self):
         ota = read("network/HubClient.h")
@@ -76,12 +79,12 @@ class PumpDoseContract(unittest.TestCase):
     def test_dose_volume_reaches_the_session_counter_the_app_reads(self):
         dose = read("control/DoseController.h")
         self.assertIn("doseAddToSession(ml);", dose)
-        self.assertIn("g_cumulativeVolumeMl += ml", dose)
+        self.assertIn("volAdd(ml);", dose)
         # No double counting: the polynomial integration is off while dosing.
         self.assertIn("!g_doseActive", read("hardware/PwmRuntime.h"))
         self.assertIn("volatile bool g_doseActive", read("core/FirmwareApp.cpp"))
         # The Hub push sends the session counter as vol.
-        self.assertIn("vol = g_cumulativeVolumeMl;", read("network/HubClient.h"))
+        self.assertIn("const float vol = volRead();", read("network/HubClient.h"))
 
     def test_dose_persists_and_resumes_after_reset(self):
         dose = read("control/DoseController.h")

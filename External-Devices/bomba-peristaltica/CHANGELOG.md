@@ -1,5 +1,33 @@
 # Changelog — Bomba peristáltica
 
+## 3.13 — 2026-10-11 (contrato de integração com o Hub)
+
+Binários prontos para a bancada em `tests/evidence/fw-3.12.1` e `tests/evidence/fw-3.13` (SHA-256 ao
+lado). Ordem de gravação: 3.12.1 → Hub 10.9.0 → 3.13 → app 0.32.0. Portões G0–G3 em
+`docs/BANCADA_3.13.md`; a versão só é dada como validada depois deles.
+
+Hub 10.9 aproveita tudo; com o Hub 10.8 os comandos existentes continuam funcionando (os campos novos são ignorados e `dose_*` não é repassado).
+
+- **Recusa visível:** o quadro inteiro é validado antes de aplicar (`control/FrameValidate.h`). Recusado, nada é aplicado, não há ACK e o push publica `rej_cmd_id`/`rej_err` (códigos em `docs/PROTOCOL.md` §3.1, padrão do banho r3.2). Reentregas do id recusado não são reprocessadas. `POST /command` responde `422`.
+- **Push 3.13:** `drv` (quem comanda o motor), `sens`/`wet` (sensor de líquido), `t_min` (relógio do perfil), `up`/`boot`/`rst` (reinícios) e a dosagem `d_*` com eco dos parâmetros, entregue, pulsos, próximo pulso e `d_short`. `pot` é `0` durante a dosagem. Os coeficientes da curva saem a cada 10 pushes ou quando o CRC muda; buffer de 1024 com descarte e contagem de push cortado.
+- **Resposta do push:** um comando devolvido pelo Hub na resposta do `/pumpData` é aplicado pelo mesmo caminho do poll.
+- **Dosagem:** `dose_dead_ms` (atraso de partida compensado, NVS `d_dead`); parte útil mínima de 200 ms (antes 500 ms) e folga de 0,5 s (antes 1 s); prazo do pulso armado no core 0 quando o motor liga; pulso perdido para o sensor de líquido vai para `d_short`.
+- **`speed` vindo do Hub sem `speed_ms`** para sozinho em 300 s. USB e HTTP local continuam sem prazo.
+- **Versão única** (`PUMP_FW_VERSION`) no banner, hello, `/diag` e página OTA. `/diag` ganha `build`, `boot`, `rst`, `drv`, `last_cmd_id`, `rej_*`, `cal_crc`, dosagem e `push_trunc`, com teto de 511 bytes (cache do Hub); saem `wifi_status`, `ota`, `op_state` e `flow`.
+- Leitura de JSON, regras da dosagem e validação do quadro em cabeçalhos sem Arduino, testados no PC (`tests/host-sim`, 49 verificações).
+- Compilado (ESP32 core 3.3.11): 1 111 207 B (84%), 55 332 B de RAM.
+
+## 3.12.1 — 2026-10-11 (correções de integração com o Hub; contrato inalterado)
+
+- **Corrigido (crítico):** o `cmd_id` dos comandos do Hub era lido como `float`. O Hub numera a partir de uma base aleatória ≥ 100 000 000 por boot, e um `float` só guarda inteiros exatos até 16 777 216: o ACK nunca batia com o Hub (`PumpCommandPending` preso) e ids vizinhos colidiam como "já aplicado", descartando comandos. Agora é lido como inteiro de 32 bits (`parseJsonUint32`).
+- **Corrigido:** um reinício fora de perfil zerava o volume de sessão. O contador passa a ser gravado em qualquer estado (`s_sess`; variação ≥ 0,05 mL e ≥ 30 s, e sempre em parada, fim de perfil, `reset_volume`, fim da dosagem e OTA) e é restaurado em todo boot. Só `reset_volume` zera, e o zero é gravado na hora.
+- **Corrigido:** `reset_volume` durante a dosagem era desfeito por um reinício (`doseRestore` reescrevia `vol` com o volume dosado). A restauração agora vem só de `s_sess`.
+- **Corrigido:** sair de um perfil por `speed` (calibração, encher mangueira) ou por uma gravação OTA não apagava o checkpoint de recuperação, e o perfil antigo voltava a bombear sozinho no próximo reinício. A OTA também cancela a dosagem.
+- **Corrigido:** o contador de volume é tocado pelos dois cores e era protegido com `taskDISABLE_INTERRUPTS`, que só vale para o core atual. Agora usa spinlock (`volRead`/`volAdd`/`volSet`). A dosagem desliga a integração pela calibração antes de ler o início do ciclo.
+- Estado da dosagem na NVS: a cada pulso só com período ≥ 60 s; abaixo disso, no máximo uma vez por minuto (sempre ao cancelar ou concluir).
+- O hello continua `ver=3.12`; Hub e app não mudam. O build aparece como `fw_build` `3.12.1`.
+- Compilado (ESP32 core 3.3.11): 1 106 491 B (84%), 55 196 B de RAM; SHA-256 em `tests/evidence/fw-3.12.1`.
+
 ## 3.12+dose2 — 2026-10-11 (dosagem por pulsos, watchdog e timeout HTTP)
 
 - **Dosagem por pulsos** para volumes muito pequenos (ex.: 50 mL em 12 h), sem usar a calibração polinomial: o operador mede a vazão (mL/min) numa velocidade fixa e o nó liga o motor por `volume / vazão` a cada período. Comando: `{"dose_ml":0.35,"dose_period_s":300,"dose_speed":120,"dose_rate_mlmin":5.4,"dose_total_ml":50}` e `{"dose":1}` / `{"dose":0}`.

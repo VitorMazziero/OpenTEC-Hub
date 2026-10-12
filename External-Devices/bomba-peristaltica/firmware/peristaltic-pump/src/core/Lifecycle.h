@@ -1,12 +1,19 @@
 void firmwareSetup() {
     Serial.begin(115200);
     delay(100);
-    Serial.println("--- Peristaltic Pump Controller v3.12 (quartic/quadratic calibration) ---");
-    Serial.println("Build " PUMP_FW_BUILD " (pulse dosing)");
+    Serial.println("--- Peristaltic Pump Controller v" PUMP_FW_VERSION " (quartic/quadratic calibration, pulse dosing) ---");
+    Serial.println("Build " PUMP_FW_BUILD);
 
     g_prefs.begin(NVS_NAMESPACE, false);
+    // Reinicios visiveis: contador na NVS e motivo do ultimo reset, no push e no /diag.
+    g_bootCount = g_prefs.getUInt(NVS_KEY_BOOT_COUNT, 0) + 1;
+    g_prefs.putUInt(NVS_KEY_BOOT_COUNT, g_bootCount);
+    g_resetReason = static_cast<int>(esp_reset_reason());
+    Serial.printf("[BOOT] boot %lu, reset reason %d\n", static_cast<unsigned long>(g_bootCount), g_resetReason);
     loadConfig();
     loadPumpCalibration();
+    // Antes da tarefa do motor: o contador de sessao volta antes de qualquer integracao.
+    sessionVolumeRestore();
 
     pinMode(R_EN_PIN, OUTPUT);
     pinMode(L_EN_PIN, OUTPUT);
@@ -129,6 +136,8 @@ void firmwareLoop() {
         saveConfig();
     }
 
+    sessionVolumeSave(false);
+
     if (g_opState == OP_RUNNING && (now - g_lastStateSaveMs >= STATE_SAVE_INTERVAL_MS)) {
         saveRuntimeState();
         g_lastStateSaveMs = now;
@@ -181,6 +190,23 @@ void firmwareLoop() {
         allowRun = sensorWetState;
     }
 
+    g_motorAllowed = allowRun;
+
+    // Quem comanda o motor (drv): o app deixa de inferir pelo modo e pelo active.
+    if (g_doseActive) {
+        g_drive = g_dosePulseOn ? DRV_DOSE_PULSE : DRV_DOSE_IDLE;
+    } else if (g_opState == OP_RUNNING) {
+        g_drive = DRV_PROFILE_RUNNING;
+    } else if (g_opState == OP_WAITING) {
+        g_drive = DRV_PROFILE_WAITING;
+    } else if (hasUsbSpeed && fabsf(usbSpeedSteps) >= ENABLE_EPS) {
+        g_drive = DRV_MANUAL_SPEED;
+    } else if (!disablePot && !hasUsbSpeed && fabsf(potSpeed) >= ENABLE_EPS) {
+        g_drive = DRV_POTS;
+    } else {
+        g_drive = DRV_STOPPED;
+    }
+
     float finalSpeed = allowRun ? requestedSpeed : 0.0f;
     finalSpeed = constrain(finalSpeed, -V_MAX, V_MAX);
 
@@ -228,7 +254,7 @@ void firmwareLoop() {
             if (t_rel_dbg < 0.0f) t_rel_dbg = 0.0f;
             Serial.printf("[DEBUG] OpState:%d Mode:%d TgtQ:%.2f ActV:%.2f TgtV:%.2f PIDSum:%.2f\n",
                 (int)g_opState, g_config.mode, (double)g_currentFlowRateMlMin,
-                (double)g_cumulativeVolumeMl, 
+                (double)volRead(),
                 (double)calculateTargetVolume(t_rel_dbg),
                 (double)g_pid_error_sum);
         }

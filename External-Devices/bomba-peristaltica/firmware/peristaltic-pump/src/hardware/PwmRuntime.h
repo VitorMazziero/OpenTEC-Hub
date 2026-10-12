@@ -4,8 +4,18 @@ void pwmTask(void* pv) {
     for (;;) {
         float s = g_cmdSpeed;
         bool enabled = g_driverEnabled;
-        // Prazo do pulso de dosagem: aqui, no core 0, o fim do pulso nao espera o loop.
-        const uint32_t cutoff = g_doseCutoffMs;
+        // Prazo do pulso de dosagem: aqui, no core 0, o fim do pulso nao espera o loop. Um
+        // pulso pedido (arm > 0) recebe o prazo no instante em que o motor e ligado.
+        uint32_t cutoff;
+        portENTER_CRITICAL(&g_doseMux);
+        if (g_doseArmOnMs != 0 && enabled && fabsf(s) >= ENABLE_EPS) {
+            uint32_t c = static_cast<uint32_t>(millis()) + g_doseArmOnMs;
+            if (c == 0) c = 1;
+            g_doseCutoffMs = c;
+            g_doseArmOnMs = 0;
+        }
+        cutoff = g_doseCutoffMs;
+        portEXIT_CRITICAL(&g_doseMux);
         if (cutoff != 0 && static_cast<int32_t>(static_cast<uint32_t>(millis()) - cutoff) >= 0) {
             enabled = false;
         }
@@ -57,9 +67,7 @@ void pwmTask(void* pv) {
         // Em dosagem o volume vem da vazao medida pelo operador (DoseController.h), nao da
         // calibracao polinomial: contar os dois somaria duas estimativas diferentes.
         if (q_actual_ml_per_sec != 0.0f && !g_doseActive) {
-            taskDISABLE_INTERRUPTS();
-            g_cumulativeVolumeMl += (q_actual_ml_per_sec * (double)dt_sec);
-            taskENABLE_INTERRUPTS();
+            volAdd(q_actual_ml_per_sec * dt_sec);
         }
 
         vTaskDelay(pdMS_TO_TICKS(TASK_DELAY_MS));

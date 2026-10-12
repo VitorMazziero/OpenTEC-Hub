@@ -2,34 +2,53 @@ void handleReadData() {
     server.send(200, "application/json", g_lastDataJson);
 }
 
+// O Hub guarda ate 511 bytes do /diag de cada no (NodeDiagTask); passar disso corta o JSON.
+static const size_t DIAG_MAX_BYTES = 511;
+
 void handleDiag() {
-    char json[320];
-    snprintf(json, sizeof(json),
-             "{\"device\":\"peristaltic-pump\",\"version\":\"3.12\",\"uptime_s\":%lu,"
-             "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
-             "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
-             "\"op_state\":%d,\"mode\":%d,\"flow\":%.3f,\"vol\":%.3f}",
+    char json[DIAG_MAX_BYTES + 1];
+    const int n = snprintf(json, sizeof(json),
+             "{\"device\":\"peristaltic-pump\",\"version\":\"" PUMP_FW_VERSION "\",\"build\":\"" PUMP_FW_BUILD "\","
+             "\"uptime_s\":%lu,\"boot\":%lu,\"rst\":%d,\"free_heap\":%u,"
+             "\"ssid\":\"%s\",\"rssi\":%d,\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,"
+             "\"mode\":%d,\"drv\":%d,\"vol\":%.3f,"
+             "\"last_cmd_id\":%lu,\"rej_cmd_id\":%lu,\"rej_err\":\"%s\",\"cal_crc\":\"%08X\","
+             "\"dose_active\":%s,\"dose_done\":%.3f,\"push_trunc\":%lu}",
              static_cast<unsigned long>(millis() / 1000),
+             static_cast<unsigned long>(g_bootCount),
+             g_resetReason,
              static_cast<unsigned int>(ESP.getFreeHeap()),
-             WiFi.status(),
              WiFi.SSID().c_str(),
              WiFi.RSSI(),
              WiFi.localIP().toString().c_str(),
              WiFi.macAddress().c_str(),
              g_hubFailStreak,
-             g_otaInProgress ? "true" : "false",
-             static_cast<int>(g_opState),
              g_config.mode,
-             g_currentFlowRateMlMin,
-             g_cumulativeVolumeMl);
+             static_cast<int>(g_drive),
+             volRead(),
+             static_cast<unsigned long>(g_lastAppliedHubCommandId),
+             static_cast<unsigned long>(g_lastRejectedHubCommandId),
+             g_lastRejectCode,
+             static_cast<unsigned int>(g_pumpCal.crc32),
+             g_doseActive ? "true" : "false",
+             static_cast<double>(doseDeliveredNow()),
+             static_cast<unsigned long>(g_pushTruncations));
+    if (n < 0 || static_cast<size_t>(n) > DIAG_MAX_BYTES) {
+        server.send(200, "application/json",
+                    "{\"device\":\"peristaltic-pump\",\"version\":\"" PUMP_FW_VERSION "\",\"diag_truncated\":true}");
+        return;
+    }
     server.send(200, "application/json", json);
 }
 
 void handleCommand() {
     if (server.hasArg("plain")) {
         String body = server.arg("plain");
-        processJsonCommand(body);
-        server.send(200, "text/plain", "Command processed");
+        if (processJsonCommand(body, CommandSource::LocalHttp)) {
+            server.send(200, "text/plain", "Command processed");
+        } else {
+            server.send(422, "text/plain", String("Rejected: ") + g_lastRejectCode);
+        }
     } else {
         server.send(400, "text/plain", "Bad Request - No Body");
     }
@@ -39,7 +58,7 @@ const char otaPage[] PROGMEM = R"rawliteral(<!DOCTYPE html><html><head><meta cha
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Bomba Peristaltica OTA</title>
 <style>body{font-family:sans-serif;max-width:520px;margin:2em auto;padding:0 1em}progress{width:100%}code{background:#eee;padding:0 .3em}</style>
 </head><body><h2>Bomba Peristaltica &ndash; Firmware Update</h2>
-<p>Running: <b>Peristaltic Pump Controller v3.12</b></p>
+<p>Running: <b>Peristaltic Pump Controller v)rawliteral" PUMP_FW_VERSION R"rawliteral(</b></p>
 <p>Selecione a imagem <code>peristaltic-pump.ino.bin</code> (Arduino IDE: <i>Sketch &gt; Export Compiled Binary</i>). Nao envie <code>.merged.bin</code>, <code>.bootloader.bin</code> ou <code>.partitions.bin</code>.</p>
 <form id="f"><input type="file" name="firmware" accept=".bin" required> <input type="submit" value="Flash"></form>
 <progress id="p" value="0" max="100" hidden></progress><p id="s"></p>
@@ -88,10 +107,16 @@ void handleOtaChunk() {
             return;
         }
         Serial.printf("[OTA] Upload start: %s\n", upload.filename.c_str());
-        // Intertravamento de seguranca: parar a bomba imediatamente
+        // Intertravamento de seguranca: parar a bomba imediatamente. Um perfil ou dosagem
+        // interrompido pela gravacao nao retoma sozinho no novo firmware: o operador reinicia.
+        doseCancel("ota");
+        if (g_opState != OP_IDLE) clearRuntimeState();
         g_opState = OP_IDLE;
         g_dosePulseOn = false;
+        g_doseArmOnMs = 0;
         g_doseCutoffMs = 0;
+        g_drive = DRV_OTA;
+        sessionVolumeSave(true);
         g_driverEnabled = false;
         g_cmdSpeed = 0.0f;
         g_actualPwmDuty = 0;
@@ -142,7 +167,7 @@ void handleNotFound() {
 void sendHubHello() {
     if (WiFi.status() != WL_CONNECTED) return;
     char url[140];
-    snprintf(url, sizeof(url), "%s?dev=pump&ver=3.12&mac=%s",
+    snprintf(url, sizeof(url), "%s?dev=pump&ver=" PUMP_FW_VERSION "&mac=%s",
              sensorHubHelloURL.c_str(), WiFi.macAddress().c_str());
     int code;
     String body;
@@ -155,23 +180,23 @@ void sendHubHello() {
 }
 
 void sendDataToHub() {
-    float vol;
-    int pwm_duty;
-    taskDISABLE_INTERRUPTS();
-    vol = g_cumulativeVolumeMl;
-    pwm_duty = g_actualPwmDuty;
-    taskENABLE_INTERRUPTS();
+    const float vol = volRead();
+    const int pwm_duty = g_actualPwmDuty;
 
     float t_rel = g_current_t_min - g_config.init_t_min;
     if (t_rel < 0.0f) t_rel = 0.0f;
     float v_target = calculateTargetVolume(t_rel);
 
-    // 3.12 mirrors the flowmeter quartic/quadratic calibration family.
-    char url[768];
-    snprintf(url, sizeof(url),
+    // Os nove coeficientes da curva saem a cada 10 pushes ou quando o CRC muda (o Hub guarda o
+    // ultimo valor); cal_crc vai sempre. Antes eram ~230 caracteres a 1 Hz.
+    static uint8_t pushesSinceCal = 255;
+    static uint32_t lastSentCrc = 0;
+    const bool sendCal = pushesSinceCal >= 9 || g_pumpCal.crc32 != lastSentCrc;
+
+    char url[1024];
+    int n = snprintf(url, sizeof(url),
              "%s?mode=%d&pwm=%d&speed=%.1f&flow=%.3f&vol=%.3f&v_tgt=%.3f&active=%d&waiting=%d&ack_cmd_id=%lu"
-             "&kp=%.4f&ki=%.4f&kd=%.4f&pot=%d&cyc_vol=%.3f"
-             "&a1=%.9g&b1=%.9g&k1=%.9g&f1=%.9g&c1=%.9g&k2=%.9g&f2=%.9g&c2=%.9g&trans_speed=%.2f&cal_crc=%08X",
+             "&kp=%.4f&ki=%.4f&kd=%.4f&pot=%d&cyc_vol=%.3f&cal_crc=%08X",
              sensorHubDataURL.c_str(),
              g_config.mode,
              pwm_duty,
@@ -185,16 +210,57 @@ void sendDataToHub() {
              g_config.pid_kp,
              g_config.pid_ki,
              g_config.pid_kd,
-             (disablePot || hasUsbSpeed) ? 0 : 1,
+             (disablePot || hasUsbSpeed || g_doseActive) ? 0 : 1,
              vol - g_cycleStartVolumeMl,
-             g_pumpCal.a1, g_pumpCal.b1, g_pumpCal.k1, g_pumpCal.f1, g_pumpCal.c1,
-             g_pumpCal.k2, g_pumpCal.f2, g_pumpCal.c2,
-             g_pumpCal.s_t,
              static_cast<unsigned int>(g_pumpCal.crc32));
+
+    auto append = [&](const char* fmt, auto... args) {
+        if (n < 0 || static_cast<size_t>(n) >= sizeof(url)) return;
+        n += snprintf(url + n, sizeof(url) - n, fmt, args...);
+    };
+    if (sendCal) {
+        append("&a1=%.9g&b1=%.9g&k1=%.9g&f1=%.9g&c1=%.9g&k2=%.9g&f2=%.9g&c2=%.9g&trans_speed=%.2f",
+               g_pumpCal.a1, g_pumpCal.b1, g_pumpCal.k1, g_pumpCal.f1, g_pumpCal.c1,
+               g_pumpCal.k2, g_pumpCal.f2, g_pumpCal.c2, g_pumpCal.s_t);
+    }
+    // 3.13: quem comanda o motor, sensor de liquido, relogio do perfil, reinicios e recusa.
+    const bool sensorOn = sensorEnable && !sensorBypass;
+    append("&drv=%d&sens=%d&wet=%d&t_min=%.3f&up=%lu&boot=%lu&rst=%d&rej_cmd_id=%lu&rej_err=%s",
+           static_cast<int>(g_drive), sensorOn ? 1 : 0, g_motorAllowed ? 1 : 0,
+           g_current_t_min, static_cast<unsigned long>(millis() / 1000),
+           static_cast<unsigned long>(g_bootCount), g_resetReason,
+           static_cast<unsigned long>(g_lastRejectedHubCommandId),
+           g_lastRejectCode[0] ? g_lastRejectCode : "none");
+    // Dosagem: estado e eco dos parametros, para o app confirmar o que pediu.
+    const unsigned long nowMs = millis();
+    unsigned long nextS = 0;
+    if (g_doseActive && !g_dosePulseOn && static_cast<long>(g_doseNextPulseMs - nowMs) > 0) {
+        nextS = (g_doseNextPulseMs - nowMs + 999UL) / 1000UL;
+    }
+    append("&d_act=%d&d_pulse=%d&d_ml=%.3f&d_per=%.1f&d_spd=%.1f&d_rate=%.3f&d_tot=%.3f&d_dead=%.0f"
+           "&d_done=%.3f&d_n=%lu&d_next=%lu&d_short=%.3f",
+           g_doseActive ? 1 : 0, g_dosePulseOn ? 1 : 0,
+           g_dose.volumeMl, g_dose.periodS, g_dose.speed, g_dose.rateMlMin, g_dose.totalMl, g_dose.deadMs,
+           doseDeliveredNow(), static_cast<unsigned long>(g_dosePulses), nextS, g_doseShortMl);
+
+    if (n < 0 || static_cast<size_t>(n) >= sizeof(url)) {
+        // Um push cortado mandaria campos pela metade; melhor nao mandar.
+        g_pushTruncations++;
+        Serial.printf("[Hub] Push maior que o buffer (%d bytes); descartado.\n", n);
+        return;
+    }
+    if (sendCal) {
+        pushesSinceCal = 0;
+        lastSentCrc = g_pumpCal.crc32;
+    } else if (pushesSinceCal < 255) {
+        pushesSinceCal++;
+    }
 
     int code;
     String body;
     if (httpGet(url, code, body)) {
+        // Hub 10.9 devolve na resposta o comando pendente; o Hub 10.8 responde texto, ignorado.
+        if (body.length() > 0 && body[0] == '{') handleHubCommandBody(body);
         if (g_hubFailStreak > 0) {
             Serial.printf("[Hub] Conexao restabelecida apos %u falha(s).\n", g_hubFailStreak);
         }
@@ -222,25 +288,38 @@ void pollHubForCommands() {
     }
     g_hubFailStreak = 0;
 
+    handleHubCommandBody(body);
+}
+
+// Um comando do Hub, venha do poll ou da resposta do push.
+void handleHubCommandBody(const String& body) {
     if (body.length() == 0 || body == "{}") return;
 
     // A hub command carries cmd_id. A local one (serial, or the node's own web UI)
     // does not, and is always applied - the operator standing at the bench outranks
     // a retry that is only still in flight because the link is slow.
-    float idVal = getJsonFloatValue(body, "cmd_id");
-    if (!isnan(idVal) && idVal > 0.0f) {
-        uint32_t hubCommandId = (uint32_t)idVal;
-        if (hubCommandId == g_lastAppliedHubCommandId) {
-            // Already applied. Acknowledged again on the next push; not re-applied.
+    // O Hub numera a partir de uma base aleatoria >= 1e8 por boot. Lido como float, o id
+    // perdia os ultimos digitos (float so e exato ate 2^24): o ACK nunca batia com o Hub e
+    // ids vizinhos colidiam como "ja aplicado". Inteiro de 32 bits, sempre.
+    uint32_t hubCommandId = 0;
+    if (parseJsonUint32(body.c_str(), "cmd_id", hubCommandId) && hubCommandId > 0) {
+        if (hubCommandId == g_lastAppliedHubCommandId || hubCommandId == g_lastRejectedHubCommandId) {
+            // Already applied (acked again on the next push) or already refused (rej_cmd_id
+            // stays published). Either way, not re-processed.
             return;
         }
-        processJsonCommand(body);
-        g_lastAppliedHubCommandId = hubCommandId;
-        Serial.printf("[HubCmd] Applied cmd_id=%lu\n", (unsigned long)hubCommandId);
+        if (processJsonCommand(body, CommandSource::Hub)) {
+            g_lastAppliedHubCommandId = hubCommandId;
+            Serial.printf("[HubCmd] Applied cmd_id=%lu\n", (unsigned long)hubCommandId);
+        } else {
+            // Recusado: sem ACK. O Hub 10.9 encerra o pendente ao ver rej_cmd_id.
+            g_lastRejectedHubCommandId = hubCommandId;
+            Serial.printf("[HubCmd] Rejected cmd_id=%lu (%s)\n", (unsigned long)hubCommandId, g_lastRejectCode);
+        }
         return;
     }
 
-    processJsonCommand(body);
+    processJsonCommand(body, CommandSource::Hub);
 }
 
 void checkWifi() {
@@ -333,52 +412,6 @@ bool httpGet(const String& url, int& code, String& body) {
     else body = String("err=") + code;
     http.end();
     return code >= 200 && code < 300;
-}
-
-const char* findJsonValueStart(const char* json, const char* key) {
-    if (!json || !key) return nullptr;
-    const size_t klen = strlen(key);
-    const char* p = json;
-    while ((p = strstr(p, key)) != nullptr) {
-        if (p > json && *(p - 1) == '"' && *(p + klen) == '"') {
-            const char* afterQuote = p + klen + 1;
-            while (*afterQuote && isspace(static_cast<unsigned char>(*afterQuote))) afterQuote++;
-            if (*afterQuote == ':') {
-                const char* valStart = afterQuote + 1;
-                while (*valStart && isspace(static_cast<unsigned char>(*valStart))) valStart++;
-                return valStart;
-            }
-        }
-        p += klen;
-    }
-    return nullptr;
-}
-
-long getJsonValue(const char* json, const char* key) {
-    const char* val = findJsonValueStart(json, key);
-    if (!val || *val == '"') return -999999;
-    char* endPtr = nullptr;
-    long result = strtol(val, &endPtr, 10);
-    if (endPtr == val) return -999999;
-    return result;
-}
-
-float getJsonFloatValue(const char* json, const char* key) {
-    const char* val = findJsonValueStart(json, key);
-    if (!val || *val == '"') return NAN;
-    char* endPtr = nullptr;
-    float result = strtof(val, &endPtr);
-    if (endPtr == val) return NAN;
-    return result;
-}
-
-double getJsonDoubleValue(const char* json, const char* key) {
-    const char* val = findJsonValueStart(json, key);
-    if (!val || *val == '"') return NAN;
-    char* endPtr = nullptr;
-    double result = strtod(val, &endPtr);
-    if (endPtr == val) return NAN;
-    return result;
 }
 
 String getJsonStringValue(const char* json, const char* key) {

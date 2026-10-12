@@ -17,19 +17,25 @@ void updateOperationState() {
             g_configDirty = true;
             startCycle();        // controller state only; the session volume is kept
             clearRuntimeState(); // Operation complete, clear recovery flag
+            sessionVolumeSave(true);
         }
     }
 }
 
 // Only reset_volume calls this: the session counter goes to zero and the running cycle
-// (if any) starts counting from there.
+// (if any) starts counting from there. The zero is persisted at once, so a reboot cannot
+// bring the old total back.
 void resetOperationState() {
     Serial.println("[STATE] Resetting runtime state (Volume, PID).");
-    taskDISABLE_INTERRUPTS();
-    g_cumulativeVolumeMl = 0.0f;
-    taskENABLE_INTERRUPTS();
+    volSet(0.0f);
     g_cycleStartVolumeMl = 0.0f;
+    sessionVolumeSave(true);
+    resetControllerState();
+}
 
+// PID and motor latch only. A clean boot calls this: the session volume is restored, not
+// cleared.
+void resetControllerState() {
     g_pid_error_sum = 0.0f;
     g_pid_last_error = 0.0f;
     g_pid_last_time_ms = millis();
@@ -39,10 +45,7 @@ void resetOperationState() {
 
 // Everything a new profile cycle needs, without touching the session counter.
 void startCycle() {
-    float vol;
-    taskDISABLE_INTERRUPTS();
-    vol = g_cumulativeVolumeMl;
-    taskENABLE_INTERRUPTS();
+    const float vol = volRead();
     g_cycleStartVolumeMl = vol;
 
     g_pid_error_sum = 0.0f;
@@ -60,11 +63,7 @@ void runOperationLogic() {
     float Q_target_mlmin = calculateTargetFlow(t_relative_min);
     float V_target_ml    = calculateTargetVolume(t_relative_min);
 
-    float V_actual_ml;
-    taskDISABLE_INTERRUPTS();
-    V_actual_ml = g_cumulativeVolumeMl;
-    taskENABLE_INTERRUPTS();
-    V_actual_ml -= g_cycleStartVolumeMl;   // this cycle's delivery, not the session total
+    float V_actual_ml = volRead() - g_cycleStartVolumeMl;   // this cycle's delivery, not the session total
 
     float pid_adj_mlmin = updatePID(V_target_ml, V_actual_ml);
 
@@ -217,7 +216,7 @@ void handleSerialInput() {
             String cmd = String(buf);
             cmd.trim();
             if (cmd.length() > 0 && cmd.startsWith("{") && cmd.endsWith("}")) {
-                processJsonCommand(cmd);
+                processJsonCommand(cmd, CommandSource::Usb);
             } else if (cmd.length() > 0) {
                 Serial.println("Error: Command must be in JSON format.");
             }
@@ -231,8 +230,24 @@ void handleSerialInput() {
     }
 }
 
-void processJsonCommand(String json) {
+// Valida o quadro inteiro (FrameValidate.h) e so entao aplica. Falso = recusado: nada foi
+// aplicado e g_lastRejectCode diz por que.
+bool processJsonCommand(String json, CommandSource src) {
     Serial.println("[CMD] Processing: " + json);
+
+    FrameContext ctx;
+    ctx.profileBusy = (g_opState == OP_RUNNING || g_opState == OP_WAITING);
+    ctx.doseActive = g_doseActive;
+    ctx.dose = g_dose;
+    if (const char* rej = validateFrame(json.c_str(), ctx)) {
+        strncpy(g_lastRejectCode, rej, sizeof(g_lastRejectCode) - 1);
+        g_lastRejectCode[sizeof(g_lastRejectCode) - 1] = '\0';
+        if (src != CommandSource::Hub) g_lastRejectedHubCommandId = 0;
+        Serial.printf("[REJECT] %s: %s\n", rej, doseCodeText(rej));
+        return false;
+    }
+    g_lastRejectCode[0] = '\0';
+    g_lastRejectedHubCommandId = 0;
 
     String cmd = getJsonStringValue(json, "command");
     bool paramChanged = false;
@@ -257,6 +272,7 @@ void processJsonCommand(String json) {
             g_configDirty = true;
             startCycle();
             clearRuntimeState(); // Stop means we don't recover next time
+            sessionVolumeSave(true);
         } else if (cmd.equals("reset_volume")) {
             Serial.println("[CMD] Resetting cumulative volume.");
             resetOperationState();
@@ -301,12 +317,22 @@ void processJsonCommand(String json) {
     fval = getJsonFloatValue(json, "speed");
     if (!isnan(fval)) {
         doseCancel("speed");
+        // Sair de um perfil por "speed" (calibracao, encher mangueira) tem de apagar o
+        // checkpoint: senao, no proximo reinicio, o perfil antigo voltava a bombear sozinho.
+        if (g_opState != OP_IDLE) {
+            clearRuntimeState();
+            sessionVolumeSave(true);
+        }
         usbSpeedSteps = constrain(fval, -V_MAX, V_MAX);
         hasUsbSpeed   = true;
         g_opState = OP_IDLE;
         g_config.mode = 0;
-        // Optional deadline. Without it the speed holds until the next command, as before.
+        // Optional deadline. Without it the speed holds until the next command (USB, local
+        // HTTP), or for HUB_SPEED_DEFAULT_MS when it came through the Hub.
         float msVal = getJsonFloatValue(json, "speed_ms");
+        if ((isnan(msVal) || msVal <= 0.0f) && src == CommandSource::Hub) {
+            msVal = static_cast<float>(HUB_SPEED_DEFAULT_MS);
+        }
         if (!isnan(msVal) && msVal > 0.0f && usbSpeedSteps != 0.0f) {
             g_usbSpeedUntilMs = millis() + (unsigned long)msVal;
             if (g_usbSpeedUntilMs == 0) g_usbSpeedUntilMs = 1;
@@ -501,5 +527,6 @@ void processJsonCommand(String json) {
     // Ultimo de proposito: um quadro com mode/speed/stop cancela a dosagem antes, e um
     // "dose":1 no mesmo quadro ainda consegue iniciar depois.
     doseHandleCommand(json.c_str());
+    return true;
 }
 

@@ -1,0 +1,1 @@
+0c78816e3837c7b0bffd93907f632c22479cca8fb7c1adfe32b40cd28f6bce02 *tests/evidence/fw-3.12.1/peristaltic-pump.ino.bin

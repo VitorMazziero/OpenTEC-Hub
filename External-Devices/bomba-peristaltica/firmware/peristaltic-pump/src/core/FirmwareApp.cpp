@@ -2,17 +2,23 @@
 
 #include <Arduino.h>
 #include <math.h>
+#include <errno.h>
 #include <Preferences.h>
 #include <esp_task_wdt.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WebServer.h>
 #include <Update.h>
+#include <esp_system.h>
 
-#define PUMP_FW_VERSION "3.12"
-// Contrato de fio 3.12 inalterado; a dosagem por pulsos e aditiva. O build aparece no boot e
-// no JSON USB/readData (fw_build) para distinguir a imagem gravada.
-#define PUMP_FW_BUILD "3.12+dose2"
+#include "../protocol/JsonScan.h"
+#include "../control/DoseMath.h"
+#include "../control/FrameValidate.h"
+
+// Versao unica: banner, hello, /diag e pagina OTA. 3.13 acrescenta ao push o estado de
+// acionamento, o sensor de liquido, os reinicios, a dosagem e as recusas (rej_cmd_id/rej_err).
+#define PUMP_FW_VERSION "3.13"
+#define PUMP_FW_BUILD "3.13"
 
 static const bool     DEBUG_ENABLE      = true;
 static const uint32_t DEBUG_INTERVAL_MS = 1000;
@@ -63,6 +69,34 @@ constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
 
 uint32_t g_lastAppliedHubCommandId = 0;
 
+// 3.13: quadro recusado nao recebe ACK. O id fica guardado para nao reprocessar reentregas e
+// e publicado (rej_cmd_id) com o motivo (rej_err) ate o proximo quadro aceito. Comando local
+// recusado publica rej_cmd_id=0.
+uint32_t g_lastRejectedHubCommandId = 0;
+char g_lastRejectCode[20] = "";
+
+enum class CommandSource { Usb, LocalHttp, Hub };
+// "speed" vindo do Hub sem speed_ms ganha este prazo: uma queda do PC ou do Hub com a
+// mangueira enchendo nao deixa o motor girando para sempre. USB e HTTP local nao.
+const unsigned long HUB_SPEED_DEFAULT_MS = 300000;
+
+// Quem comanda o motor, publicado como drv.
+enum DriveState : int {
+    DRV_STOPPED = 0, DRV_POTS = 1, DRV_MANUAL_SPEED = 2, DRV_PROFILE_WAITING = 3,
+    DRV_PROFILE_RUNNING = 4, DRV_DOSE_IDLE = 5, DRV_DOSE_PULSE = 6, DRV_OTA = 7
+};
+volatile int g_drive = DRV_STOPPED;
+// Motor liberado pelo sensor de liquido (ou sensor desligado), do ultimo ciclo do loop.
+volatile bool g_motorAllowed = true;
+
+// Reinicios visiveis ao Hub e ao app.
+uint32_t g_bootCount = 0;
+int g_resetReason = 0;
+constexpr char* NVS_KEY_BOOT_COUNT = (char*)"boot_n";
+
+// Pushes cortados pelo buffer (nunca deveria passar de zero).
+uint32_t g_pushTruncations = 0;
+
 // OTA State
 volatile bool g_otaInProgress = false;
 unsigned long g_otaLastChunkMs = 0;
@@ -105,6 +139,9 @@ constexpr char* NVS_KEY_STATE_VOL    = (char*)"s_vol";
 constexpr char* NVS_KEY_STATE_TIME   = (char*)"s_time";
 constexpr char* NVS_KEY_STATE_MODE   = (char*)"s_mode";
 constexpr char* NVS_KEY_STATE_CVOL   = (char*)"s_cvol";
+// 3.12.1: contador de sessao gravado sempre (nao so com perfil rodando), para que um
+// reinicio nao o zere. So reset_volume zera.
+constexpr char* NVS_KEY_SESSION_VOL  = (char*)"s_sess";
 
 struct PumpConfig {
     int mode; // 0 idle, 1 const, 2 linear, 3 exp, 4 poly, 5 piecewise
@@ -155,6 +192,28 @@ TaskHandle_t pwmTaskHandle = nullptr;
 
 // Core1 → Core0
 volatile float g_cumulativeVolumeMl = 0.0f;
+// O contador e lido e escrito nos dois cores (integracao no core 0, dosagem e comandos no
+// core 1). Desligar interrupcoes so protegia o core atual; o spinlock protege os dois.
+portMUX_TYPE g_volMux = portMUX_INITIALIZER_UNLOCKED;
+
+inline float volRead() {
+    portENTER_CRITICAL(&g_volMux);
+    const float v = g_cumulativeVolumeMl;
+    portEXIT_CRITICAL(&g_volMux);
+    return v;
+}
+
+inline void volAdd(float ml) {
+    portENTER_CRITICAL(&g_volMux);
+    g_cumulativeVolumeMl += ml;
+    portEXIT_CRITICAL(&g_volMux);
+}
+
+inline void volSet(float ml) {
+    portENTER_CRITICAL(&g_volMux);
+    g_cumulativeVolumeMl = ml;
+    portEXIT_CRITICAL(&g_volMux);
+}
 volatile int   g_actualPwmDuty = 0;
 
 // Core0 → Core1
@@ -193,18 +252,10 @@ volatile bool  hasUsbSpeed   = false;
 // expires the motor is told 0; the potentiometers stay locked out until "pot":1.
 unsigned long  g_usbSpeedUntilMs = 0;
 
-// Dosagem por pulsos (build 3.12+dose1). A vazao nessa faixa nao passa pela calibracao
-// polinomial: o operador mede mL/min na velocidade fixa `speed` e o no liga o motor por
-// volume / vazao a cada periodo. O estado vive na NVS em chaves proprias (d_*), sem tocar
-// no PumpConfig.
-struct DoseConfig {
-    float volumeMl;   // por pulso
-    float periodS;    // entre inicios de pulso
-    float speed;      // unidades 1..1000, a mesma de "speed"
-    float rateMlMin;  // vazao medida nessa velocidade
-    float totalMl;    // 0 = sem limite
-};
-DoseConfig g_dose = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+// Dosagem por pulsos. A vazao nessa faixa nao passa pela calibracao polinomial: o operador
+// mede mL/min na velocidade fixa e o no liga o motor por volume / vazao (+ atraso de partida)
+// a cada periodo. Regras em DoseMath.h; estado na NVS em chaves proprias (d_*).
+DoseConfig g_dose = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 volatile bool g_doseActive = false;
 bool g_dosePulseOn = false;
 unsigned long g_dosePulseStartMs = 0;
@@ -217,6 +268,12 @@ uint32_t g_dosePulses = 0;
 // Fim do pulso aplicado pela tarefa do motor (core 0), que nao depende do loop: com o Hub
 // mudo o HTTP bloqueia o loop por ate ~1 s e o pulso passaria do volume. 0 = sem prazo.
 volatile uint32_t g_doseCutoffMs = 0;
+// 3.13: o prazo e armado no core 0 no instante em que o duty sobe (g_doseArmOnMs > 0 =
+// pulso pedido e ainda nao iniciado). Em pulsos de 200 ms os ms entre o loop e o core 0 pesam.
+volatile uint32_t g_doseArmOnMs = 0;
+portMUX_TYPE g_doseMux = portMUX_INITIALIZER_UNLOCKED;
+// Volume que deixou de sair porque o sensor de liquido segurou o motor durante o pulso.
+float g_doseShortMl = 0.0f;
 
 // Sensor gate
 volatile bool  sensorEnable          = false;
@@ -239,10 +296,13 @@ uint32_t calculateCRC32(const uint8_t *data, size_t length);
 void checkAndRecoverState();
 void saveRuntimeState();
 void clearRuntimeState();
+void sessionVolumeRestore();
+void sessionVolumeSave(bool force);
 
 // Main Loop helpers
 void handleSerialInput();
-void processJsonCommand(String json);
+bool processJsonCommand(String json, CommandSource src = CommandSource::Usb);
+void handleHubCommandBody(const String& body);
 void checkWifi();
 void pollHubForCommands();
 float calcPotSpeed();
@@ -260,6 +320,7 @@ float doseDeliveredNow();
 
 // Mode & PID
 void resetOperationState();
+void resetControllerState();
 void startCycle();
 float calculateTargetFlow(float t_rel_min);
 float calculateTargetVolume(float t_rel_min);
@@ -285,11 +346,7 @@ void handleOtaPage();
 void handleOtaUploadDone();
 void handleOtaChunk();
 
-// JSON helpers
-const char* findJsonValueStart(const char* json, const char* key);
-long   getJsonValue(const char* json, const char* key);
-float  getJsonFloatValue(const char* json, const char* key);
-double getJsonDoubleValue(const char* json, const char* key);
+// JSON helpers (os de C puro estao em protocol/JsonScan.h)
 String getJsonStringValue(const char* json, const char* key);
 
 inline long   getJsonValue(const String& json, const String& key) { return getJsonValue(json.c_str(), key.c_str()); }

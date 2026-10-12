@@ -13,9 +13,10 @@ def read(relative: str) -> str:
 
 class PumpFirmwareV312Contract(unittest.TestCase):
     def test_version_is_consistent(self):
-        self.assertIn('#define PUMP_FW_VERSION "3.12"', read("core/FirmwareApp.cpp"))
-        self.assertIn('ver=3.12', read("network/HubClient.h"))
-        self.assertIn('v3.12', read("core/Lifecycle.h"))
+        # 3.13 keeps the 3.12 calibration contract; the version lives in one macro.
+        self.assertIn('#define PUMP_FW_VERSION "3.13"', read("core/FirmwareApp.cpp"))
+        self.assertIn('ver=" PUMP_FW_VERSION "', read("network/HubClient.h"))
+        self.assertIn('v" PUMP_FW_VERSION', read("core/Lifecycle.h"))
 
     def test_record_contains_flowmeter_equation_family(self):
         source = read("storage/CalibrationStore.h")

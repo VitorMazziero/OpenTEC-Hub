@@ -1,10 +1,6 @@
 void buildDataJson(bool includeArrays) {
-    float vol;
-    int pwm_duty;
-    taskDISABLE_INTERRUPTS();
-    vol = g_cumulativeVolumeMl;
-    pwm_duty = g_actualPwmDuty;
-    taskENABLE_INTERRUPTS();
+    const float vol = volRead();
+    const int pwm_duty = g_actualPwmDuty;
 
     float t_rel = g_current_t_min - g_config.init_t_min;
     if (t_rel < 0.0f) t_rel = 0.0f;
@@ -47,8 +43,8 @@ void buildDataJson(bool includeArrays) {
 
     String json = String(jsonBuffer);
 
-    // Dosagem por pulsos (3.12+dose1), em buffer proprio para nao apertar o quadro acima.
-    char doseBuffer[352];
+    // Dosagem por pulsos e estado 3.13, em buffer proprio para nao apertar o quadro acima.
+    char doseBuffer[640];
     const unsigned long nowMs = millis();
     unsigned long nextS = 0;
     if (g_doseActive && !g_dosePulseOn && static_cast<long>(g_doseNextPulseMs - nowMs) > 0) {
@@ -57,7 +53,9 @@ void buildDataJson(bool includeArrays) {
     snprintf(doseBuffer, sizeof(doseBuffer),
         ",\"dose_active\":%s,\"dose_pulse\":%s,\"dose_ml\":%.3f,\"dose_period_s\":%.1f,"
         "\"dose_speed\":%.1f,\"dose_rate_mlmin\":%.3f,\"dose_total_ml\":%.3f,"
-        "\"dose_delivered_ml\":%.3f,\"dose_pulses\":%lu,\"dose_next_s\":%lu,\"fw_build\":\"%s\"",
+        "\"dose_delivered_ml\":%.3f,\"dose_pulses\":%lu,\"dose_next_s\":%lu,\"dose_dead_ms\":%.0f,"
+        "\"dose_short_ml\":%.3f,\"drv\":%d,\"liquid_sensor\":%s,\"motor_allowed\":%s,\"boot\":%lu,"
+        "\"reset_reason\":%d,\"rej_cmd_id\":%lu,\"rej_err\":\"%s\",\"fw_build\":\"%s\"",
         g_doseActive ? "true" : "false",
         g_dosePulseOn ? "true" : "false",
         (double)g_dose.volumeMl, (double)g_dose.periodS,
@@ -65,6 +63,15 @@ void buildDataJson(bool includeArrays) {
         (double)doseDeliveredNow(),
         static_cast<unsigned long>(g_dosePulses),
         nextS,
+        (double)g_dose.deadMs,
+        (double)g_doseShortMl,
+        static_cast<int>(g_drive),
+        (sensorEnable && !sensorBypass) ? "true" : "false",
+        g_motorAllowed ? "true" : "false",
+        static_cast<unsigned long>(g_bootCount),
+        g_resetReason,
+        static_cast<unsigned long>(g_lastRejectedHubCommandId),
+        g_lastRejectCode,
         PUMP_FW_BUILD);
     json += doseBuffer;
 

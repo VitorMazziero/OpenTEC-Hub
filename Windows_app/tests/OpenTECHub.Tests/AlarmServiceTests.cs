@@ -596,6 +596,31 @@ public sealed class AlarmServiceTests
         Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
     }
 
+    [Fact]
+    public void Disconnected_pump_does_not_keep_a_routing_mismatch_active()
+    {
+        using var h = new Harness();
+        h.Service.SetRoutingRequested(DeviceNames.Routing.ExternalPump, false);
+
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = true,
+            PumpCommEnabled = true,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(5.1));
+        Assert.True(h.Latched(AlarmId.DeviceRoutingMismatch));
+
+        h.Device.PushTelemetry(HealthyFrame() with
+        {
+            HasPumpTelemetry = true,
+            PumpOnline = false,
+            PumpCommEnabled = true,
+        });
+        h.AdvanceAndPoll(TimeSpan.FromSeconds(2.1));
+        Assert.False(h.Latched(AlarmId.DeviceRoutingMismatch));
+    }
+
     /// <summary>
     /// An external device the operator has not enabled in Controle stays silent, even when
     /// the Hub is still routing it (a flag persisted across a reboot) and it is not answering.

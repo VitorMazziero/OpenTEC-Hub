@@ -741,7 +741,11 @@ public sealed class AlarmService : IAlarmService
         Check(DeviceNames.Routing.Airflow, snapshot.FlowmeterOnline ? snapshot.FlowControlEnabled : null);
 
         Check(DeviceNames.Routing.Absorbance, snapshot.BiomassCommEnabled);
-        Check(DeviceNames.Routing.ExternalPump, snapshot.PumpCommEnabled);
+        // A stale routing flag can survive in the Hub after the pump goes offline. There
+        // is no command path to compare while the node is absent, so let the offline
+        // indication describe that state and resume comparison when it reconnects.
+        Check(DeviceNames.Routing.ExternalPump,
+            snapshot.HasPumpTelemetry && snapshot.PumpOnline ? snapshot.PumpCommEnabled : null);
         Check(DeviceNames.Routing.Distance, snapshot.DistanceCommEnabled);
         Check(DeviceNames.Routing.ServoDrive, snapshot.ServoCommEnabled);
         var bathRoute = snapshot.TempControlViaBath is { } viaBath && snapshot.BathCommEnabled is { } bathComm

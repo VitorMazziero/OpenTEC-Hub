@@ -6,6 +6,12 @@ All notable changes to OpenTEC-Hub. Version numbers follow
 
 ---
 
+## [0.32.2] - 2026-10-12
+
+- O aviso de divergência de roteamento da bomba externa limpa quando o nó está desconectado e volta a comparar os estados após a reconexão.
+
+---
+
 ## [0.32.1] - 2026-10-12
 
 - Corrigidos os indicadores de pH e oxigênio no painel: acompanham, respectivamente, o controle de pH aplicado e a cascata de oxigênio ativa.

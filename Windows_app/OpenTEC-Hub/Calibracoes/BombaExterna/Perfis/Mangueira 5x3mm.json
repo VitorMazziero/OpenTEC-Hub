@@ -1,0 +1,180 @@
+﻿{
+  "schemaVersion": 3,
+  "profileId": "bffc9eca-69f9-4dfc-8579-a64a13d51051",
+  "id": "bffc9eca-69f9-4dfc-8579-a64a13d51051",
+  "hasFittedCurve": true,
+  "name": "Mangueira 5x3mm",
+  "createdUtc": "2026-10-12T09:23:19.7597644+00:00",
+  "modifiedUtc": "2026-10-12T09:23:19.7826973+00:00",
+  "transitionFlowMlMin": 5.991046708777053,
+  "transitionSpeedUnits": 151,
+  "lowSlope": 0.028018767657378915,
+  "highSlope": 0.02801876765737895,
+  "lowA": -5.590833081165602E-09,
+  "lowB": 2.5272371770033862E-06,
+  "lowK": -0.0004087640855281655,
+  "lowF": 0.05559077425885103,
+  "lowC": 1.122509560509724,
+  "highK": 5.675954569233677E-11,
+  "highF": 0.02801875051599615,
+  "highC": 1.760214086687236,
+  "calibrationPoints": [
+    {
+      "speedUnits": 50,
+      "seconds": 60,
+      "volumeMl": 3.1611,
+      "flowMlPerMin": 3.1611,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 100,
+      "seconds": 60,
+      "volumeMl": 4.5621,
+      "flowMlPerMin": 4.5621,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 150,
+      "seconds": 60,
+      "volumeMl": 5.963,
+      "flowMlPerMin": 5.963,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 200,
+      "seconds": 60,
+      "volumeMl": 7.364,
+      "flowMlPerMin": 7.364,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 250,
+      "seconds": 60,
+      "volumeMl": 8.7649,
+      "flowMlPerMin": 8.7649,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 300,
+      "seconds": 60,
+      "volumeMl": 10.1658,
+      "flowMlPerMin": 10.1658,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 350,
+      "seconds": 60,
+      "volumeMl": 11.5668,
+      "flowMlPerMin": 11.5668,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 400,
+      "seconds": 60,
+      "volumeMl": 12.9677,
+      "flowMlPerMin": 12.9677,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 450,
+      "seconds": 60,
+      "volumeMl": 14.3687,
+      "flowMlPerMin": 14.3687,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 500,
+      "seconds": 60,
+      "volumeMl": 15.7696,
+      "flowMlPerMin": 15.7696,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 550,
+      "seconds": 60,
+      "volumeMl": 17.1705,
+      "flowMlPerMin": 17.1705,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 600,
+      "seconds": 60,
+      "volumeMl": 18.5715,
+      "flowMlPerMin": 18.5715,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 650,
+      "seconds": 60,
+      "volumeMl": 19.9724,
+      "flowMlPerMin": 19.9724,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 700,
+      "seconds": 60,
+      "volumeMl": 21.3734,
+      "flowMlPerMin": 21.3734,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 750,
+      "seconds": 60,
+      "volumeMl": 22.7743,
+      "flowMlPerMin": 22.7743,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 800,
+      "seconds": 60,
+      "volumeMl": 24.1753,
+      "flowMlPerMin": 24.1753,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 850,
+      "seconds": 60,
+      "volumeMl": 25.5762,
+      "flowMlPerMin": 25.5762,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 900,
+      "seconds": 60,
+      "volumeMl": 26.9771,
+      "flowMlPerMin": 26.9771,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 950,
+      "seconds": 60,
+      "volumeMl": 28.3781,
+      "flowMlPerMin": 28.3781,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    },
+    {
+      "speedUnits": 1000,
+      "seconds": 60,
+      "volumeMl": 29.779,
+      "flowMlPerMin": 29.779,
+      "capturedAtUtc": "2026-10-12T00:00:00Z"
+    }
+  ],
+  "dosePoints": [],
+  "fitStatistics": {
+    "sse": 1.3937048503488806E-08,
+    "rmse": 2.639796251937714E-05,
+    "rSquared": 0.9999999999893215,
+    "totalPoints": 20,
+    "lowPointCount": 3,
+    "highPointCount": 17,
+    "lowSSE": 1.4199496293978212E-29,
+    "highSSE": 1.3937048503488806E-08,
+    "lowRMSE": 2.175583928816829E-15,
+    "highRMSE": 2.863261047404105E-05
+  },
+  "algorithmVersion": "quartic-quadratic-c1-v2",
+  "optionalNotes": "Pontos sint\u00E9ticos (S 50\u20131000 a cada 50, 60 s) gerados da curva linear fixa no firmware v3.3 DC: Q = 0,0280188148\u00B7S \u002B 1,7601988934 mL/min. N\u00E3o s\u00E3o ensaios medidos; refa\u00E7a com proveta antes de confiar.",
+  "lastAppliedUtc": null,
+  "lastAppliedPumpFirmware": null
+}

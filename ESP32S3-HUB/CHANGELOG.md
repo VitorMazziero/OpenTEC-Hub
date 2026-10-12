@@ -1,5 +1,16 @@
 # Changelog do Hub
 
+## 10.9.0-dev — 2026-10-11 — bomba 3.13: dosagem, recusa e entrega na resposta do push
+
+Binário pronto para a bancada: `build/ota/ESP32S3-HUB.ino.bin` (1 202 176 B, SHA-256
+`910a95b9740bdb1c769fd7d5bf6bb69e489b9f7e1d08a898d0b461de386baa37`). Gravar depois da bomba 3.12.1
+e antes da 3.13; registro em `External-Devices/bomba-peristaltica/docs/BANCADA_3.13.md`.
+
+- Repassa a dosagem por pulsos: `pump_dose`, `pump_dose_ml`, `pump_dose_period_s`, `pump_dose_speed`, `pump_dose_rate_mlmin`, `pump_dose_total_ml`, `pump_dose_dead_ms` (o nó recebe sem o prefixo `pump_`).
+- **Recusa:** com `rej_cmd_id` igual ao comando pendente, o Hub o encerra sem reenviar (`rejectReliable`, regra do banho r3.2) e publica `PumpRejCmdId`/`PumpRejErr`.
+- **Entrega na resposta do push:** o `/pumpData` responde com o comando pendente em JSON, depois de processar ACK e recusa. O poll de `/pumpCommand` continua (a bomba 3.12 ignora a resposta).
+- Publica os campos da bomba 3.13: saúde (`PumpUptimeS`, `PumpBootCount`, `PumpResetReason`) e recusa sempre que o nó está presente; acionamento (`PumpDrive`), sensor de líquido, relógio do perfil e a dosagem (`PumpDose*`) com o roteamento ligado. Com a bomba 3.12 o JSON não muda.
+
 ## 10.8.1-dev — presença da bomba e da distância sem depender do roteamento
 
 - `PumpOnline`, `DistanceOnline` e `/nodes` passam a refletir só a chegada de dados do nó, como já era na biomassa e no servo. Antes exigiam `pumpComm`/`distanceComm` ligados, e o PC só libera o interruptor de um nó presente: com a comunicação desligada no Hub, o interruptor ficava travado para sempre.

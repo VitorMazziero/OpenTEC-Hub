@@ -887,7 +887,10 @@ void processJsonCommand(const String &json) {
     "lambda_const", "lambda_linear", "phi_linear", "lambda_exp", "phi_exp",
     "pumpPidKp", "pumpPidKi", "pumpPidKd", "pumpTransitionSpeed", "transition_speed",
     "pumpA1", "pumpB1", "pumpK1", "pumpF1", "pumpC1", "pumpK2", "pumpF2", "pumpC2",
-    "a1", "b1", "k1", "f1", "c1", "k2", "f2", "c2"
+    "a1", "b1", "k1", "f1", "c1", "k2", "f2", "c2",
+    // Bomba 3.13: dosagem por pulsos. O prefixo pump_ sai abaixo (pump_dose_ml -> dose_ml).
+    "pump_dose", "pump_dose_ml", "pump_dose_period_s", "pump_dose_speed",
+    "pump_dose_rate_mlmin", "pump_dose_total_ml", "pump_dose_dead_ms"
   };
   // O firmware da bomba tambem entende save_config, load_config, print_config e clear_nvs.
   // clear_nvs apaga calibracao, perfil e PID e reinicia o no; nenhum deles e operacao de

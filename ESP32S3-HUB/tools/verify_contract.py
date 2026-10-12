@@ -55,6 +55,11 @@ V10_KEYS = {
     "FlowTransitionVoltage",
     "PumpTransitionSpeed", "PumpCalCrc",
     "PumpA1", "PumpB1", "PumpK1", "PumpF1", "PumpC1", "PumpK2", "PumpF2", "PumpC2",
+    "PumpUptimeS", "PumpBootCount", "PumpResetReason", "PumpRejCmdId", "PumpRejErr",
+    "PumpDrive", "PumpLiquidSensor", "PumpLiquidOk", "PumpProfileMin",
+    "PumpDoseActive", "PumpDosePulse", "PumpDoseMl", "PumpDosePeriodS", "PumpDoseSpeed",
+    "PumpDoseRate", "PumpDoseTotal", "PumpDoseDeadMs", "PumpDoseDelivered", "PumpDosePulses",
+    "PumpDoseNextS", "PumpDoseShortfall",
 }
 
 

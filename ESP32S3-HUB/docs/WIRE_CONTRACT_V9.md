@@ -256,7 +256,9 @@ responde `200 application/json {"cmd_id":N,"offset_mm":...}`; o nó aplica e res
 Os campos de sintonia trafegam junto ao estado dos atuadores (`flow_setpoint`, `v1`, `v2`, `v_Flow`)
 e permanecem pendentes até o ack (`ack_cmd_id == flowCommandRevision`).
 
-### Bomba Peristáltica (`pumpBox` via poll `/pumpCommand`)
+### Bomba Peristáltica (`pumpBox` via resposta do `/pumpData` e poll `/pumpCommand`)
+
+**10.9:** o `/pumpData` responde com o comando pendente (`takeReliable`, `application/json`; `{}` sem pendente), depois de processar `ack_cmd_id` e `rej_cmd_id`. A bomba 3.13 aplica essa resposta; a 3.12 a ignora e segue pelo poll.
 
 | Chave no app (`CommandKeys`) | Fio app→Hub | Hub traduz para | Formato / Ação |
 |---|---|---|---|
@@ -272,7 +274,17 @@ e permanecem pendentes até o ack (`ack_cmd_id == flowCommandRevision`).
 | `PumpPidKi` | `pumpPidKi` | `pid_ki` | float |
 | `PumpPidKd` | `pumpPidKd` | `pid_kd` | float |
 
-Nota: `speed` desacompanhado de `pump_` é rejeitado pelo Hub (§3.7 do plano).
+| `PumpDose` | `pump_dose` | `dose` | `1` inicia, `0` para a dosagem por pulsos (10.9; bomba 3.13) |
+| `PumpDoseMl` | `pump_dose_ml` | `dose_ml` | mL por pulso, (0, 100] |
+| `PumpDosePeriodS` | `pump_dose_period_s` | `dose_period_s` | s entre inícios, [2, 86 400] |
+| `PumpDoseSpeed` | `pump_dose_speed` | `dose_speed` | velocidade S do pulso, [1, 1000] |
+| `PumpDoseRate` | `pump_dose_rate_mlmin` | `dose_rate_mlmin` | vazão medida nessa velocidade (mL/min) |
+| `PumpDoseTotal` | `pump_dose_total_ml` | `dose_total_ml` | total (mL); 0 = sem limite |
+| `PumpDoseDeadMs` | `pump_dose_dead_ms` | `dose_dead_ms` | atraso de partida compensado, [0, 2000] ms |
+
+**Recusa (10.9; bomba 3.13):** a bomba valida o quadro inteiro; recusado, não há ACK e o push leva `rej_cmd_id`/`rej_err`. Com `rej_cmd_id == revision` o Hub encerra o pendente (`rejectReliable`) sem reenviar e publica `PumpRejCmdId`/`PumpRejErr`. Com o Hub 10.8 o comando recusado ficaria pendente até ser substituído.
+
+Nota: `speed` desacompanhado de `pump_` é rejeitado pelo Hub (§3.7 do plano). Pelo Hub, a bomba 3.13 dá 300 s de prazo a um `pump_speed` sem `pump_speed_ms`.
 O desligamento seguro da bomba utiliza `{"mode":0}`.
 
 ### Sensor de Biomassa (`biomassBox` via poll `/biomassCommand`)
@@ -354,6 +366,16 @@ cada segundo. O filtro foi removido; a validade da leitura é responsabilidade d
 | `PumpPidKp`, `PumpPidKi`, `PumpPidKd` | float (%.4f) | idem, só bomba 3.10 (push com `kp/ki/kd`) | Ganhos do PID de volume vigentes no nó |
 | `PumpPotEnabled` | bool | idem, só 3.10 (push com `pot`) | Potenciômetros de bancada no comando do motor |
 | `PumpCycleVol` | float (%.3f) | idem, só 3.10 (push com `cyc_vol`) | Volume do ciclo de perfil corrente; `PumpVol` é o contador da sessão e só zera com `reset_volume` |
+| `PumpUptimeS`, `PumpBootCount`, `PumpResetReason` | uint32, uint32, int | `PumpOnline` e `pumpExtSeen` (10.9; push `up`, `boot`, `rst`) | Uptime, contador de inicializações e `esp_reset_reason()` do nó, mesmo sem roteamento |
+| `PumpRejCmdId`, `PumpRejErr` | uint32, string | idem | Último comando recusado (0 = nenhum ou comando local) e motivo; `""` = último quadro aceito |
+| `PumpDrive` | int | roteamento e `pumpExtSeen` | Quem comanda o motor: 0 parado · 1 potenciômetros · 2 velocidade manual · 3 perfil aguardando · 4 perfil rodando · 5 dosagem entre pulsos · 6 pulso · 7 OTA |
+| `PumpLiquidSensor`, `PumpLiquidOk` | bool | idem | Sensor de líquido habilitado; motor liberado por ele |
+| `PumpProfileMin` | float (%.3f) | idem | Tempo do perfil no relógio do nó (min) |
+| `PumpDoseActive`, `PumpDosePulse` | bool | idem, após o primeiro `d_act` | Dosagem ativa; pulso em curso |
+| `PumpDoseMl`, `PumpDosePeriodS`, `PumpDoseSpeed`, `PumpDoseRate`, `PumpDoseTotal`, `PumpDoseDeadMs` | float | idem | Eco dos parâmetros da dosagem |
+| `PumpDoseDelivered`, `PumpDosePulses`, `PumpDoseNextS`, `PumpDoseShortfall` | float, uint32, uint32, float | idem | Entregue (mL), pulsos, s até o próximo, mL perdidos para o sensor de líquido |
+
+`pumpExtSeen` liga no primeiro push com `drv` ou `d_act` e cai com `PUMP_TIMEOUT`; com a bomba 3.12 nenhum desses campos aparece.
 
 ### Sensor de Biomassa
 

@@ -561,10 +561,50 @@ void startWiFi() {
           pumpTargetVolume = request->getParam("v_tgt")->value().toFloat();
           if (request->hasParam("active")) pumpActive = request->getParam("active")->value().toInt() == 1;
           if (request->hasParam("waiting")) pumpWaiting = request->getParam("waiting")->value().toInt() == 1;
+          // 3.13: estado de acionamento, sensor, reinicios e dosagem.
+          if (request->hasParam("drv") || request->hasParam("d_act")) pumpExtSeen = true;
+          auto pInt = [&](const char* k, int& dst) { if (request->hasParam(k)) dst = request->getParam(k)->value().toInt(); };
+          auto pU32 = [&](const char* k, uint32_t& dst) { if (request->hasParam(k)) dst = (uint32_t)strtoul(request->getParam(k)->value().c_str(), NULL, 10); };
+          auto pFlt = [&](const char* k, float& dst) { if (request->hasParam(k)) dst = request->getParam(k)->value().toFloat(); };
+          pInt("drv", pumpDrive);
+          pInt("sens", pumpLiquidSensor);
+          pInt("wet", pumpLiquidOk);
+          pFlt("t_min", pumpProfileMin);
+          pU32("up", pumpUptimeS);
+          pU32("boot", pumpBootCount);
+          pInt("rst", pumpResetReason);
+          pU32("rej_cmd_id", pumpRejCmdId);
+          if (request->hasParam("rej_err")) {
+            String err = request->getParam("rej_err")->value();
+            if (err == "none") err = "";
+            strncpy(pumpRejErr, err.c_str(), sizeof(pumpRejErr) - 1);
+            pumpRejErr[sizeof(pumpRejErr) - 1] = '\0';
+          }
+          pInt("d_act", pumpDoseActive);
+          pInt("d_pulse", pumpDosePulse);
+          pFlt("d_ml", pumpDoseMl);
+          pFlt("d_per", pumpDosePeriodS);
+          pFlt("d_spd", pumpDoseSpeed);
+          pFlt("d_rate", pumpDoseRate);
+          pFlt("d_tot", pumpDoseTotal);
+          pFlt("d_dead", pumpDoseDeadMs);
+          pFlt("d_done", pumpDoseDelivered);
+          pU32("d_n", pumpDosePulses);
+          pU32("d_next", pumpDoseNextS);
+          pFlt("d_short", pumpDoseShortfall);
           xSemaphoreGive(stateMutex);
         }
 
-        request->send(200, "text/plain", "Pump data received");
+        // 3.13: comando recusado encerra o pendente (o no nao da ACK a ele).
+        if (request->hasParam("rej_cmd_id")) {
+          const uint32_t rejId = (uint32_t)strtoul(request->getParam("rej_cmd_id")->value().c_str(), NULL, 10);
+          const String rejErr = request->hasParam("rej_err") ? request->getParam("rej_err")->value() : String("");
+          rejectReliable(pumpBox, rejId, "Pump", rejErr.c_str());
+        }
+
+        // Entrega na resposta do push (10.9): o comando pendente sai aqui, sem esperar o poll
+        // de /pumpCommand. A bomba 3.12 ignora o corpo; o poll continua valendo para ela.
+        request->send(200, "application/json", takeReliable(pumpBox));
       } else {
         request->send(400, "text/plain", "Missing one or more pump parameters");
       }

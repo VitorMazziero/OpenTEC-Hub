@@ -145,6 +145,24 @@ bool ackReliable(ReliableMailbox &box, uint32_t reportedAck, const char *label) 
   return cleared;
 }
 
+// Clears the box when the node reports it refused this revision (pump 3.13, same rule as the
+// bath r3.2): retrying a command the node already judged invalid only repeats the refusal.
+bool rejectReliable(ReliableMailbox &box, uint32_t rejectedId, const char *label, const char *reason) {
+  bool cleared = false;
+  if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    if (box.awaiting && rejectedId != 0 && rejectedId == box.revision) {
+      box.awaiting = false;
+      box.payload = "";
+      cleared = true;
+    }
+    xSemaphoreGive(cmdMutex);
+  }
+  if (cleared) {
+    ESP32_AVISO(String(label) + " command refused by the node cmd_id=" + rejectedId + " (" + reason + ")");
+  }
+  return cleared;
+}
+
 // True while a command is outstanding, for the telemetry frame.
 bool mailboxPending(ReliableMailbox &box) {
   bool pending = false;
@@ -479,6 +497,7 @@ uint32_t queueReliableFlowCommandFromJson(const String &json);
 uint32_t queueReliable(ReliableMailbox &box, const String &innerJson, const char *label);
 String takeReliable(ReliableMailbox &box);
 bool ackReliable(ReliableMailbox &box, uint32_t reportedAck, const char *label);
+bool rejectReliable(ReliableMailbox &box, uint32_t rejectedId, const char *label, const char *reason);
 bool mailboxPending(ReliableMailbox &box);
 void clearReliable(ReliableMailbox &box);
 

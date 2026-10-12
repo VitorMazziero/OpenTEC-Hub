@@ -89,6 +89,15 @@ void readAndBroadcastSensorData() {
   float snapPumpPidKp = NAN, snapPumpPidKi = NAN, snapPumpPidKd = NAN;
   int snapPumpPotEnabled = -1;
   float snapPumpCycleVolume = NAN;
+  bool snapPumpExtSeen = false;
+  int snapPumpDrive = -1, snapPumpLiquidSensor = -1, snapPumpLiquidOk = -1, snapPumpResetReason = -1;
+  float snapPumpProfileMin = NAN;
+  uint32_t snapPumpUptimeS = 0, snapPumpBootCount = 0, snapPumpRejCmdId = 0;
+  char snapPumpRejErr[24] = "";
+  int snapPumpDoseActive = -1, snapPumpDosePulse = -1;
+  float snapPumpDoseMl = NAN, snapPumpDosePeriodS = NAN, snapPumpDoseSpeed = NAN, snapPumpDoseRate = NAN;
+  float snapPumpDoseTotal = NAN, snapPumpDoseDeadMs = NAN, snapPumpDoseDelivered = NAN, snapPumpDoseShortfall = NAN;
+  uint32_t snapPumpDosePulses = 0, snapPumpDoseNextS = 0;
   bool snapBathComm = false;
   unsigned long snapBathUpdate = 0;
   float snapBathSp = NAN, snapBathTarget = NAN, snapBathPv = NAN;
@@ -174,6 +183,31 @@ void readAndBroadcastSensorData() {
       pumpEchoSeen = false;
     }
     snapPumpEchoSeen = pumpEchoSeen;
+    if (pumpExtSeen && (millis() - pumpLastUpdate > PUMP_TIMEOUT)) {
+      pumpExtSeen = false;
+    }
+    snapPumpExtSeen = pumpExtSeen;
+    snapPumpDrive = pumpDrive;
+    snapPumpLiquidSensor = pumpLiquidSensor;
+    snapPumpLiquidOk = pumpLiquidOk;
+    snapPumpProfileMin = pumpProfileMin;
+    snapPumpUptimeS = pumpUptimeS;
+    snapPumpBootCount = pumpBootCount;
+    snapPumpResetReason = pumpResetReason;
+    snapPumpRejCmdId = pumpRejCmdId;
+    memcpy(snapPumpRejErr, pumpRejErr, sizeof(snapPumpRejErr));
+    snapPumpDoseActive = pumpDoseActive;
+    snapPumpDosePulse = pumpDosePulse;
+    snapPumpDoseMl = pumpDoseMl;
+    snapPumpDosePeriodS = pumpDosePeriodS;
+    snapPumpDoseSpeed = pumpDoseSpeed;
+    snapPumpDoseRate = pumpDoseRate;
+    snapPumpDoseTotal = pumpDoseTotal;
+    snapPumpDoseDeadMs = pumpDoseDeadMs;
+    snapPumpDoseDelivered = pumpDoseDelivered;
+    snapPumpDosePulses = pumpDosePulses;
+    snapPumpDoseNextS = pumpDoseNextS;
+    snapPumpDoseShortfall = pumpDoseShortfall;
     snapPumpTransitionSpeed = pumpTransitionSpeed;
     snapPumpA1=pumpA1; snapPumpB1=pumpB1; snapPumpK1=pumpK1; snapPumpF1=pumpF1; snapPumpC1=pumpC1;
     snapPumpK2=pumpK2; snapPumpF2=pumpF2; snapPumpC2=pumpC2;
@@ -431,6 +465,15 @@ void readAndBroadcastSensorData() {
   jsonResponse += ",\"PumpOnline\":" + String(pumpOnline ? "true" : "false");
   jsonResponse += ",\"PumpCommEnabled\":" + String(snapPumpComm ? "true" : "false");
   jsonResponse += ",\"PumpCommandPending\":" + String(pumpPending ? "true" : "false");
+  // Bomba 3.13: saude e recusa sempre que o no estiver presente (independem do roteamento,
+  // como a presenca desde a 10.8.1). PumpRejErr vazio = o ultimo quadro foi aceito.
+  if (pumpOnline && snapPumpExtSeen) {
+    jsonResponse += ",\"PumpUptimeS\":" + String(snapPumpUptimeS);
+    jsonResponse += ",\"PumpBootCount\":" + String(snapPumpBootCount);
+    if (snapPumpResetReason >= 0) jsonResponse += ",\"PumpResetReason\":" + String(snapPumpResetReason);
+    jsonResponse += ",\"PumpRejCmdId\":" + String(snapPumpRejCmdId);
+    jsonResponse += ",\"PumpRejErr\":\"" + String(snapPumpRejErr) + "\"";
+  }
   if (pumpRouted) {
     jsonResponse += ",\"PumpMode\":" + String(snapPumpMode);
     jsonResponse += ",\"PumpPWM\":" + String(snapPumpPwm);
@@ -457,6 +500,26 @@ void readAndBroadcastSensorData() {
       if (!isnan(snapPumpF2)) jsonResponse += ",\"PumpF2\":" + String(snapPumpF2, 9);
       if (!isnan(snapPumpC2)) jsonResponse += ",\"PumpC2\":" + String(snapPumpC2, 9);
       if (snapPumpCalCrc != 0) jsonResponse += ",\"PumpCalCrc\":" + String(snapPumpCalCrc);
+    }
+    if (snapPumpExtSeen) {
+      if (snapPumpDrive >= 0) jsonResponse += ",\"PumpDrive\":" + String(snapPumpDrive);
+      if (snapPumpLiquidSensor >= 0) jsonResponse += ",\"PumpLiquidSensor\":" + String(snapPumpLiquidSensor ? "true" : "false");
+      if (snapPumpLiquidOk >= 0) jsonResponse += ",\"PumpLiquidOk\":" + String(snapPumpLiquidOk ? "true" : "false");
+      if (!isnan(snapPumpProfileMin)) jsonResponse += ",\"PumpProfileMin\":" + String(snapPumpProfileMin, 3);
+      if (snapPumpDoseActive >= 0) {
+        jsonResponse += ",\"PumpDoseActive\":" + String(snapPumpDoseActive ? "true" : "false");
+        jsonResponse += ",\"PumpDosePulse\":" + String(snapPumpDosePulse > 0 ? "true" : "false");
+        if (!isnan(snapPumpDoseMl)) jsonResponse += ",\"PumpDoseMl\":" + String(snapPumpDoseMl, 3);
+        if (!isnan(snapPumpDosePeriodS)) jsonResponse += ",\"PumpDosePeriodS\":" + String(snapPumpDosePeriodS, 1);
+        if (!isnan(snapPumpDoseSpeed)) jsonResponse += ",\"PumpDoseSpeed\":" + String(snapPumpDoseSpeed, 1);
+        if (!isnan(snapPumpDoseRate)) jsonResponse += ",\"PumpDoseRate\":" + String(snapPumpDoseRate, 3);
+        if (!isnan(snapPumpDoseTotal)) jsonResponse += ",\"PumpDoseTotal\":" + String(snapPumpDoseTotal, 3);
+        if (!isnan(snapPumpDoseDeadMs)) jsonResponse += ",\"PumpDoseDeadMs\":" + String(snapPumpDoseDeadMs, 0);
+        if (!isnan(snapPumpDoseDelivered)) jsonResponse += ",\"PumpDoseDelivered\":" + String(snapPumpDoseDelivered, 3);
+        jsonResponse += ",\"PumpDosePulses\":" + String(snapPumpDosePulses);
+        jsonResponse += ",\"PumpDoseNextS\":" + String(snapPumpDoseNextS);
+        if (!isnan(snapPumpDoseShortfall)) jsonResponse += ",\"PumpDoseShortfall\":" + String(snapPumpDoseShortfall, 3);
+      }
     }
   }
 

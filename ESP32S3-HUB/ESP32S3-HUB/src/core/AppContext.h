@@ -493,6 +493,24 @@ float pumpK2 = NAN, pumpF2 = NAN, pumpC2 = NAN;
 uint32_t pumpCalCrc = 0;
 bool  pumpEchoSeen = false;
 
+// Bomba 3.13 (-1 / NAN / 0 = nunca recebido neste boot). pumpExtSeen liga no primeiro push
+// com drv ou d_act e cai com PUMP_TIMEOUT, como pumpEchoSeen: uma bomba 3.12 nunca o liga e
+// o JSON fica igual ao da 10.8.
+bool  pumpExtSeen = false;
+int   pumpDrive = -1;            // drv: 0 parado .. 7 OTA
+int   pumpLiquidSensor = -1;     // sens
+int   pumpLiquidOk = -1;         // wet
+float pumpProfileMin = NAN;      // t_min
+uint32_t pumpUptimeS = 0;        // up
+uint32_t pumpBootCount = 0;      // boot
+int   pumpResetReason = -1;      // rst
+uint32_t pumpRejCmdId = 0;       // rej_cmd_id
+char  pumpRejErr[24] = "";       // rej_err ("" = sem recusa)
+int   pumpDoseActive = -1, pumpDosePulse = -1;
+float pumpDoseMl = NAN, pumpDosePeriodS = NAN, pumpDoseSpeed = NAN, pumpDoseRate = NAN;
+float pumpDoseTotal = NAN, pumpDoseDeadMs = NAN, pumpDoseDelivered = NAN, pumpDoseShortfall = NAN;
+uint32_t pumpDosePulses = 0, pumpDoseNextS = 0;
+
 // ---------- Servo drive Delta ASDA-B2 ----------
 // Telemetria empurrada por um no ESP32-S3 dedicado, que le o drive por
 // Modbus RTU sobre RS-485 (CN3) e se associa a este SoftAP.

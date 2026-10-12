@@ -318,6 +318,50 @@ public sealed class PumpDosingTests
         Assert.Equal(1, series.Count);
     }
 
+    // ── Profile lists with a comma decimal separator ──────────────────────
+
+    [Theory]
+    [InlineData("0; 30; 60", new[] { 0.0, 30.0, 60.0 })]
+    [InlineData("0,000; 30,5; 60", new[] { 0.0, 30.5, 60.0 })]
+    [InlineData("0,000, 60,000", new[] { 0.0, 60.0 })]       // what the card used to show in pt-BR
+    [InlineData("0, 60", new[] { 0.0, 60.0 })]
+    [InlineData("0 30 60", new[] { 0.0, 30.0, 60.0 })]
+    [InlineData("1,5", new[] { 1.5 })]
+    [InlineData("0.5; 0.02; 0.0002", new[] { 0.5, 0.02, 0.0002 })]
+    public void Profile_lists_parse_with_either_decimal_separator(string text, double[] expected)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("pt-BR");
+            Assert.True(PumpControlViewModel.TryParseList(text, out var values));
+            Assert.Equal(expected, values);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+        }
+    }
+
+    [Fact]
+    public void Profile_lists_round_trip_without_losing_small_coefficients()
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("pt-BR");
+            double[] coefficients = [0.5, 0.02, 0.0002, -1.25e-5];
+            var text = PumpControlViewModel.FormatList(coefficients);
+            Assert.Equal("0,5; 0,02; 0,0002; -1,25E-05", text);
+            Assert.True(PumpControlViewModel.TryParseList(text, out var back));
+            Assert.Equal(coefficients, back);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+        }
+    }
+
     // ── Regression: a profile send must not roll back what Calibrações saved ──
 
     [Fact]

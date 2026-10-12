@@ -184,10 +184,10 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
     public partial string PolynomialCoefficientsText { get; set; } = "1";
 
     [ObservableProperty]
-    public partial string PiecewiseTimesText { get; set; } = "0, 60";
+    public partial string PiecewiseTimesText { get; set; } = "0; 60";
 
     [ObservableProperty]
-    public partial string PiecewiseFlowsText { get; set; } = "1, 1";
+    public partial string PiecewiseFlowsText { get; set; } = "1; 1";
 
     [ObservableProperty]
     public partial bool GasProportionalEnabled { get; set; }
@@ -1162,10 +1162,34 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
                DosingInput.TryParseDouble(VvmText, out vvm) && vvm >= 0.0;
     }
 
-    private static bool TryParseList(string? text, out IReadOnlyList<double> values)
+    /// <summary>
+    /// Parses a list of numbers. With a comma decimal separator a plain comma cannot also
+    /// separate items ("0,000, 60,000"), so items are split on ';' when present, else on a comma
+    /// followed by a space or on spaces; a lone number such as "1,5" is one item.
+    /// </summary>
+    internal static bool TryParseList(string? text, out IReadOnlyList<double> values)
     {
+        var raw = (text ?? "").Trim();
+        string[] tokens;
+        if (raw.Contains(';'))
+        {
+            tokens = raw.Split(';');
+        }
+        else if (System.Text.RegularExpressions.Regex.IsMatch(raw, @",\s|\s"))
+        {
+            tokens = System.Text.RegularExpressions.Regex.Split(raw, @",\s+|\s+");
+        }
+        else if (DosingInput.TryParseDouble(raw, out _))
+        {
+            tokens = [raw];
+        }
+        else
+        {
+            tokens = raw.Split(',');
+        }
+
         var list = new List<double>();
-        foreach (var token in (text ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var token in tokens.Select(t => t.Trim()).Where(t => t.Length > 0))
         {
             if (!DosingInput.TryParseDouble(token, out var value))
             {
@@ -1180,8 +1204,12 @@ public sealed partial class PumpControlViewModel : ObservableObject, IDisposable
         return list.Count > 0;
     }
 
-    private static string FormatList(IReadOnlyList<double> values)
-        => string.Join(", ", values.Select(v => DosingInput.Format(v, 3)));
+    /// <summary>
+    /// Items separated by "; " so a comma decimal separator stays unambiguous, with up to six
+    /// significant digits: three fixed decimals turned a 0,0002 coefficient into 0,000.
+    /// </summary>
+    internal static string FormatList(IReadOnlyList<double> values)
+        => string.Join("; ", values.Select(v => v.ToString("G6", System.Globalization.CultureInfo.CurrentCulture)));
 
     /// <summary>
     /// The node's own view of what it is doing: mode, profile state and target volume.

@@ -3,20 +3,33 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Name="Root">
 
-    <!-- Two stacked charts, one y axis each, x axis shared: flow on top, accumulated volume
-         below. Replaces the single two-axis chart whose curves crossed at a meaningless point. -->
+    <!-- Two charts, one y axis each: flow (log scale) and accumulated volume. Stacked by default,
+         side by side with SideBySide. No legends inside the plots: the key is one caption line. -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
-            <RowDefinition Height="8" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Border x:Name="FlowHost" Grid.Row="0" CornerRadius="{DynamicResource RadiusSmall}" ClipToBounds="True" />
-        <Border x:Name="VolumeHost" Grid.Row="2" CornerRadius="{DynamicResource RadiusSmall}" ClipToBounds="True" />
-        <TextBlock x:Name="EmptyNotice" Grid.RowSpan="3"
+        <Grid x:Name="PlotsGrid" Grid.Row="0">
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="FlowRow" Height="*" />
+                <RowDefinition x:Name="GapRow" Height="8" />
+                <RowDefinition x:Name="VolumeRow" Height="*" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="FlowColumn" Width="*" />
+                <ColumnDefinition x:Name="GapColumn" Width="0" />
+                <ColumnDefinition x:Name="VolumeColumn" Width="0" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="FlowHost" Grid.Row="0" Grid.Column="0" CornerRadius="{DynamicResource RadiusSmall}" ClipToBounds="True" />
+            <Border x:Name="VolumeHost" Grid.Row="2" Grid.Column="0" CornerRadius="{DynamicResource RadiusSmall}" ClipToBounds="True" />
+        </Grid>
+        <TextBlock x:Name="EmptyNotice" Grid.Row="0"
                    Text="Defina um perfil válido para ver a prévia"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Style="{StaticResource CaptionTextStyle}"
                    Foreground="{DynamicResource TextMutedBrush}" />
+        <TextBlock x:Name="KeyText" Grid.Row="1" Margin="4,4,0,0" TextWrapping="Wrap"
+                   Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}" />
     </Grid>
 </UserControl>

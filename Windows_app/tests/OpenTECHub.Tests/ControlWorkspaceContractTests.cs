@@ -143,6 +143,16 @@ public sealed class ControlWorkspaceContractTests
         Assert.Contains("IsChecked=\"{Binding IsContinuousMode, Mode=TwoWay}\"", panel, StringComparison.Ordinal);
         Assert.Contains("Visibility=\"{Binding ShowNoCurveWarning, Converter={StaticResource BoolToVis}}\"", panel, StringComparison.Ordinal);
 
+        // Continuous: charts side by side; gas and advanced only exist in continuous mode.
+        Assert.Contains("SideBySide=\"True\"", panel, StringComparison.Ordinal);
+        var gas = panel.IndexOf("<!-- ── Gás proporcional", StringComparison.Ordinal);
+        var gate = panel.LastIndexOf("<StackPanel Visibility=\"{Binding IsContinuousMode, Converter={StaticResource BoolToVis}}\">", gas, StringComparison.Ordinal);
+        var advanced = panel.IndexOf("<!-- ── Avançado", gas, StringComparison.Ordinal);
+        var footer = panel.IndexOf("<!-- ── Rodapé", advanced, StringComparison.Ordinal);
+        Assert.True(gate > 0 && gas - gate < 200 && advanced > gas && footer > advanced &&
+                    panel[advanced..footer].TrimEnd().EndsWith("</StackPanel>", StringComparison.Ordinal),
+            "Gás proporcional and Avançado must sit inside the continuous-only panel");
+
         // The pulse panel (Phase 6): granularity slider, pulse charts, start/stop.
         Assert.Contains("Value=\"{Binding SliderPosition, Mode=TwoWay}\"", panel, StringComparison.Ordinal);
         Assert.Contains("DosePreview=\"{Binding Preview}\"", panel, StringComparison.Ordinal);

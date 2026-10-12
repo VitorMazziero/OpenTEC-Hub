@@ -1977,11 +1977,16 @@
                                     <TextBlock Grid.Column="4" Text="{Binding TargetFlowNowText}" Style="{StaticResource NumericTextStyle}" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"
                                                ToolTip="Vazão-alvo agora (mL/min)" />
                                     <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <!-- In pulse mode the profile combo would show a profile that is not running. -->
+                                        <TextBlock Text="Pulsos" VerticalAlignment="Center" FontWeight="SemiBold" Width="90" Padding="10,0,0,0"
+                                                   Visibility="{Binding IsPulseMode, Converter={StaticResource BoolToVis}}"
+                                                   ToolTip="Dosagem por pulsos: os parâmetros ficam na gaveta" />
                                         <ComboBox Width="90"
                                                   Height="40"
                                                   ItemsSource="{Binding ModeOptions}"
                                                   SelectedItem="{Binding SelectedModeOption, Mode=TwoWay}"
                                                   DisplayMemberPath="Label"
+                                                  Visibility="{Binding IsContinuousMode, Converter={StaticResource BoolToVis}}"
                                                   ToolTip="Modo do perfil de dosagem">
                                             <ComboBox.Style>
                                                 <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">

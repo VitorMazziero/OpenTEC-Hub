@@ -7,9 +7,10 @@ void sensorTask(void *parameter) {
 }
 
 void httpTask(void *parameter) {
-  Serial.println("[HubCommandTask] Started running at 4 Hz.");
+  Serial.println("[HubCommandTask] Started running at 2 Hz.");
   static HTTPClient httpCmd;
   httpCmd.setReuse(true);
+  uint8_t commandFailures = 0;
 
   for (;;) {
     unsigned long now = millis();
@@ -17,33 +18,47 @@ void httpTask(void *parameter) {
       // This task remains command-only, but shares the HTTP bus with telemetry
       // so two HTTPClient instances never drive the Wi-Fi stack concurrently.
       unsigned long currentCmdInterval = commandPollInterval;
-      if (g_hubFailStreak > 0) {
-        uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
+      if (commandFailures > 0) {
+        uint8_t shift = (commandFailures > 4) ? 4 : commandFailures;
         currentCmdInterval = min(commandPollInterval * (1UL << shift), MAX_HUB_BACKOFF_MS);
       }
       if (now - lastCommandPollTime >= currentCmdInterval) {
-        lastCommandPollTime = now;
-        if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
+        if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+          if (otaInProgress || WiFi.status() != WL_CONNECTED) {
+            xSemaphoreGive(hubHttpMutex);
+            continue;
+          }
+          // A busy bus is not an HTTP attempt. Retry after the short task yield
+          // instead of losing a complete polling period on every collision.
+          lastCommandPollTime = millis();
           char cmdUrl[128];
           snprintf(cmdUrl, sizeof(cmdUrl), "%s/flowCommand", sensorHubURL.c_str());
           httpCmd.begin(cmdUrl);
           httpCmd.setConnectTimeout(hubConnectTimeoutMs);
           httpCmd.setTimeout(hubRequestTimeoutMs);
           int cmdCode = httpCmd.GET();
+          if (cmdCode > 0) hubLastResponseMs.store(millis());
           String commandPayload;
           if (cmdCode == 200) {
-            if (g_hubFailStreak > 0) {
-              Serial.printf("[HubCommandTask] Link recovered after %u failed request(s).\n", g_hubFailStreak);
+            if (commandFailures > 0) {
+              Serial.printf("[HubCommandTask] Link recovered after %u failed request(s).\n", commandFailures);
             }
-            g_hubFailStreak = 0;
+            commandFailures = 0;
             commandPayload = httpCmd.getString();
             commandPayload.trim();
           } else {
-            if (g_hubFailStreak < 255) {
-              g_hubFailStreak++;
+            if (commandFailures < 255) {
+              commandFailures++;
             }
+            if (commandFailures == 1 || commandFailures % 10 == 0) {
+              Serial.printf("[HubCommandTask] /flowCommand failed: HTTP %d (consecutive=%u).\n",
+                            cmdCode, commandFailures);
+            }
+            httpCmd.setReuse(false); // discard a failed/partial response
           }
           httpCmd.end();
+          httpCmd.setReuse(true);
+          hubCommandFailures.store(commandFailures);
           xSemaphoreGive(hubHttpMutex);
 
           // Parsed outside the bus mutex: applying a command touches the DAC and the
@@ -65,31 +80,42 @@ void telemetryTask(void *parameter) {
   static HTTPClient http;
   http.setReuse(true);
   uint16_t telemetryFailures = 0;
+  uint16_t transportFailures = 0;
 
   for (;;) {
     unsigned long now = millis();
     unsigned long currentTelemetryInterval = telemetryInterval;
-    if (g_hubFailStreak > 0) {
-      uint8_t shift = (g_hubFailStreak > 4) ? 4 : g_hubFailStreak;
-      currentTelemetryInterval = min(telemetryInterval * (1UL << shift), MAX_HUB_BACKOFF_MS);
+    if (telemetryFailures > 0) {
+      uint8_t shift = (telemetryFailures > 4) ? 4 : telemetryFailures;
+      currentTelemetryInterval = min(telemetryInterval * (1UL << shift), MAX_TELEMETRY_BACKOFF_MS);
     }
 
     static unsigned long lastHelloCheckMs = 0;
     static bool hubAnnounced = false;
-    if (g_hubFailStreak >= 8 || telemetryFailures >= telemetryFailuresBeforeRelink) {
+    if (telemetryFailures >= telemetryFailuresBeforeRelink) {
       hubAnnounced = false;
     }
-    if (!otaInProgress && WiFi.status() == WL_CONNECTED && (!hubAnnounced || now - lastHelloCheckMs >= 30000)) {
-      lastHelloCheckMs = now;
+    if (!otaInProgress && WiFi.status() == WL_CONNECTED &&
+        now - lastHelloCheckMs >= (hubAnnounced ? 30000UL : 5000UL) &&
+        now - lastHTTPDataTime < currentTelemetryInterval) {
       char helloUrl[140];
       snprintf(helloUrl, sizeof(helloUrl), "%s/nodeHello?dev=flowmeter&ver=%s&mac=%s",
                sensorHubURL.c_str(), FW_VERSION, WiFi.macAddress().c_str());
-      if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
+      if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        if (otaInProgress || WiFi.status() != WL_CONNECTED) {
+          xSemaphoreGive(hubHttpMutex);
+          continue;
+        }
+        lastHelloCheckMs = millis();
         static HTTPClient httpHello;
         httpHello.begin(helloUrl);
         httpHello.setConnectTimeout(hubConnectTimeoutMs);
         httpHello.setTimeout(hubRequestTimeoutMs);
         int helloCode = httpHello.GET();
+        if (helloCode > 0) hubLastResponseMs.store(millis());
+        // This low-rate request uses a fresh socket; no unread response body
+        // may leak into the next announcement.
+        httpHello.setReuse(false);
         httpHello.end();
         xSemaphoreGive(hubHttpMutex);
         if (helloCode == 200) {
@@ -101,8 +127,8 @@ void telemetryTask(void *parameter) {
       }
     }
 
+    now = millis(); // an announcement may have waited for the HTTP timeout
     if (!otaInProgress && WiFi.status() == WL_CONNECTED && now - lastHTTPDataTime >= currentTelemetryInterval) {
-      lastHTTPDataTime = now;
 
       float snapTarget, snapOutput, snapFF, snapTransitionV;
       uint8_t snapValve1, snapValve2, snapValveFlow;
@@ -156,26 +182,44 @@ void telemetryTask(void *parameter) {
                snapTransitionV,
                currentCalCrc,
                hwStatus);
-      if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
+      if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        if (otaInProgress || WiFi.status() != WL_CONNECTED) {
+          xSemaphoreGive(hubHttpMutex);
+          continue;
+        }
+        lastHTTPDataTime = millis();
         http.begin(url);
         http.setConnectTimeout(hubConnectTimeoutMs);
         http.setTimeout(hubRequestTimeoutMs);
         int telemetryCode = http.GET();
+        if (telemetryCode > 0) hubLastResponseMs.store(millis());
+        // Consume the response before end(): keep-alive is safe only once all
+        // response bytes have been read. Failed responses get a fresh socket.
+        if (telemetryCode == 200) {
+          http.getString();
+        } else {
+          http.setReuse(false);
+        }
         http.end();
+        http.setReuse(true);
         xSemaphoreGive(hubHttpMutex);
 
         if (telemetryCode == 200) {
-          if (telemetryFailures > 0 || g_hubFailStreak > 0) {
+          if (telemetryFailures > 0) {
             Serial.printf("[HubTelemetryTask] Link recovered after %u failed request(s).\n",
-                          max((uint16_t)g_hubFailStreak, telemetryFailures));
+                          telemetryFailures);
           }
           telemetryFailures = 0;
-          g_hubFailStreak = 0;
+          transportFailures = 0;
         } else {
-          if (g_hubFailStreak < 255) {
-            g_hubFailStreak++;
+          if (telemetryFailures < UINT16_MAX) telemetryFailures++;
+          if (telemetryCode < 0) {
+            if (transportFailures < UINT16_MAX) transportFailures++;
+          } else {
+            // HTTP 4xx/5xx proves a reachable server. Reassociation cannot fix
+            // an invalid request or a server-side error.
+            transportFailures = 0;
           }
-          telemetryFailures++;
           if (telemetryFailures == 1 || telemetryFailures % 10 == 0) {
             Serial.printf("[HubTelemetryTask] /flowData failed: HTTP %d (consecutive=%u).\n",
                           telemetryCode, telemetryFailures);
@@ -184,19 +228,25 @@ void telemetryTask(void *parameter) {
           // Link watchdog. WL_CONNECTED only says the station is associated; it says
           // nothing about the path working. Without this the failure count just grew
           // forever and the flowmeter stayed silently mute until someone power-cycled it.
-          if (g_hubFailStreak >= 8 || telemetryFailures >= telemetryFailuresBeforeRelink) {
-            Serial.printf("[HubTelemetryTask] Link is associated but mute (streak=%u, fails=%u); forcing reassociation.\n",
-                          g_hubFailStreak, telemetryFailures);
-            telemetryFailures = 0;
-            g_hubFailStreak = 0;
-            if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(2000)) == pdTRUE) {
-              http.end();
+          if (transportFailures >= telemetryFailuresBeforeRelink &&
+              millis() - hubLastResponseMs.load() >= hubSilenceBeforeRelinkMs) {
+            if (xSemaphoreTake(hubHttpMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+              // A successful command/hello may have arrived while waiting.
+              // Never disconnect an OTA upload or an already disconnected STA.
+              if (!otaInProgress && reconnect_Wifi && WiFi.status() == WL_CONNECTED &&
+                  millis() - hubLastResponseMs.load() >= hubSilenceBeforeRelinkMs) {
+                Serial.printf("[HubTelemetryTask] No HTTP response for %lu ms (transport fails=%u); forcing reassociation.\n",
+                              millis() - hubLastResponseMs.load(), transportFailures);
+                telemetryFailures = 0;
+                transportFailures = 0;
+                hubAnnounced = false;
+                WiFi.disconnect(false, false);
+              }
               xSemaphoreGive(hubHttpMutex);
             }
-            // wifiTask owns reconnection; dropping the association is enough to wake it.
-            WiFi.disconnect(false, false);
           }
         }
+        hubTelemetryFailures.store(telemetryFailures);
       }
     }
     vTaskDelay(pdMS_TO_TICKS(20));

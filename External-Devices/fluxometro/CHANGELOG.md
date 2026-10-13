@@ -1,5 +1,13 @@
 # Changelog — Fluxômetro
 
+## v12.1 — 2026-10-12
+
+- Consulta de comandos a 2 Hz, telemetria a 2 Hz, contadores de falha separados e recuo de telemetria limitado a 1 s.
+- Disputa do mutex não consome o período de envio; presença é anunciada com intervalo mínimo de 5 s na recuperação.
+- Reassociação exige falhas de transporte e 15 s sem resposta HTTP de qualquer endpoint; erros HTTP 4xx/5xx não derrubam o Wi-Fi. Rechecagem de OTA, conexão e resposta recente sob mutex.
+- Diagnóstico com contadores separados; controle local e schema EEPROM v7 preservados.
+- Testes de software e compilação; confirmação física pendente.
+
 ## v12.0 — 2026-09-13
 
 - `transition_v` passou a definir a tensão editável que separa os segmentos; `0.0545 V` é somente default e valor de migração.

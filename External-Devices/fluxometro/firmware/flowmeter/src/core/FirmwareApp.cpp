@@ -1,6 +1,7 @@
 #include "FirmwareApp.h"
 
 #include <Arduino.h>
+#include <atomic>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <Adafruit_MCP4725.h>
@@ -13,7 +14,7 @@
 #include <EEPROM.h>
 #include <Update.h>      // OTA: writes the inactive app slot, see setupOTA()
 
-#define FW_VERSION "v12.0"
+#define FW_VERSION "v12.1"
 #define FW_BUILD FW_VERSION " (" __DATE__ " " __TIME__ ")"
 
 const char* ap_ssid = "Floxometro_AP";
@@ -155,15 +156,20 @@ char outputMessage[640];   // V12: transition_v added, keep headroom
 String sensorHubURL = "http://192.168.4.1";
 unsigned long lastHTTPDataTime = 0;
 unsigned long lastCommandPollTime = 0;
-// 250 ms, not the former 100 ms. A gas setpoint changes on the scale of seconds,
-// so polling at 10 Hz bought no response time and cost 10 TCP handshakes/s on a hub
-// that also serves the PC, biomass, agitator, pump and servo node.
-const unsigned long commandPollInterval = 250;
+// Gas references change on the scale of seconds. 2 Hz command polling + 2 Hz
+// telemetry cuts steady HTTP requests from 6/s to 4/s; local PI stays at 10 Hz.
+const unsigned long commandPollInterval = 500;
 const unsigned long telemetryInterval = 500;
 const uint16_t hubConnectTimeoutMs = 1000;
 const uint16_t hubRequestTimeoutMs = 1500;
-uint8_t g_hubFailStreak = 0;
 constexpr unsigned long MAX_HUB_BACKOFF_MS = 15000;
+// Must remain below the Hub's 6000 ms telemetry freshness limit. Command
+// endpoint failures must never suspend healthy process telemetry.
+constexpr unsigned long MAX_TELEMETRY_BACKOFF_MS = 1000;
+std::atomic<uint16_t> hubTelemetryFailures{0};
+std::atomic<uint8_t> hubCommandFailures{0};
+std::atomic<unsigned long> hubLastResponseMs{0};
+constexpr unsigned long hubSilenceBeforeRelinkMs = 15000;
 
 const uint16_t telemetryFailuresBeforeRelink = 10;
 

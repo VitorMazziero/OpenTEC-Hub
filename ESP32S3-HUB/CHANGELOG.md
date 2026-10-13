@@ -1,5 +1,12 @@
 # Changelog do Hub
 
+## 10.9.1-dev — 2026-10-12 — deduplicação de comandos de gás
+
+- Estado de gás idêntico preserva a revisão pendente, seu ACK e configurações acumuladas.
+- Sem pendência, a supressão exige telemetria com idade de no máximo 6 s; o indicador online atrasado não impede novo comando.
+- Mudanças de vazão/válvulas e configurações explícitas continuam enviadas. Protocolo 10 preservado.
+- Compilação atual seleciona `MODULO_TECNAL 2`; conferir o módulo alvo antes de gravar.
+
 ## 10.9.0-dev — 2026-10-11 — bomba 3.13: dosagem, recusa e entrega na resposta do push
 
 Binário pronto para a bancada: `build/ota/ESP32S3-HUB.ino.bin` (1 202 176 B, SHA-256

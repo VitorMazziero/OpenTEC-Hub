@@ -3,7 +3,7 @@
 Testes de Contrato — Firmware do Fluxômetro v12.0
 Valida os requisitos da Etapa 2 do plano de calibração dupla:
 1. Ausência do literal operacional 0.0545f em FlowIo.h
-2. Firmware version v12.0 em FirmwareApp.cpp
+2. Firmware version v12.1 em FirmwareApp.cpp
 3. Magic Schema v7 e preservação do Schema v6
 4. transition_v adicionado ao final de CalibrationParams (offset 64..67, total 68 bytes)
 5. Migração binária v6 -> v7 preservando exatamente todos os campos legados
@@ -48,12 +48,12 @@ class TestFirmwareV12Contract(unittest.TestCase):
                          "FlowIo.h deve verificar readFlowVoltage <= flowTransitionVoltage.")
 
     def test_02_firmware_version_v12(self):
-        """FirmwareApp.cpp deve declarar FW_VERSION como v12.0."""
+        """FirmwareApp.cpp deve declarar FW_VERSION como v12.1."""
         path = os.path.join(SRC_DIR, "core", "FirmwareApp.cpp")
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        self.assertRegex(content, r'#define\s+FW_VERSION\s+"v12\.0"', "FW_VERSION deve ser v12.0.")
+        self.assertRegex(content, r'#define\s+FW_VERSION\s+"v12\.1"', "FW_VERSION deve ser v12.1.")
 
     def test_03_schema_v7_and_v6_magics(self):
         """FirmwareApp.cpp deve definir CALIBRATION_MAGIC_V6 e CALIBRATION_MAGIC (v7)."""

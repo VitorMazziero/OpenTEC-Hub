@@ -406,6 +406,10 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
   uint32_t revision = 0;
   String payload;
   if (xSemaphoreTake(cmdMutex, portMAX_DELAY) == pdTRUE) {
+    const float previousFlow = desiredFlowSetpoint;
+    const int previousV1 = desiredFlowValve1;
+    const int previousV2 = desiredFlowValve2;
+    const int previousVFlow = desiredFlowValveFlow;
     if (hasFlow) {
       desiredFlowSetpoint = max(0.0f, getValueFromJson(json, "flowSetpoint").toFloat());
       // A setpoint-only command is common in cascade control. Infer the main
@@ -415,6 +419,21 @@ uint32_t queueReliableFlowCommandFromJson(const String &json) {
     if (hasV1) desiredFlowValve1 = getValueFromJson(json, "valve_1").toInt() != 0;
     if (hasV2) desiredFlowValve2 = getValueFromJson(json, "valve_2").toInt() != 0;
     if (hasVFlow) desiredFlowValveFlow = getValueFromJson(json, "v_Flow").toInt() != 0;
+
+    // An RPM-only change in a combined frame must not create another gas
+    // revision. Keep the existing unacknowledged mailbox intact (including
+    // pending configuration); first contact and an offline node still resend.
+    const bool hasConfiguration = hasMax || hasReconnect || hasA1 || hasB1 ||
+        hasK1 || hasF1 || hasC1 || hasK2 || hasF2 || hasC2 || hasKp || hasKi ||
+        hasFfGain || hasFfOffset || hasRamp || hasTransV;
+    const bool flowTelemetryFresh = flowmeterCommOn &&
+        millis() - flowmeterLastUpdate <= FLOWMETER_TIMEOUT;
+    if (!hasConfiguration && (flowCommandAwaitingAck || flowTelemetryFresh) &&
+        previousFlow == desiredFlowSetpoint && previousV1 == desiredFlowValve1 &&
+        previousV2 == desiredFlowValve2 && previousVFlow == desiredFlowValveFlow) {
+      xSemaphoreGive(cmdMutex);
+      return 0;
+    }
 
     if (hasMax) {
       String mfVal = getValueFromJson(json, "maxFlow");

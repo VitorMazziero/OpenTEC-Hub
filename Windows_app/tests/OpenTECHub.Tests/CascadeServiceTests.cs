@@ -11,6 +11,60 @@ namespace OpenTECHub.Tests;
 /// </summary>
 public class CascadeServiceTests
 {
+    [Fact]
+    public void Changing_only_rpm_does_not_resend_gas_or_oxygen()
+    {
+        var (service, device, clock) = Build();
+        using (service)
+        {
+            service.SelectMode(CascadeMode.AgitationOnly);
+            service.Engage(331, 1.9);
+            device.Sent.Clear();
+            PushOxygen(device, clock, 30);
+            var first = OpenTECCommand.Parse(Assert.Single(device.Sent));
+            Assert.True(first.Contains(CommandKeys.FlowSetpoint));
+            device.Sent.Clear();
+            PushOxygen(device, clock, 8, frames: 12);
+            Assert.NotEmpty(device.Sent);
+            foreach (var json in device.Sent)
+            {
+                var frame = OpenTECCommand.Parse(json);
+                Assert.Equal(new[] { CommandKeys.MotorSetpoint }, frame.Keys);
+            }
+            Assert.Equal(1.9, service.LastCommandedActuation!.AerationLpm);
+        }
+    }
+
+    [Fact]
+    public void Changed_gas_is_sent_as_an_atomic_group_and_link_recovery_resends_it()
+    {
+        var (service, device, clock) = Build();
+        using (service)
+        {
+            service.SelectMode(CascadeMode.AerationOnly);
+            service.Engage(331, 1.9);
+            PushOxygen(device, clock, 30);
+            device.Sent.Clear();
+            PushOxygen(device, clock, 8, frames: 12);
+            Assert.NotEmpty(device.Sent);
+            foreach (var json in device.Sent)
+            {
+                var frame = OpenTECCommand.Parse(json);
+                Assert.Equal(new[] { CommandKeys.FlowSetpoint, CommandKeys.Valve1,
+                    CommandKeys.Valve2, CommandKeys.V_Flow }, frame.Keys);
+            }
+            device.PushState(ConnectionState.Reconnecting);
+            PushOxygen(device, clock, 30);
+            device.PushState(ConnectionState.Connected);
+            device.Sent.Clear();
+            PushOxygen(device, clock, 30, frames: 2);
+            var resent = OpenTECCommand.Parse(device.Sent.First());
+            Assert.Equal(6, resent.Count);
+            Assert.True(resent.Contains(CommandKeys.FlowSetpoint));
+            Assert.True(service.IsEngaged);
+        }
+    }
+
     [Theory]
     [InlineData(3.535679803241002, 3.55)]
     [InlineData(3.534811063355768, 3.55)]

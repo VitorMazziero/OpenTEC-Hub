@@ -274,6 +274,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
     public CascadeActuationResult? LastActuation { get; private set; }
     public CascadeActuationResult? LastCommandedActuation { get; private set; }
     private string? _lastDispatchedCommandJson;
+    private OpenTECCommand? _lastDispatchedFrame;
 
     public double OxygenSetpoint => _controller.OxygenSetpoint;
 
@@ -764,7 +765,16 @@ public sealed class CascadeService : ICascadeService, IDisposable
             var commandJson = frame.ToJson();
             if (commandJson != _lastDispatchedCommandJson)
             {
-                var result = _arbiter.Dispatch(CommandOwner.Automatic, frame);
+                // Keep gas routing atomic, but do not resend it when only RPM or
+                // the oxygen monitor changed. A cleared cache forces a full resend.
+                var previous = _lastDispatchedCommandJson is null ? null : _lastDispatchedFrame;
+                static bool IsGasKey(string key) => key is CommandKeys.FlowSetpoint
+                    or CommandKeys.Valve1 or CommandKeys.Valve2 or CommandKeys.V_Flow;
+                var gasChanged = previous is null || frame.Keys.Where(IsGasKey)
+                    .Any(key => frame.GetRawValue(key) != previous.GetRawValue(key));
+                var delta = frame.SelectKeys(key => IsGasKey(key) ? gasChanged
+                    : previous is null || frame.GetRawValue(key) != previous.GetRawValue(key));
+                var result = _arbiter.Dispatch(CommandOwner.Automatic, delta);
                 if (!result.Accepted && result.LinkUnavailable)
                 {
                     _rebasePending = true; // resend from fresh data when the link returns
@@ -777,6 +787,7 @@ public sealed class CascadeService : ICascadeService, IDisposable
                 else
                 {
                     _lastDispatchedCommandJson = commandJson;
+                    _lastDispatchedFrame = frame;
                     LastCommandedActuation = LastActuation;
                 }
             }

@@ -1,6 +1,6 @@
 # Fluxômetro
 
-Versão ativa: **v12.0**. Placa de compilação: **ESP32**.
+Versão ativa: **v12.1**. Placa de compilação: **ESP32**.
 
 - Firmware: `firmware/flowmeter`
 - Aplicativo ativo: `apps/flutter`.

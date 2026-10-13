@@ -1,6 +1,8 @@
 # Protocolo de Comunicação — Nó Fluxômetro
 
-**Versão de Firmware:** `v12.0`
+**Versão de Firmware:** `v12.1`
+
+Revisão de comunicação de 12/10/2026: espera sem adquirir o mutex não conta como tentativa. Reassociação exige falhas de transporte e pelo menos 15 s sem resposta HTTP de qualquer endpoint do Hub; respostas 4xx/5xx não justificam derrubar o Wi-Fi. Os formatos de calibração v12.0 descritos abaixo permanecem compatíveis.
 **Dispositivo:** `flowmeter` (ESP32)  
 **Papel no Sistema:** Medição e controle de vazão de gases (ar/N₂) via sensor/controlador de fluxo mássico (MFC Omega FMA-5400) com DAC I2C MCP4725, ADC I2C ADS1115 e acionamento de válvulas solenoides.
 
@@ -12,7 +14,7 @@ O nó fluxômetro opera em rede Wi-Fi associado ao SoftAP do Hub ESP32-S3 ou em 
 
 1. **Anúncio de Presença (`/nodeHello`):** Notifica o Hub sobre identidade, versão (`v12.0`) e MAC a cada 30 segundos ou na recuperação de enlace.
 2. **Push de Telemetria (`/flowData`):** Periódico a cada 500 ms (ou sob backoff exponencial em caso de falha), enviando leitura de processo, diagnóstico interno, ecos de sintonia, `cal_crc` e `hw_status`.
-3. **Pull de Comandos (`/flowCommand`):** O nó consulta o Hub periodicamente buscando comandos pendentes sob máquina de confirmação `cmd_id` / `ack_cmd_id`.
+3. **Pull de Comandos (`/flowCommand`):** O nó consulta o Hub a cada 500 ms buscando comandos pendentes sob máquina de confirmação `cmd_id` / `ack_cmd_id`. Falhas de consulta têm recuo independente e não atrasam telemetria.
 
 ```
   Fluxômetro (v12.0)                           Hub (10.3)
@@ -33,14 +35,14 @@ O nó fluxômetro opera em rede Wi-Fi associado ao SoftAP do Hub ESP32-S3 ou em 
 ## 2. Mensagens HTTP com o Hub
 
 ### 2.1 Anúncio de Presença (`GET /nodeHello`)
-- **Frequência:** A cada 30 segundos ou quando `hubAnnounced == false`.
+- **Frequência:** A cada 30 segundos após confirmação; se `hubAnnounced == false`, no máximo uma tentativa a cada 5 segundos, quando a telemetria não está vencida.
 - **Formato da URL:**
   ```http
   GET /nodeHello?dev=flowmeter&ver=v12.0&mac=XX:XX:XX:XX:XX:XX
   ```
 
 ### 2.2 Push de Telemetria e Ecos (`GET /flowData`)
-- **Frequência:** Padrão de 500 ms (ajustável; sob falhas, adota backoff exponencial de até 15 s).
+- **Frequência:** Padrão de 500 ms; sob falhas, recuo programado limitado a 1 s, independente das falhas de consulta. A latência real inclui HTTP, mutex e rádio.
 - **Parâmetros da Query String:**
   | Parâmetro | Tipo | Exemplo | Descrição |
   |---|---|---|---|

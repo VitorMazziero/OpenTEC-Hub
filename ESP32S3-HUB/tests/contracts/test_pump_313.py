@@ -143,7 +143,7 @@ class Publication(unittest.TestCase):
         self.assertIn("if (snapPumpExtSeen) {", tel)
 
     def test_version(self):
-        self.assertIn('#define HUB_FIRMWARE_VERSION "10.9.0-dev"', read("Config.h"))
+        self.assertIn('#define HUB_FIRMWARE_VERSION "10.9.1-dev"', read("Config.h"))
 
 
 if __name__ == "__main__":

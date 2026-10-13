@@ -7,11 +7,11 @@ void setupOTA() {
   });
 
   server.on("/diag", HTTP_GET, [](AsyncWebServerRequest *request) {
-    char json[320];
+    char json[384];
     snprintf(json, sizeof(json),
              "{\"device\":\"flowmeter\",\"version\":\"%s\",\"uptime_s\":%lu,"
              "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
-             "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
+             "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"command_fail_streak\":%u,\"ota\":%s,"
              "\"flow_rate\":%.4f,\"flow_sp\":%.4f}",
              FW_VERSION,
              static_cast<unsigned long>(millis() / 1000),
@@ -21,7 +21,8 @@ void setupOTA() {
              WiFi.RSSI(),
              WiFi.localIP().toString().c_str(),
              WiFi.macAddress().c_str(),
-             g_hubFailStreak,
+             static_cast<unsigned int>(hubTelemetryFailures.load()),
+             static_cast<unsigned int>(hubCommandFailures.load()),
              otaInProgress ? "true" : "false",
              readFlowRate,
              flowSetpoint);
@@ -29,11 +30,11 @@ void setupOTA() {
   });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-    char json[320];
+    char json[384];
     snprintf(json, sizeof(json),
              "{\"device\":\"flowmeter\",\"version\":\"%s\",\"uptime_s\":%lu,"
              "\"free_heap\":%u,\"wifi_status\":%d,\"ssid\":\"%s\",\"rssi\":%d,"
-             "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"ota\":%s,"
+             "\"ip\":\"%s\",\"mac\":\"%s\",\"hub_fail_streak\":%u,\"command_fail_streak\":%u,\"ota\":%s,"
              "\"flow_rate\":%.4f,\"flow_sp\":%.4f}",
              FW_VERSION,
              static_cast<unsigned long>(millis() / 1000),
@@ -43,7 +44,8 @@ void setupOTA() {
              WiFi.RSSI(),
              WiFi.localIP().toString().c_str(),
              WiFi.macAddress().c_str(),
-             g_hubFailStreak,
+             static_cast<unsigned int>(hubTelemetryFailures.load()),
+             static_cast<unsigned int>(hubCommandFailures.load()),
              otaInProgress ? "true" : "false",
              readFlowRate,
              flowSetpoint);

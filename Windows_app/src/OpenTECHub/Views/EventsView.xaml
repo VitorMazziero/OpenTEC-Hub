@@ -110,11 +110,19 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="Dados brutos" FontWeight="SemiBold" Margin="4,0,0,8" />
                     <ListBox ItemsSource="{Binding RawEvents}"
+                             ScrollViewer.CanContentScroll="False"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             HorizontalContentAlignment="Stretch"
                              AutomationProperties.Name="Dados brutos da comunicação">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontFamily="{DynamicResource FontMono}" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding Mode=OneWay}" IsReadOnly="True"
+                                         TextWrapping="Wrap" FontFamily="{DynamicResource FontMono}"
+                                         FontSize="10" Padding="3" MinHeight="0" BorderThickness="0"
+                                         Background="Transparent" Margin="0,0,0,6"
+                                         ToolTip="Selecione o texto e use Ctrl+C. Ctrl+A seleciona a mensagem inteira."
+                                         AutomationProperties.Name="Mensagem bruta, selecionável para copiar" />
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>

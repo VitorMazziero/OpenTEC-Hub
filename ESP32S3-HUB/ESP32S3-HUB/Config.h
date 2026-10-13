@@ -15,7 +15,8 @@
 // 10.7.1: idade das leituras sem estouro (o PI do banho nunca entrava).
 // 10.8.0: `bathSetpoint`, SP direto do C404 com a cascata parada; chave aditiva.
 // 10.8.1: presenca da bomba e da distancia independente do roteamento (Comm).
-#define HUB_FIRMWARE_VERSION "10.9.0-dev"
+// 10.9.1: deduplicacao de gas preserva pendencias e exige telemetria recente.
+#define HUB_FIRMWARE_VERSION "10.9.1-dev"
 #define HUB_PROTOCOL_VERSION 10
 
 // ===================================================================

@@ -1,7 +1,7 @@
 # Estado atual — Fluxômetro
 
-- Firmware ativo: `firmware/flowmeter` (v11.0)
-- Compilação: aprovada em 2026-09-13 com ESP32 core 3.3.11
+- Firmware ativo: `firmware/flowmeter` (v12.1)
+- Compilação: revisão de 2026-10-12 com ESP32 core 3.3.12
 - Contrato com o Hub: preservado estaticamente; consulte `PROTOCOL.md`
 - Baseline: preservado por SHA-256 em `archive/active-baseline`
 - Bancada/hardware: **pendente**

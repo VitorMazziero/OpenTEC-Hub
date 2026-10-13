@@ -9,6 +9,8 @@ sensor de distância. O operador usa o **aplicativo Windows** ou o **aplicativo 
 >
 > É a página aberta pelo QR code colado nos equipamentos ([PNG](docs/qrcode-downloads.png) · [SVG](docs/qrcode-downloads.svg)).
 
+> **Comandos rápidos para compilar, enviar firmware e gerar Release/ISS:** [guia de operação](docs/GUIA_COMPILAR_E_ATUALIZAR.md).
+
 ```text
                 ┌──────────────────────┐
   App Windows ──┤                      ├── Servo de agitação (Delta ASDA-B2)

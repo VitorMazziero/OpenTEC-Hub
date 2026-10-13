@@ -44,6 +44,9 @@ QR code desta página, para imprimir e colar nos equipamentos: [PNG](docs/qrcode
 
 ## Compilar, atualizar e instalar a partir do código
 
+Para o uso diário, com comandos relativos ou caminhos globais do desktop/notebook, consulte o
+[guia direto de compilação, OTA e instalador](docs/GUIA_COMPILAR_E_ATUALIZAR.md).
+
 Esta seção é para quem altera o código. Os comandos rodam no **PowerShell, a partir da raiz do
 repositório** (a pasta que contém este arquivo). Eles só geram arquivos locais ou gravam no
 equipamento; nada é publicado, exceto no passo 7.
@@ -76,7 +79,8 @@ configuração `External-Devices\tools\arduino-cli.local.yaml` e diz se falta al
 Nesse caso, instale as bibliotecas e rode de novo:
 
 ```powershell
-.\External-Devices\tools\Compile-ExternalDevices.ps1 -SharedArduinoRoot "D:\OneDrive\Documentos\Arduino"
+$arduinoRoot = Join-Path $env:OneDrive 'Documentos\Arduino' # ajuste se suas bibliotecas estiverem em outra pasta
+.\External-Devices\tools\Compile-ExternalDevices.ps1 -SharedArduinoRoot $arduinoRoot
 & $cli lib install --config-file .\External-Devices\tools\arduino-cli.local.yaml "Async TCP@3.5.0" "ESP Async WebServer@3.12.0" "VL53L0X@1.3.1" "Adafruit ADS1X15@2.6.2" "Adafruit MCP4725@2.0.2"
 ```
 
@@ -105,7 +109,8 @@ em `-LibrariesPath` no passo 3.
 & $cli compile --fqbn esp32:esp32:esp32s3 --output-dir .\ESP32S3-SERVO\Software\firmware-producao\build .\ESP32S3-SERVO\Software\firmware-producao\ASDA_B2_Servo_Node
 
 # Os seis nós externos de uma vez: gera External-Devices\tools\.build\<nó>\
-.\External-Devices\tools\Compile-ExternalDevices.ps1 -SharedArduinoRoot "D:\OneDrive\Documentos\Arduino"
+$arduinoRoot = Join-Path $env:OneDrive 'Documentos\Arduino' # ajuste se suas bibliotecas estiverem em outra pasta
+.\External-Devices\tools\Compile-ExternalDevices.ps1 -SharedArduinoRoot $arduinoRoot
 ```
 
 Nomes dos nós externos, usados nos passos 2 e 3:
@@ -161,9 +166,9 @@ equipamento continua com o firmware atual.
 .\ESP32S3-HUB\tools\ota_upload.ps1
 .\ESP32S3-HUB\tools\ota_upload.ps1 -SkipCompile        # reenvia a última imagem compilada
 
-# Nó externo: compila e envia. O IP vem do Hub (/nodes); sem Hub, usa o AP do nó.
-.\External-Devices\tools\Publish-OtaFirmware.ps1 bath -Compile -LibrariesPath "D:\OneDrive\Documentos\Arduino\libraries"
-.\External-Devices\tools\Publish-OtaFirmware.ps1 pump 192.168.4.23     # IP manual, imagem já compilada
+# Nó externo: conecte-se ao Wi-Fi direto e indique o IP explicitamente.
+.\External-Devices\tools\Publish-OtaFirmware.ps1 bath 192.168.8.1 -Compile
+.\External-Devices\tools\Publish-OtaFirmware.ps1 pump 192.168.6.1 -BinaryPath .\External-Devices\tools\.build\pump\peristaltic-pump.ino.bin
 
 # Todos os nós pela interface gráfica (um de cada vez, com a versão de cada um)
 Push-Location .\External-Devices\tools\updater_app
@@ -182,6 +187,10 @@ USB (passo 2).
 dotnet test .\Windows_app\OpenTECHub.slnx                 # testes
 dotnet run --project .\Windows_app\src\OpenTECHub          # abre sem instalar
 .\Windows_app\installer\build_installer.ps1                # publica e gera Windows_app\installer\Output\OpenTECHub_Setup_v<versão>.exe
+
+# Para limpar bin/obj antes da publicação e depois gerar só o ISS:
+& .\Windows_app\tools\Build-Release.ps1
+& .\Windows_app\installer\build_installer.ps1 -SkipPublish
 
 # Instalar a versão gerada neste PC
 Start-Process (Get-ChildItem .\Windows_app\installer\Output\OpenTECHub_Setup_v*.exe | Sort-Object LastWriteTime | Select-Object -Last 1).FullName

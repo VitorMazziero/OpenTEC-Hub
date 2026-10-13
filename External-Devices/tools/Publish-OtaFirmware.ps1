@@ -13,14 +13,20 @@ param(
     [Parameter()]
     [switch]$Compile,
 
-    # Arduino user libraries.
-    # This is explicitly passed to arduino-cli so compilation does not
-    # depend on the sketchbook path configured in arduino-cli.local.yaml.
     [Parameter()]
-    [string]$LibrariesPath = 'C:\Users\vitor\OneDrive\Documentos\Arduino\libraries'
+    [switch]$CompileOnly,
+
+    # Optional override for a machine with a nonstandard Arduino library folder.
+    [Parameter()]
+    [string]$LibrariesPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($CompileOnly) { $Compile = $true }
+if ($Compile -and $BinaryPath) {
+    throw 'Use -Compile/-CompileOnly ou -BinaryPath; nao combine compilacao com um binario anterior.'
+}
 
 # ============================================================
 # Paths / tools
@@ -43,6 +49,18 @@ else {
 }
 
 $configFile = Join-Path $scriptRoot 'arduino-cli.local.yaml'
+$configArgs = @()
+if (Test-Path -LiteralPath $configFile) {
+    $configuredDirs = @(Get-Content -LiteralPath $configFile | ForEach-Object {
+        if ($_ -match '^\s*(?:data|user):\s*(.+?)\s*$') { $Matches[1].Trim('"', "'") }
+    })
+    if ($configuredDirs.Count -eq 2 -and
+        @( $configuredDirs | Where-Object { Test-Path -LiteralPath $_ -PathType Container } ).Count -eq 2) {
+        $configArgs = @('--config-file', $configFile)
+    } else {
+        Write-Warning 'Configuracao Arduino local aponta para outra maquina; usando a configuracao padrao deste computador.'
+    }
+}
 
 
 # ============================================================
@@ -110,7 +128,7 @@ $info = $deviceMeta[$Device]
 
 $targetIp = $IpAddress
 
-if (-not $targetIp) {
+if (-not $CompileOnly -and -not $targetIp) {
 
     try {
         $hubNodesUrl = 'http://192.168.4.1/nodes'
@@ -171,12 +189,28 @@ if ($Compile) {
         throw "arduino-cli.exe nao encontrado para compilacao automatica."
     }
 
-    if (-not (Test-Path -LiteralPath $configFile)) {
-        throw "Arquivo de configuracao do Arduino CLI nao encontrado: $configFile"
+    if ([string]::IsNullOrWhiteSpace($LibrariesPath)) {
+        $libraryCandidates = [System.Collections.Generic.List[string]]::new()
+        foreach ($onedriveRoot in @($env:OneDrive, $env:OneDriveConsumer, $env:OneDriveCommercial)) {
+            if ($onedriveRoot) {
+                $libraryCandidates.Add((Join-Path $onedriveRoot 'Documentos\Arduino\libraries'))
+                $libraryCandidates.Add((Join-Path $onedriveRoot 'Documents\Arduino\libraries'))
+            }
+        }
+        if ($env:USERPROFILE) {
+            $libraryCandidates.Add((Join-Path $env:USERPROFILE 'Documents\Arduino\libraries'))
+            $libraryCandidates.Add((Join-Path $env:USERPROFILE 'OneDrive\Documentos\Arduino\libraries'))
+        }
+        if ($configArgs.Count -gt 0) {
+            $configuredUser = Get-Content -LiteralPath $configFile | Where-Object { $_ -match '^\s*user:\s*(.+?)\s*$' } | Select-Object -First 1
+            if ($configuredUser -match '^\s*user:\s*(.+?)\s*$') {
+                $libraryCandidates.Add((Join-Path $Matches[1].Trim('"', "'") 'libraries'))
+            }
+        }
+        $LibrariesPath = $libraryCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Select-Object -First 1
     }
-
-    if (-not (Test-Path -LiteralPath $LibrariesPath)) {
-        throw "Diretorio de bibliotecas Arduino nao encontrado: $LibrariesPath"
+    if (-not $LibrariesPath -or -not (Test-Path -LiteralPath $LibrariesPath -PathType Container)) {
+        throw 'Bibliotecas Arduino nao encontradas. Informe -LibrariesPath com a pasta libraries deste computador.'
     }
 
     Write-Host ""
@@ -211,8 +245,7 @@ if ($Compile) {
 
     $compileArgs = @(
         'compile'
-        '--config-file'
-        $configFile
+        $configArgs
         '--fqbn'
         $info.Fqbn
         '--libraries'
@@ -233,12 +266,28 @@ if ($Compile) {
         -ForegroundColor Green
 }
 
+if ($CompileOnly) {
+    $compiled = @(Get-ChildItem -LiteralPath $buildOut -Filter $info.BinPattern -File)
+    if ($compiled.Count -ne 1) {
+        throw "Compilacao concluida, mas nao foi encontrado um unico binario OTA em $buildOut."
+    }
+    Write-Host "[OTA] Somente compilacao. Binario: $($compiled[0].FullName)" -ForegroundColor Green
+    return
+}
+
 
 # ============================================================
 # 2. Find compiled firmware binary
 # ============================================================
 
 if (-not $BinaryPath) {
+    if ($Compile) {
+        $compiled = @(Get-ChildItem -LiteralPath $buildOut -Filter $info.BinPattern -File)
+        if ($compiled.Count -ne 1) {
+            throw "Nao foi encontrado um unico binario OTA recem-compilado em $buildOut."
+        }
+        $BinaryPath = $compiled[0].FullName
+    } else {
 
     $searchPaths = @(
         (Join-Path $scriptRoot ".build\$Device"),
@@ -271,14 +320,15 @@ if (-not $BinaryPath) {
 Nenhum arquivo de firmware .bin encontrado para $Device.
 
 Compile usando:
-    .\Publish-OtaFirmware.ps1 $Device -Compile
+    .\External-Devices\tools\Publish-OtaFirmware.ps1 $Device -CompileOnly
 
 ou especifique manualmente:
-    .\Publish-OtaFirmware.ps1 $Device -BinaryPath "C:\caminho\firmware.bin"
+    .\External-Devices\tools\Publish-OtaFirmware.ps1 $Device -BinaryPath .\caminho\firmware.ino.bin
 "@
     }
 
     $BinaryPath = $candidates[0].FullName
+    }
 }
 
 

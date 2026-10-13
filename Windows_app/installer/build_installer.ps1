@@ -102,12 +102,7 @@ if ($isccPath) {
     Write-Host "`nInstalador gerado com sucesso!" -ForegroundColor Green
     Write-Host "Caminho do arquivo: $setupExe" -ForegroundColor White
 } else {
-    Write-Host "`n[AVISO] Compilador Inno Setup 6 (ISCC.exe) nao foi encontrado no sistema." -ForegroundColor Magenta
-    Write-Host "A pasta publicada esta pronta em: $PublishDir" -ForegroundColor White
-    Write-Host "Para gerar o arquivo '.exe' do instalador:" -ForegroundColor White
-    Write-Host "  1. Baixe e instale o Inno Setup 6 em: https://jrsoftware.org/isdl.php" -ForegroundColor Cyan
-    Write-Host "  2. Execute este script novamente: .\build_installer.ps1" -ForegroundColor Cyan
-    Write-Host "  ou abra 'installer\OpenTECHub_Setup.iss' no Inno Setup e pressione F9." -ForegroundColor Cyan
+    throw "Inno Setup (ISCC.exe) nao encontrado. Instale o Inno Setup 6/7 ou adicione ISCC.exe ao PATH antes de gerar o instalador. Publicacao disponivel em: $PublishDir"
 }
 
 Write-Host "`nOperacao finalizada." -ForegroundColor Cyan

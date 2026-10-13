@@ -18,6 +18,49 @@ Set-Location 'C:\Users\vitor\OneDrive\PosDoc_Fapesp\_Automacao_e_Controle\Projet
 
 Depois de entrar na pasta, use os mesmos comandos relativos abaixo. `arduino-cli` e o core ESP32 precisam estar instalados (ou `arduino-cli.exe` disponível em `tools\.bin`); bibliotecas Arduino são procuradas no OneDrive deste computador, em `Documents/Arduino` ou no arquivo local de configuração. Se estiverem em outra pasta, passe `-LibrariesPath 'caminho\para\libraries'` nos comandos de compilação dos nós externos.
 
+## Tabela de todos os comandos
+
+Execute na raiz do projeto. Escolha somente a operação desejada. Para enviar por Wi-Fi, conecte-se ao AP do equipamento indicado na tabela de redes abaixo. Compilar usa o código atual da pasta; enviar usa o binário especificado.
+
+| Dispositivo | Operação | Comando relativo |
+|---|---|---|
+| Fluxômetro | Só compilar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 flowmeter -CompileOnly` |
+| Fluxômetro | Só enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 flowmeter 192.168.10.1 -BinaryPath .\External-Devices\tools\.build\flowmeter\flowmeter.ino.bin` |
+| Fluxômetro | Compilar e enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 flowmeter 192.168.10.1 -Compile` |
+| Bomba peristáltica | Só compilar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 pump -CompileOnly` |
+| Bomba peristáltica | Só enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 pump 192.168.6.1 -BinaryPath .\External-Devices\tools\.build\pump\peristaltic-pump.ino.bin` |
+| Bomba peristáltica | Compilar e enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 pump 192.168.6.1 -Compile` |
+| Frasco agitador | Só compilar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 agitator -CompileOnly` |
+| Frasco agitador | Só enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 agitator 192.168.4.1 -BinaryPath .\External-Devices\tools\.build\agitator\flask-agitator.ino.bin` |
+| Frasco agitador | Compilar e enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 agitator 192.168.4.1 -Compile` |
+| Biomassa | Só compilar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 biomass -CompileOnly` |
+| Biomassa | Só enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 biomass 192.168.7.1 -BinaryPath .\External-Devices\tools\.build\biomass\biomass-sensor.ino.bin` |
+| Biomassa | Compilar e enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 biomass 192.168.7.1 -Compile` |
+| Distância | Só compilar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 distance -CompileOnly` |
+| Distância | Só enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 distance 192.168.5.1 -BinaryPath .\External-Devices\tools\.build\distance\distance-sensor.ino.bin` |
+| Distância | Compilar e enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 distance 192.168.5.1 -Compile` |
+| Banho | Só compilar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 bath -CompileOnly` |
+| Banho | Só enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 bath 192.168.8.1 -BinaryPath .\External-Devices\tools\.build\bath\thermostatic-bath.ino.bin` |
+| Banho | Compilar e enviar | `& .\External-Devices\tools\Publish-OtaFirmware.ps1 bath 192.168.8.1 -Compile` |
+| Hub | Só compilar | `& .\ESP32S3-HUB\tools\compile.ps1 -OutputDir .\ESP32S3-HUB\build\ota` |
+| Hub | Só enviar | `& .\ESP32S3-HUB\tools\ota_upload.ps1 -HubIp 192.168.4.1 -Bin .\ESP32S3-HUB\build\ota\ESP32S3-HUB.ino.bin` |
+| Hub | Compilar e enviar | `& .\ESP32S3-HUB\tools\ota_upload.ps1 -HubIp 192.168.4.1` |
+| Windows | Limpar bin/obj e gerar Release | `& .\Windows_app\tools\Build-Release.ps1` |
+| Windows | Gerar somente o instalador ISS | `& .\Windows_app\installer\build_installer.ps1 -SkipPublish` |
+| Windows | Publicar e gerar ISS, sem limpeza prévia | `& .\Windows_app\installer\build_installer.ps1` |
+
+### Servo ASDA-B2: somente USB
+
+Defina `$cli` para o Arduino CLI instalado: `$cli = "arduino-cli"`, ou `$cli = (Resolve-Path .\ESP32S3-HUB\tools\.bin\arduino-cli.exe).Path` se usar a cópia local. Troque `COM5` pela porta da placa (`& $cli board list`). Confira `MODULO_TECNAL_ALVO` no sketch antes de compilar.
+
+| Operação | Comando relativo |
+|---|---|
+| Só compilar | `& $cli compile --fqbn esp32:esp32:esp32s3 --output-dir .\ESP32S3-SERVO\Software\firmware-producao\build .\ESP32S3-SERVO\Software\firmware-producao\ASDA_B2_Servo_Node` |
+| Só enviar por USB | `& $cli upload -p COM5 --fqbn esp32:esp32:esp32s3 --input-dir .\ESP32S3-SERVO\Software\firmware-producao\build .\ESP32S3-SERVO\Software\firmware-producao\ASDA_B2_Servo_Node` |
+
+Para compilar e enviar o servo, execute essas duas linhas na ordem e só faça o envio se a compilação terminar sem erro. O servo não oferece OTA.
+
+
 ## Firmware dos seis dispositivos externos
 
 Escolha o nome e o IP da tabela. Conecte o computador **ao Wi-Fi do próprio dispositivo** antes de enviar; o IP explícito impede que o script escolha outro nó por descoberta no Hub.
